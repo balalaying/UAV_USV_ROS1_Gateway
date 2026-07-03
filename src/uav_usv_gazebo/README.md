@@ -9,3 +9,7 @@ Future contents:
 - Standard head-on, crossing, and overtaking scenes.
 
 The existing runnable worlds and plugins remain in `uav_usv_sim` until each asset is migrated and verified.
+
+## 第一阶段任务
+
+本包负责海面世界、动态目标船和标准测试场景。
