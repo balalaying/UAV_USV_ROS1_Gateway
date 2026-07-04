@@ -84,16 +84,38 @@ def _launch_setup(context, *args, **kwargs):
     keyboard_topic = LaunchConfiguration('keyboard_topic').perform(context)
     start_rviz = _as_bool(LaunchConfiguration('start_rviz').perform(context))
     rviz_config = LaunchConfiguration('rviz_config').perform(context)
+    fuel_cache_path = os.path.expanduser(
+        LaunchConfiguration('fuel_cache_path').perform(context)
+    )
+    asset_root = os.path.expanduser(
+        LaunchConfiguration('asset_root').perform(context)
+    )
     workspace_prefix = os.path.dirname(package_prefix)
     workspace_setup = os.path.join(workspace_prefix, 'setup.bash')
+    prepare_script = os.path.join(
+        package_prefix,
+        'lib',
+        package_name,
+        'prepare_coastline.sh',
+    )
+    gz_command = ' '.join(
+        shlex.quote(value) for value in ['gz', 'sim', *gz_args, world_path]
+    )
 
     actions = [
         ExecuteProcess(
-            cmd=['gz', 'sim', *gz_args, world_path],
+            cmd=[
+                'bash',
+                '-c',
+                f'{shlex.quote(prepare_script)} && {gz_command}',
+            ],
             output='screen',
             additional_env={
+                'GZ_FUEL_CACHE_PATH': fuel_cache_path,
+                'UAV_USV_ASSET_ROOT': asset_root,
                 'GZ_SIM_RESOURCE_PATH': (
-                    models_dir + ':' + os.environ.get('GZ_SIM_RESOURCE_PATH', '')
+                    asset_root + ':' + models_dir + ':'
+                    + os.environ.get('GZ_SIM_RESOURCE_PATH', '')
                 ),
                 'GZ_SIM_SYSTEM_PLUGIN_PATH': (
                     plugin_dir + ':' + os.environ.get('GZ_SIM_SYSTEM_PLUGIN_PATH', '')
@@ -215,6 +237,16 @@ def generate_launch_description():
                 'rviz_config',
                 default_value=default_rviz_config,
                 description='RViz config used when start_rviz is true.',
+            ),
+            DeclareLaunchArgument(
+                'fuel_cache_path',
+                default_value='/var/tmp/UAV_USV_gz_fuel',
+                description='Gazebo Fuel cache kept outside /home.',
+            ),
+            DeclareLaunchArgument(
+                'asset_root',
+                default_value='/var/tmp/UAV_USV_assets',
+                description='Generated external simulation asset directory.',
             ),
             OpaqueFunction(function=_launch_setup),
         ]

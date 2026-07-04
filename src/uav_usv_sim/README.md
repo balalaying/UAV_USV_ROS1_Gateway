@@ -10,6 +10,8 @@ layout, and COLREGs test scenes, see `docs/多源海事感知第一阶段.md`.
 - `worlds/default.sdf`: ocean world, waves, lighthouse, boat include, x500 deck follower plugin.
 - `models/simple_boat`: USV model with landing pad and wave motion plugin.
 - `models/waves`: local copy of the Gazebo waves visual model.
+- `config/sydney_coast.model.*`: scaled wrapper for the Open Robotics Sydney
+  Regatta coastline.
 - `plugins/BoatWaveFollower.cc`: makes the boat heave / roll / pitch with waves.
 - `plugins/DroneDeckFollower.cc`: keeps `x500_0` attached to the boat deck while parked.
 - `scripts/keyboard_boat_control.py`: keyboard teleop for `/model/simple_boat/cmd_vel`.
@@ -46,6 +48,17 @@ ros2 run uav_usv_sim keyboard_boat_control
 source $UAV_USV_INSTALL/setup.bash
 ros2 run uav_usv_sim run_gz_world.sh
 ```
+
+The first world launch downloads the official Sydney Regatta coastline from
+Gazebo Fuel. Its roughly 137 MB cache is stored under `/var/tmp`, not `/home`:
+
+```bash
+export GZ_FUEL_CACHE_PATH=/var/tmp/UAV_USV_gz_fuel
+export UAV_USV_ASSET_ROOT=/var/tmp/UAV_USV_assets
+```
+
+After the first successful download, the coastline can be loaded from the local
+cache. See `docs/第三方资源说明.md` for source and license attribution.
 
 ## Run Gazebo World With Keyboard Control
 

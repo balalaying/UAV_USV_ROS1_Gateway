@@ -13,7 +13,12 @@ else
   PLUGIN_DIR="${SHARE_DIR}/../../build/uav_usv_sim"
 fi
 
-export GZ_SIM_RESOURCE_PATH="${SHARE_DIR}/models:${GZ_SIM_RESOURCE_PATH:-}"
+export GZ_FUEL_CACHE_PATH="${GZ_FUEL_CACHE_PATH:-/var/tmp/UAV_USV_gz_fuel}"
+export UAV_USV_ASSET_ROOT="${UAV_USV_ASSET_ROOT:-/var/tmp/UAV_USV_assets}"
+
+"${SCRIPT_DIR}/prepare_coastline.sh"
+
+export GZ_SIM_RESOURCE_PATH="${UAV_USV_ASSET_ROOT}:${SHARE_DIR}/models:${GZ_SIM_RESOURCE_PATH:-}"
 export GZ_SIM_SYSTEM_PLUGIN_PATH="${PLUGIN_DIR}:${GZ_SIM_SYSTEM_PLUGIN_PATH:-}"
 
 gz sim -r "${SHARE_DIR}/worlds/default.sdf"

@@ -94,6 +94,7 @@ install(PROGRAMS
 
 install(PROGRAMS
   tools/run_gz_world.sh
+  tools/prepare_coastline.sh
   tools/sync_to_px4.sh
   DESTINATION lib/${PROJECT_NAME}
 )

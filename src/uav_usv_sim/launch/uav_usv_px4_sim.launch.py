@@ -71,6 +71,12 @@ def _launch_setup(context, *args, **kwargs):
     model_pose = LaunchConfiguration('model_pose').perform(context)
     start_rviz = _as_bool(LaunchConfiguration('start_rviz').perform(context))
     rviz_config = LaunchConfiguration('rviz_config').perform(context)
+    fuel_cache_path = os.path.expanduser(
+        LaunchConfiguration('fuel_cache_path').perform(context)
+    )
+    asset_root = os.path.expanduser(
+        LaunchConfiguration('asset_root').perform(context)
+    )
 
     px4_error = _px4_dir_error(px4_dir)
     if px4_error is not None:
@@ -82,7 +88,6 @@ def _launch_setup(context, *args, **kwargs):
         'uav_usv_sim',
         'sync_to_px4.sh',
     )
-
     command = (
         f'{shlex.quote(sync_script)} && '
         f'cd {shlex.quote(px4_dir)} && '
@@ -98,6 +103,11 @@ def _launch_setup(context, *args, **kwargs):
                 'PX4_GZ_WORLD': 'default',
                 'PX4_GZ_MODEL_POSE': model_pose,
                 'GZ_IP': '127.0.0.1',
+                'GZ_FUEL_CACHE_PATH': fuel_cache_path,
+                'UAV_USV_ASSET_ROOT': asset_root,
+                'GZ_SIM_RESOURCE_PATH': (
+                    asset_root + ':' + os.environ.get('GZ_SIM_RESOURCE_PATH', '')
+                ),
                 'HOME': os.environ.get('HOME', ''),
             },
         ),
@@ -153,6 +163,16 @@ def generate_launch_description():
                 'rviz_config',
                 default_value=default_rviz_config,
                 description='RViz config used when start_rviz is true.',
+            ),
+            DeclareLaunchArgument(
+                'fuel_cache_path',
+                default_value='/var/tmp/UAV_USV_gz_fuel',
+                description='Gazebo Fuel cache kept outside /home.',
+            ),
+            DeclareLaunchArgument(
+                'asset_root',
+                default_value='/var/tmp/UAV_USV_assets',
+                description='Generated external simulation asset directory.',
             ),
             OpaqueFunction(function=_launch_setup),
         ]

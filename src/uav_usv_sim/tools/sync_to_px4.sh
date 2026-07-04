@@ -29,6 +29,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_PREFIX="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 SOURCE_PREFIX="$(cd "${SCRIPT_DIR}/.." && pwd)"
+export GZ_FUEL_CACHE_PATH="${GZ_FUEL_CACHE_PATH:-/var/tmp/UAV_USV_gz_fuel}"
+export UAV_USV_ASSET_ROOT="${UAV_USV_ASSET_ROOT:-/var/tmp/UAV_USV_assets}"
 
 if [ -d "${INSTALL_PREFIX}/share/uav_usv_sim" ]; then
   SHARE_DIR="${INSTALL_PREFIX}/share/uav_usv_sim"
@@ -40,6 +42,8 @@ else
   cp "${PX4_DIR}/build/drone_deck_follower/libDroneDeckFollower.so" "${PLUGIN_DIR}/" 2>/dev/null || true
   cp "${PX4_DIR}/build/boat_wave_follower/libBoatWaveFollower.so" "${PLUGIN_DIR}/" 2>/dev/null || true
 fi
+
+"${SCRIPT_DIR}/prepare_coastline.sh"
 
 mkdir -p "${PX4_DIR}/Tools/simulation/gz/worlds"
 mkdir -p "${HOME}/.gz/models/simple_boat"
@@ -56,6 +60,7 @@ sed \
   -e "s#model://waves#file://${HOME}/.gz/models/waves#g" \
   -e "s#model://simple_boat#file://${HOME}/.gz/models/simple_boat#g" \
   -e "s#model://medium_buoy#file://${HOME}/.gz/models/medium_buoy#g" \
+  -e "s#model://sydney_coast#file://${UAV_USV_ASSET_ROOT}/sydney_coast#g" \
   -e "s#filename=\"libDroneDeckFollower.so\"#filename=\"${PLUGIN_DIR}/libDroneDeckFollower.so\"#g" \
   -e "s#filename='libDroneDeckFollower.so'#filename='${PLUGIN_DIR}/libDroneDeckFollower.so'#g" \
   "${SHARE_DIR}/worlds/default.sdf" > "${PX4_DIR}/Tools/simulation/gz/worlds/default.sdf"

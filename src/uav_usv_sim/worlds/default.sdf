@@ -113,6 +113,11 @@
       <pose>0 0 0.015 0 0 0</pose>
     </include>
     <include>
+      <uri>model://sydney_coast</uri>
+      <name>sydney_coastline</name>
+      <pose>0 0 0 0 0 0.475</pose>
+    </include>
+    <include>
       <uri>model://medium_buoy</uri>
       <name>medium_buoy_west_channel</name>
       <pose>-42 44 0 0 0 0.25</pose>
