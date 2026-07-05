@@ -1,0 +1,263 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <model name="shore_platform">
+    <static>true</static>
+    <link name="offshore_base">
+      <!-- Reinforced concrete caisson and steel service deck. -->
+      <collision name="caisson_collision">
+        <pose>0 0 0.55 0 0 0</pose>
+        <geometry><box><size>30 22 1.1</size></box></geometry>
+      </collision>
+      <visual name="caisson_visual">
+        <pose>0 0 0.55 0 0 0</pose>
+        <geometry><box><size>30 22 1.1</size></box></geometry>
+        <material>
+          <ambient>0.13 0.15 0.16 1</ambient>
+          <diffuse>0.25 0.28 0.29 1</diffuse>
+          <specular>0.08 0.08 0.08 1</specular>
+        </material>
+      </visual>
+      <collision name="deck_collision">
+        <pose>0 0 1.28 0 0 0</pose>
+        <geometry><box><size>29.6 21.6 0.24</size></box></geometry>
+      </collision>
+      <visual name="deck_visual">
+        <pose>0 0 1.28 0 0 0</pose>
+        <geometry><box><size>29.6 21.6 0.24</size></box></geometry>
+        <material>
+          <ambient>0.25 0.28 0.29 1</ambient>
+          <diffuse>0.42 0.45 0.46 1</diffuse>
+          <specular>0.16 0.16 0.16 1</specular>
+        </material>
+      </visual>
+      <visual name="hazard_edge_north">
+        <pose>0 10.72 1.42 0 0 0</pose>
+        <geometry><box><size>29 0.28 0.05</size></box></geometry>
+        <material><ambient>0.95 0.68 0.02 1</ambient><diffuse>1 0.78 0.04 1</diffuse></material>
+      </visual>
+      <visual name="hazard_edge_south">
+        <pose>0 -10.72 1.42 0 0 0</pose>
+        <geometry><box><size>29 0.28 0.05</size></box></geometry>
+        <material><ambient>0.95 0.68 0.02 1</ambient><diffuse>1 0.78 0.04 1</diffuse></material>
+      </visual>
+
+      <!-- Raised helipad, centered at local x=6 m. -->
+      <collision name="helipad_collision">
+        <pose>6 0 1.42 0 0 0</pose>
+        <geometry><cylinder><radius>5.3</radius><length>0.2</length></cylinder></geometry>
+      </collision>
+      <visual name="helipad_outer_disc">
+        <pose>6 0 1.42 0 0 0</pose>
+        <geometry><cylinder><radius>5.3</radius><length>0.2</length></cylinder></geometry>
+        <material>
+          <ambient>0.92 0.64 0.015 1</ambient>
+          <diffuse>1 0.75 0.03 1</diffuse>
+        </material>
+      </visual>
+      <visual name="helipad_inner_disc">
+        <pose>6 0 1.535 0 0 0</pose>
+        <geometry><cylinder><radius>4.92</radius><length>0.025</length></cylinder></geometry>
+        <material>
+          <ambient>0.055 0.065 0.07 1</ambient>
+          <diffuse>0.1 0.12 0.13 1</diffuse>
+          <specular>0.2 0.2 0.2 1</specular>
+        </material>
+      </visual>
+      <visual name="helipad_h_left">
+        <pose>6 1.05 1.555 0 0 0</pose>
+        <geometry><box><size>3.5 0.42 0.035</size></box></geometry>
+        <material><ambient>0.95 0.95 0.9 1</ambient><diffuse>1 1 0.96 1</diffuse></material>
+      </visual>
+      <visual name="helipad_h_right">
+        <pose>6 -1.05 1.555 0 0 0</pose>
+        <geometry><box><size>3.5 0.42 0.035</size></box></geometry>
+        <material><ambient>0.95 0.95 0.9 1</ambient><diffuse>1 1 0.96 1</diffuse></material>
+      </visual>
+      <visual name="helipad_h_crossbar">
+        <pose>6 0 1.558 0 0 0</pose>
+        <geometry><box><size>0.42 2.5 0.04</size></box></geometry>
+        <material><ambient>0.95 0.95 0.9 1</ambient><diffuse>1 1 0.96 1</diffuse></material>
+      </visual>
+
+      <!-- UAV hangar with an open-door facade and rooftop solar array. -->
+      <collision name="hangar_collision">
+        <pose>-7 0 3.5 0 0 0</pose>
+        <geometry><box><size>9.5 9 4.2</size></box></geometry>
+      </collision>
+      <visual name="hangar_body">
+        <pose>-7 0 3.5 0 0 0</pose>
+        <geometry><box><size>9.5 9 4.2</size></box></geometry>
+        <material>
+          <ambient>0.48 0.52 0.54 1</ambient>
+          <diffuse>0.7 0.74 0.75 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+      <visual name="hangar_roof">
+        <pose>-7 0 5.72 0 0 0</pose>
+        <geometry><box><size>10 9.5 0.28</size></box></geometry>
+        <material><ambient>0.15 0.17 0.18 1</ambient><diffuse>0.24 0.27 0.28 1</diffuse></material>
+      </visual>
+      <visual name="hangar_door">
+        <pose>-2.235 0 3.2 0 0 0</pose>
+        <geometry><box><size>0.06 6.6 3.35</size></box></geometry>
+        <material>
+          <ambient>0.035 0.045 0.05 1</ambient>
+          <diffuse>0.07 0.09 0.1 1</diffuse>
+          <specular>0.45 0.5 0.52 1</specular>
+        </material>
+      </visual>
+      <visual name="hangar_sign">
+        <pose>-2.19 0 5.15 0 0 0</pose>
+        <geometry><box><size>0.04 4.6 0.42</size></box></geometry>
+        <material><ambient>0.04 0.28 0.48 1</ambient><diffuse>0.06 0.5 0.82 1</diffuse><emissive>0.02 0.12 0.25 1</emissive></material>
+      </visual>
+      <visual name="solar_panel_a">
+        <pose>-8.8 -2.2 5.98 0.12 0 0</pose>
+        <geometry><box><size>3.2 3.4 0.1</size></box></geometry>
+        <material><ambient>0.02 0.08 0.16 1</ambient><diffuse>0.03 0.18 0.38 1</diffuse><specular>0.8 0.85 0.9 1</specular></material>
+      </visual>
+      <visual name="solar_panel_b">
+        <pose>-5.2 -2.2 5.98 0.12 0 0</pose>
+        <geometry><box><size>3.2 3.4 0.1</size></box></geometry>
+        <material><ambient>0.02 0.08 0.16 1</ambient><diffuse>0.03 0.18 0.38 1</diffuse><specular>0.8 0.85 0.9 1</specular></material>
+      </visual>
+
+      <!-- Elevated operations room and radar mast. -->
+      <collision name="control_room_collision">
+        <pose>-8 7.2 3.15 0 0 0</pose>
+        <geometry><box><size>6 4.2 3.5</size></box></geometry>
+      </collision>
+      <visual name="control_room_body">
+        <pose>-8 7.2 3.15 0 0 0</pose>
+        <geometry><box><size>6 4.2 3.5</size></box></geometry>
+        <material><ambient>0.76 0.78 0.76 1</ambient><diffuse>0.9 0.92 0.9 1</diffuse></material>
+      </visual>
+      <visual name="control_room_window">
+        <pose>-4.97 7.2 3.45 0 0 0</pose>
+        <geometry><box><size>0.05 3.3 1.25</size></box></geometry>
+        <material><ambient>0.015 0.08 0.13 0.85</ambient><diffuse>0.025 0.2 0.34 0.85</diffuse><specular>0.9 0.95 1 1</specular></material>
+      </visual>
+      <visual name="radar_mast">
+        <pose>-8 7.2 6.6 0 0 0</pose>
+        <geometry><cylinder><radius>0.12</radius><length>3.4</length></cylinder></geometry>
+        <material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.35 0.35 0.35 1</diffuse></material>
+      </visual>
+      <visual name="radar_bar">
+        <pose>-8 7.2 8.15 0 0 0.3</pose>
+        <geometry><box><size>0.18 2.5 0.35</size></box></geometry>
+        <material><ambient>0.82 0.84 0.82 1</ambient><diffuse>0.96 0.97 0.94 1</diffuse></material>
+      </visual>
+
+      <!-- Service crane and USV-side floating dock. -->
+      <visual name="crane_tower">
+        <pose>-12 -7.5 4 0 0 0</pose>
+        <geometry><box><size>0.55 0.55 5.4</size></box></geometry>
+        <material><ambient>0.92 0.52 0.015 1</ambient><diffuse>1 0.63 0.03 1</diffuse></material>
+      </visual>
+      <visual name="crane_boom">
+        <pose>-9.4 -7.5 6.55 0 0 0</pose>
+        <geometry><box><size>5.7 0.42 0.42</size></box></geometry>
+        <material><ambient>0.92 0.52 0.015 1</ambient><diffuse>1 0.63 0.03 1</diffuse></material>
+      </visual>
+      <visual name="crane_cable">
+        <pose>-7 -7.5 4.9 0 0 0</pose>
+        <geometry><cylinder><radius>0.035</radius><length>3</length></cylinder></geometry>
+        <material><ambient>0.04 0.04 0.04 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material>
+      </visual>
+      <collision name="service_dock_collision">
+        <pose>5 -14 0.65 0 0 0</pose>
+        <geometry><box><size>13 4 0.7</size></box></geometry>
+      </collision>
+      <visual name="service_dock_visual">
+        <pose>5 -14 0.65 0 0 0</pose>
+        <geometry><box><size>13 4 0.7</size></box></geometry>
+        <material><ambient>0.22 0.18 0.12 1</ambient><diffuse>0.4 0.32 0.2 1</diffuse></material>
+      </visual>
+      <visual name="dock_fender_a">
+        <pose>1 -16.05 0.55 1.5708 0 0</pose>
+        <geometry><cylinder><radius>0.32</radius><length>1.2</length></cylinder></geometry>
+        <material><ambient>0.025 0.025 0.025 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+      </visual>
+      <visual name="dock_fender_b">
+        <pose>6 -16.05 0.55 1.5708 0 0</pose>
+        <geometry><cylinder><radius>0.32</radius><length>1.2</length></cylinder></geometry>
+        <material><ambient>0.025 0.025 0.025 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+      </visual>
+      <visual name="dock_fender_c">
+        <pose>10 -16.05 0.55 1.5708 0 0</pose>
+        <geometry><cylinder><radius>0.32</radius><length>1.2</length></cylinder></geometry>
+        <material><ambient>0.025 0.025 0.025 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+      </visual>
+
+      <!-- Shore connection and structural piles. -->
+      <collision name="access_bridge_collision">
+        <pose>-20 0 1.05 0 0 0</pose>
+        <geometry><box><size>10 4 0.5</size></box></geometry>
+      </collision>
+      <visual name="access_bridge_visual">
+        <pose>-20 0 1.05 0 0 0</pose>
+        <geometry><box><size>10 4 0.5</size></box></geometry>
+        <material><ambient>0.24 0.17 0.1 1</ambient><diffuse>0.44 0.3 0.16 1</diffuse></material>
+      </visual>
+      <visual name="pile_nw">
+        <pose>-13 9 -1 0 0 0</pose>
+        <geometry><cylinder><radius>0.48</radius><length>5</length></cylinder></geometry>
+        <material><ambient>0.12 0.12 0.11 1</ambient><diffuse>0.2 0.2 0.18 1</diffuse></material>
+      </visual>
+      <visual name="pile_ne">
+        <pose>13 9 -1 0 0 0</pose>
+        <geometry><cylinder><radius>0.48</radius><length>5</length></cylinder></geometry>
+        <material><ambient>0.12 0.12 0.11 1</ambient><diffuse>0.2 0.2 0.18 1</diffuse></material>
+      </visual>
+      <visual name="pile_sw">
+        <pose>-13 -9 -1 0 0 0</pose>
+        <geometry><cylinder><radius>0.48</radius><length>5</length></cylinder></geometry>
+        <material><ambient>0.12 0.12 0.11 1</ambient><diffuse>0.2 0.2 0.18 1</diffuse></material>
+      </visual>
+      <visual name="pile_se">
+        <pose>13 -9 -1 0 0 0</pose>
+        <geometry><cylinder><radius>0.48</radius><length>5</length></cylinder></geometry>
+        <material><ambient>0.12 0.12 0.11 1</ambient><diffuse>0.2 0.2 0.18 1</diffuse></material>
+      </visual>
+
+      <!-- Perimeter rails leave the access bridge and service dock openings clear. -->
+      <visual name="rail_north">
+        <pose>0 10.6 2.05 0 0 0</pose>
+        <geometry><box><size>29 0.09 0.09</size></box></geometry>
+        <material><ambient>0.58 0.6 0.6 1</ambient><diffuse>0.78 0.8 0.8 1</diffuse><specular>0.5 0.5 0.5 1</specular></material>
+      </visual>
+      <visual name="rail_east">
+        <pose>14.55 1.5 2.05 0 0 0</pose>
+        <geometry><box><size>0.09 18 0.09</size></box></geometry>
+        <material><ambient>0.58 0.6 0.6 1</ambient><diffuse>0.78 0.8 0.8 1</diffuse></material>
+      </visual>
+      <visual name="rail_west_north">
+        <pose>-14.55 6.5 2.05 0 0 0</pose>
+        <geometry><box><size>0.09 8 0.09</size></box></geometry>
+        <material><ambient>0.58 0.6 0.6 1</ambient><diffuse>0.78 0.8 0.8 1</diffuse></material>
+      </visual>
+      <visual name="rail_west_south">
+        <pose>-14.55 -6.5 2.05 0 0 0</pose>
+        <geometry><box><size>0.09 8 0.09</size></box></geometry>
+        <material><ambient>0.58 0.6 0.6 1</ambient><diffuse>0.78 0.8 0.8 1</diffuse></material>
+      </visual>
+
+      <light name="helipad_beacon_n" type="point">
+        <pose>6 5.4 1.75 0 0 0</pose><cast_shadows>false</cast_shadows><intensity>1.2</intensity>
+        <diffuse>0.1 0.65 1 1</diffuse><specular>0.2 0.8 1 1</specular>
+        <attenuation><range>22</range><constant>0.8</constant><linear>0.05</linear><quadratic>0.002</quadratic></attenuation>
+      </light>
+      <light name="helipad_beacon_s" type="point">
+        <pose>6 -5.4 1.75 0 0 0</pose><cast_shadows>false</cast_shadows><intensity>1.2</intensity>
+        <diffuse>0.1 0.65 1 1</diffuse><specular>0.2 0.8 1 1</specular>
+        <attenuation><range>22</range><constant>0.8</constant><linear>0.05</linear><quadratic>0.002</quadratic></attenuation>
+      </light>
+      <light name="operations_beacon" type="point">
+        <pose>-8 7.2 8.45 0 0 0</pose><cast_shadows>false</cast_shadows><intensity>2</intensity>
+        <diffuse>1 0.12 0.04 1</diffuse><specular>1 0.25 0.1 1</specular>
+        <attenuation><range>35</range><constant>0.7</constant><linear>0.04</linear><quadratic>0.002</quadratic></attenuation>
+      </light>
+    </link>
+  </model>
+</sdf>

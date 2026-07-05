@@ -2,13 +2,50 @@
 
 Ownership: simulation environment team.
 
-Future contents:
+This package owns the runnable maritime world, environmental models, weather,
+coastline wrapper, and Gazebo system plugins. Control and mission nodes remain
+in `uav_usv_sim`.
 
-- Ocean, coastline, lighthouse, buoy, weather, current, and dynamic-vessel worlds.
-- Gazebo sensors and system plugins.
-- Standard head-on, crossing, and overtaking scenes.
+## Contents
 
-The existing runnable worlds and plugins remain in `uav_usv_sim` until each asset is migrated and verified.
+- `worlds/default.sdf`: complete ocean environment with coastline, weather,
+  fog, wind field, obstacles, moving vessels, and offshore facilities.
+- `plugins/BoatWaveFollower.cc`: wave-following motion for boats and floating objects.
+- `plugins/DroneDeckFollower.cc`: parked-UAV deck attachment system.
+- `config/sydney_coast.model.*`: local wrapper for the Sydney Regatta coastline.
+- `models/simple_boat`: sensor-equipped USV and UAV landing deck.
+- `models/waves`: animated Gerstner-wave surface.
+- `models/medium_buoy` and `models/green_channel_buoy`: swaying channel marks.
+- `models/target_vessel`: automatically moving maritime traffic vessel.
+
+- `models/shore_platform`: collidable shoreline UAV helipad with an access pier.
+- `models/rock_outcrop`: collidable marine rock cluster for obstacle courses.
+- `models/green_channel_buoy`: illuminated starboard channel mark.
+- `models/aquaculture_cage`: floating net pen with submerged net walls.
+- `models/floating_barrel`: weathered oil-drum obstacle.
+- `models/life_raft`: abandoned inflatable emergency raft.
+- `models/driftwood`: floating logs and broken planks.
+- `models/marina_pier`: illuminated T-head timber pier.
+- `models/offshore_wind_turbine`: rotating offshore wind turbine with warning lights.
+- `models/harbor_breakwater`: illuminated U-shaped harbor and concrete quay.
+- `models/harbor_tug`: moving rescue tug with particle wake.
+- `models/fishing_boat`: moving fishing vessel with outriggers and particle wake.
+- `models/person_overboard`: floating casualty for rescue-perception tests.
+
+## Run
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source /home/ssy/UAV_USV/install/setup.bash
+ros2 run uav_usv_gazebo run_gz_world.sh
+```
+
+PX4 asset synchronization is also owned by this package:
+
+```bash
+export PX4_DIR=/path/to/PX4-Autopilot
+ros2 run uav_usv_gazebo sync_to_px4.sh
+```
 
 ## 第一阶段任务
 

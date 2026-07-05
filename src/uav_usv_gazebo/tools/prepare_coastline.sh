@@ -1,15 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_PREFIX="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-SOURCE_PREFIX="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
-if [ -d "${INSTALL_PREFIX}/share/uav_usv_sim" ]; then
-  SHARE_DIR="${INSTALL_PREFIX}/share/uav_usv_sim"
-else
-  SHARE_DIR="${SOURCE_PREFIX}"
-fi
+GAZEBO_SHARE_DIR="$(ros2 pkg prefix --share uav_usv_gazebo)"
 
 FUEL_CACHE="${GZ_FUEL_CACHE_PATH:-/var/tmp/UAV_USV_gz_fuel}"
 ASSET_ROOT="${UAV_USV_ASSET_ROOT:-/var/tmp/UAV_USV_assets}"
@@ -37,7 +29,7 @@ fi
 mkdir -p "${TARGET_DIR}"
 ln -sfn "${SOURCE_DIR}/meshes" "${TARGET_DIR}/meshes"
 ln -sfn "${SOURCE_DIR}/materials" "${TARGET_DIR}/materials"
-cp "${SHARE_DIR}/config/sydney_coast.model.sdf" "${TARGET_DIR}/model.sdf"
-cp "${SHARE_DIR}/config/sydney_coast.model.config" "${TARGET_DIR}/model.config"
+cp "${GAZEBO_SHARE_DIR}/config/sydney_coast.model.sdf" "${TARGET_DIR}/model.sdf"
+cp "${GAZEBO_SHARE_DIR}/config/sydney_coast.model.config" "${TARGET_DIR}/model.config"
 
 echo "Sydney coastline prepared at ${TARGET_DIR}"

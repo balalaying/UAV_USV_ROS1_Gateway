@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<sdf version="1.10"><model name="person_overboard"><link name="person">
+  <inertial><mass>78</mass><inertia><ixx>12</ixx><iyy>18</iyy><izz>8</izz></inertia></inertial>
+  <collision name="torso_collision"><pose>0 0 0 0 1.5708 0</pose><geometry><cylinder><radius>0.28</radius><length>1.25</length></cylinder></geometry></collision>
+  <visual name="body"><pose>0 0 0 0 1.5708 0</pose><geometry><cylinder><radius>0.25</radius><length>1.2</length></cylinder></geometry><material><ambient>0.05 0.09 0.16 1</ambient><diffuse>0.08 0.18 0.34 1</diffuse></material></visual>
+  <visual name="life_jacket"><pose>0.18 0 0.16 0 1.5708 0</pose><geometry><cylinder><radius>0.33</radius><length>0.62</length></cylinder></geometry><material><ambient>0.9 0.2 0.01 1</ambient><diffuse>1 0.36 0.015 1</diffuse><emissive>0.12 0.025 0 1</emissive></material></visual>
+  <visual name="head"><pose>0.78 0 0.06 0 0 0</pose><geometry><sphere><radius>0.19</radius></sphere></geometry><material><ambient>0.58 0.39 0.27 1</ambient><diffuse>0.78 0.56 0.4 1</diffuse></material></visual>
+  <visual name="left_arm"><pose>0.2 0.48 0.06 0 1.5708 0.3</pose><geometry><cylinder><radius>0.07</radius><length>0.85</length></cylinder></geometry><material><ambient>0.58 0.39 0.27 1</ambient><diffuse>0.78 0.56 0.4 1</diffuse></material></visual>
+  <visual name="right_arm"><pose>0.2 -0.48 0.06 0 1.5708 -0.3</pose><geometry><cylinder><radius>0.07</radius><length>0.85</length></cylinder></geometry><material><ambient>0.58 0.39 0.27 1</ambient><diffuse>0.78 0.56 0.4 1</diffuse></material></visual>
+  </link><plugin filename="libBoatWaveFollower.so" name="gz::sim::systems::BoatWaveFollower"><mean_z>0.08</mean_z><heave_amplitude>0.1</heave_amplitude><roll_amplitude>0.08</roll_amplitude><pitch_amplitude>0.07</pitch_amplitude><primary_frequency>0.9</primary_frequency><secondary_frequency>1.4</secondary_frequency></plugin></model></sdf>

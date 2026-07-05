@@ -3,6 +3,7 @@
   <model name="target_vessel">
     <pose>0 0 0.42 0 0 0</pose>
     <link name="hull">
+      <enable_wind>true</enable_wind>
       <inertial>
         <mass>180</mass>
         <inertia>
@@ -136,6 +137,8 @@
       <topic>/model/target_vessel/cmd_vel</topic>
       <control_linear_velocity>true</control_linear_velocity>
       <control_angular_velocity>true</control_angular_velocity>
+      <initial_linear>0.8 0 0</initial_linear>
+      <initial_angular>0 0 0.008</initial_angular>
     </plugin>
 
     <plugin

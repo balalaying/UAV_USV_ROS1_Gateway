@@ -7,13 +7,10 @@ layout, and COLREGs test scenes, see `docs/多源海事感知第一阶段.md`.
 
 ## Contents
 
-- `worlds/default.sdf`: ocean world, waves, lighthouse, boat include, x500 deck follower plugin.
-- `models/simple_boat`: USV model with landing pad and wave motion plugin.
-- `models/waves`: local copy of the Gazebo waves visual model.
-- `config/sydney_coast.model.*`: scaled wrapper for the Open Robotics Sydney
-  Regatta coastline.
-- `plugins/BoatWaveFollower.cc`: makes the boat heave / roll / pitch with waves.
-- `plugins/DroneDeckFollower.cc`: keeps `x500_0` attached to the boat deck while parked.
+Gazebo worlds, models, coastline configuration, and simulation plugins now
+live in the dedicated `uav_usv_gazebo` package. This package keeps control,
+mission, navigation, RViz, and compatibility launch files.
+
 - `scripts/keyboard_boat_control.py`: keyboard teleop for `/model/simple_boat/cmd_vel`.
 - `scripts/cooperative_lighthouse_mission.py`: MAVLink UAV + Gazebo USV cooperative lighthouse mission.
 - `launch/colregs_test_scenario.launch.py`: head-on, crossing, and overtaking AIS test scenes.
@@ -46,7 +43,7 @@ ros2 run uav_usv_sim keyboard_boat_control
 
 ```bash
 source $UAV_USV_INSTALL/setup.bash
-ros2 run uav_usv_sim run_gz_world.sh
+ros2 run uav_usv_gazebo run_gz_world.sh
 ```
 
 The first world launch downloads the official Sydney Regatta coastline from
@@ -59,6 +56,10 @@ export UAV_USV_ASSET_ROOT=/var/tmp/UAV_USV_assets
 
 After the first successful download, the coastline can be loaded from the local
 cache. See `docs/第三方资源说明.md` for source and license attribution.
+
+The default world also contains a mild variable wind field, light linear sea
+fog, animated waves and wind turbines, swaying channel marks, aquaculture
+cages, floating debris, and two automatically moving traffic vessels.
 
 ## Run Gazebo World With Keyboard Control
 
@@ -80,6 +81,19 @@ source $UAV_USV_INSTALL/setup.bash
 export PX4_DIR=/your/path/PX4-Autopilot
 ros2 launch uav_usv_sim uav_usv_px4_sim.launch.py px4_dir:=$PX4_DIR
 ```
+
+To start the UAV released on the shoreline helipad instead of attached to the
+USV deck, use:
+
+```bash
+ros2 launch uav_usv_sim uav_usv_px4_sim.launch.py \
+  px4_dir:=$PX4_DIR \
+  spawn_on_shore_platform:=true
+```
+
+The default shoreline platform origin is `(165, 18)`. Its helipad center is
+approximately `(159.666, 15.256)` and the landing surface is at `z=1.56 m`. Override
+`shore_platform_pose` if the platform is moved.
 
 In another terminal, start the cooperative mission:
 
@@ -113,7 +127,7 @@ ros2 launch uav_usv_sim uav_usv_cooperation_demo.launch.py \
 ```bash
 source $UAV_USV_INSTALL/setup.bash
 export PX4_DIR=/your/path/PX4-Autopilot
-ros2 run uav_usv_sim sync_to_px4.sh
+ros2 run uav_usv_gazebo sync_to_px4.sh
 ```
 
 After syncing, PX4 can be started with:

@@ -46,7 +46,7 @@
                         <shader>vertex</shader>
                         <name>amplitude</name>
                         <type>float_array</type>
-                        <value>0.42 0.28, 0.21</value>
+                        <value>0.38 0.24 0.16</value>
                     </param>
                     <param>
                         <shader>vertex</shader>
@@ -58,7 +58,7 @@
                         <shader>vertex</shader>
                         <name>omega</name>
                         <type>float_array</type>
-                        <value>0.5 1.7 1.0</value>
+                        <value>0.65 1.35 0.92</value>
                     </param>
                     <param>
                         <shader>vertex</shader>
@@ -82,7 +82,7 @@
                         <shader>vertex</shader>
                         <name>steepness</name>
                         <type>float_array</type>
-                        <value>1.0 1.5 0.8</value>
+                        <value>0.9 1.25 0.75</value>
                     </param>
                     <param>
                         <shader>vertex</shader>

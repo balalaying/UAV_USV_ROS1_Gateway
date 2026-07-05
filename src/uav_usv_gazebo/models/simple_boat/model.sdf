@@ -4,6 +4,7 @@
     <pose>0 0 0.35 0 0 0</pose>
 
     <link name="hull">
+      <enable_wind>true</enable_wind>
       <inertial>
         <mass>70.0</mass>
         <inertia>

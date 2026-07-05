@@ -54,8 +54,8 @@ def _load_scenario(package_share, scenario_name):
     return scenarios[scenario_name], config.get('ais', {})
 
 
-def _generate_world(package_share, scenario_name, scenario):
-    source_world = os.path.join(package_share, 'worlds', 'default.sdf')
+def _generate_world(gazebo_package_share, scenario_name, scenario):
+    source_world = os.path.join(gazebo_package_share, 'worlds', 'default.sdf')
     with open(source_world, encoding='utf-8') as stream:
         world_text = stream.read()
 
@@ -83,7 +83,8 @@ def _generate_world(package_share, scenario_name, scenario):
 
 def _launch_setup(context, *args, **kwargs):
     package_share = get_package_share_directory('uav_usv_sim')
-    package_prefix = get_package_prefix('uav_usv_sim')
+    gazebo_package_share = get_package_share_directory('uav_usv_gazebo')
+    gazebo_package_prefix = get_package_prefix('uav_usv_gazebo')
     scenario_name = LaunchConfiguration('scenario').perform(context)
     auto_ownship = _as_bool(
         LaunchConfiguration('auto_ownship').perform(context)
@@ -91,16 +92,16 @@ def _launch_setup(context, *args, **kwargs):
     start_rviz = _as_bool(LaunchConfiguration('start_rviz').perform(context))
     scenario, ais = _load_scenario(package_share, scenario_name)
     generated_world = _generate_world(
-        package_share,
+        gazebo_package_share,
         scenario_name,
         scenario,
     )
 
-    models_dir = os.path.join(package_share, 'models')
+    gazebo_models_dir = os.path.join(gazebo_package_share, 'models')
     plugin_dir = os.path.join(
-        package_prefix,
+        gazebo_package_prefix,
         'lib',
-        'uav_usv_sim',
+        'uav_usv_gazebo',
         'plugins',
     )
     urdf_file = os.path.join(
@@ -125,7 +126,8 @@ def _launch_setup(context, *args, **kwargs):
             output='screen',
             additional_env={
                 'GZ_SIM_RESOURCE_PATH': (
-                    models_dir + ':' + os.environ.get('GZ_SIM_RESOURCE_PATH', '')
+                    gazebo_models_dir + ':'
+                    + os.environ.get('GZ_SIM_RESOURCE_PATH', '')
                 ),
                 'GZ_SIM_SYSTEM_PLUGIN_PATH': (
                     plugin_dir

@@ -69,6 +69,11 @@ def _launch_setup(context, *args, **kwargs):
     px4_dir = os.path.expanduser(LaunchConfiguration('px4_dir').perform(context))
     px4_model = LaunchConfiguration('px4_model').perform(context)
     model_pose = LaunchConfiguration('model_pose').perform(context)
+    spawn_on_shore_platform = _as_bool(
+        LaunchConfiguration('spawn_on_shore_platform').perform(context)
+    )
+    if spawn_on_shore_platform:
+        model_pose = LaunchConfiguration('shore_platform_pose').perform(context)
     start_rviz = _as_bool(LaunchConfiguration('start_rviz').perform(context))
     rviz_config = LaunchConfiguration('rviz_config').perform(context)
     fuel_cache_path = os.path.expanduser(
@@ -83,9 +88,9 @@ def _launch_setup(context, *args, **kwargs):
         return [LogInfo(msg=px4_error)]
 
     sync_script = os.path.join(
-        get_package_prefix('uav_usv_sim'),
+        get_package_prefix('uav_usv_gazebo'),
         'lib',
-        'uav_usv_sim',
+        'uav_usv_gazebo',
         'sync_to_px4.sh',
     )
     command = (
@@ -102,9 +107,15 @@ def _launch_setup(context, *args, **kwargs):
                 'PX4_DIR': px4_dir,
                 'PX4_GZ_WORLD': 'default',
                 'PX4_GZ_MODEL_POSE': model_pose,
+                'UAV_USV_DRONE_INITIALLY_RELEASED': (
+                    'true' if spawn_on_shore_platform else 'false'
+                ),
                 'GZ_IP': '127.0.0.1',
                 'GZ_FUEL_CACHE_PATH': fuel_cache_path,
                 'UAV_USV_ASSET_ROOT': asset_root,
+                'GZ_CONFIG_PATH': (
+                    os.environ.get('GZ_CONFIG_PATH', '') + ':/usr/share/gz'
+                ),
                 'GZ_SIM_RESOURCE_PATH': (
                     asset_root + ':' + os.environ.get('GZ_SIM_RESOURCE_PATH', '')
                 ),
@@ -153,6 +164,19 @@ def generate_launch_description():
                 'model_pose',
                 default_value='-0.92,0,0.78,0,0,0',
                 description='PX4_GZ_MODEL_POSE used to spawn x500 on the boat landing pad.',
+            ),
+            DeclareLaunchArgument(
+                'spawn_on_shore_platform',
+                default_value='false',
+                description=(
+                    'Spawn the UAV released on the static shoreline platform '
+                    'instead of locking it to the USV deck.'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'shore_platform_pose',
+                default_value='159.666,15.256,1.56,0,0,3.6166',
+                description='PX4_GZ_MODEL_POSE at the center of the shoreline helipad.',
             ),
             DeclareLaunchArgument(
                 'start_rviz',

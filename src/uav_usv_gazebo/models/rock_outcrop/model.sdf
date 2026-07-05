@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <model name="rock_outcrop">
+    <static>true</static>
+    <link name="rocks">
+      <!-- Simplified collision hulls keep contacts stable while the visuals stay irregular. -->
+      <collision name="main_collision">
+        <pose>0 0 0.6 0 0 0</pose>
+        <geometry><ellipsoid><radii>2.1 1.55 1.25</radii></ellipsoid></geometry>
+      </collision>
+      <collision name="side_collision">
+        <pose>2.25 -1.25 0.35 0 0 0</pose>
+        <geometry><ellipsoid><radii>1.15 0.9 0.75</radii></ellipsoid></geometry>
+      </collision>
+
+      <visual name="main_rock">
+        <pose>0 0 -0.15 0.06 -0.08 0.12</pose>
+        <geometry>
+          <mesh><uri>meshes/coastal_rock.obj</uri><scale>1.15 1 1</scale></mesh>
+        </geometry>
+        <material>
+          <ambient>0.19 0.17 0.14 1</ambient>
+          <diffuse>0.34 0.31 0.27 1</diffuse>
+          <specular>0.06 0.06 0.05 1</specular>
+        </material>
+      </visual>
+      <visual name="side_rock">
+        <pose>2.15 -1.2 -0.22 -0.12 0.05 -0.72</pose>
+        <geometry>
+          <mesh><uri>meshes/coastal_rock.obj</uri><scale>0.62 0.58 0.55</scale></mesh>
+        </geometry>
+        <material>
+          <ambient>0.15 0.145 0.13 1</ambient>
+          <diffuse>0.29 0.28 0.25 1</diffuse>
+          <specular>0.05 0.05 0.05 1</specular>
+        </material>
+      </visual>
+      <visual name="rear_rock">
+        <pose>-1.65 0.9 -0.35 0.08 0.18 1.05</pose>
+        <geometry>
+          <mesh><uri>meshes/coastal_rock.obj</uri><scale>0.48 0.54 0.48</scale></mesh>
+        </geometry>
+        <material>
+          <ambient>0.21 0.2 0.17 1</ambient>
+          <diffuse>0.38 0.36 0.31 1</diffuse>
+        </material>
+      </visual>
+
+      <!-- Dark wet stone at the waterline and small moss patches break up flat colors. -->
+      <visual name="wet_waterline">
+        <pose>0 0 -0.08 0 0 0</pose>
+        <geometry><ellipsoid><radii>2.35 1.75 0.28</radii></ellipsoid></geometry>
+        <material>
+          <ambient>0.035 0.045 0.045 1</ambient>
+          <diffuse>0.07 0.08 0.08 1</diffuse>
+          <specular>0.55 0.55 0.5 1</specular>
+        </material>
+      </visual>
+      <visual name="moss_patch_a">
+        <pose>-0.8 0.45 1.05 0.18 -0.35 0.15</pose>
+        <geometry><ellipsoid><radii>0.62 0.35 0.04</radii></ellipsoid></geometry>
+        <material>
+          <ambient>0.08 0.16 0.055 1</ambient>
+          <diffuse>0.14 0.27 0.09 1</diffuse>
+        </material>
+      </visual>
+      <visual name="moss_patch_b">
+        <pose>0.55 0.28 1.42 -0.1 0.25 -0.25</pose>
+        <geometry><ellipsoid><radii>0.42 0.26 0.035</radii></ellipsoid></geometry>
+        <material>
+          <ambient>0.07 0.14 0.05 1</ambient>
+          <diffuse>0.12 0.24 0.08 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

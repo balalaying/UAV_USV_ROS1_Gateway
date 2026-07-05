@@ -1,8 +1,11 @@
 <?xml version="1.0" ?>
 <sdf version="1.8">
   <model name="medium_buoy">
-    <static>true</static>
     <link name="body">
+      <inertial>
+        <mass>140</mass>
+        <inertia><ixx>65</ixx><iyy>65</iyy><izz>22</izz></inertia>
+      </inertial>
       <collision name="base_collision">
         <pose>0 0 0.45 0 0 0</pose>
         <geometry>
@@ -142,5 +145,11 @@
         </attenuation>
       </light>
     </link>
+    <plugin filename="libBoatWaveFollower.so" name="gz::sim::systems::BoatWaveFollower">
+      <mean_z>0</mean_z><heave_amplitude>0.08</heave_amplitude>
+      <roll_amplitude>0.045</roll_amplitude><pitch_amplitude>0.038</pitch_amplitude>
+      <primary_frequency>0.9</primary_frequency><secondary_frequency>1.45</secondary_frequency>
+      <wave_number_x>0.2</wave_number_x><wave_number_y>0.16</wave_number_y>
+    </plugin>
   </model>
 </sdf>
