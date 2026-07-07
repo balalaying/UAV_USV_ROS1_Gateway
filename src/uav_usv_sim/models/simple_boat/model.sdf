@@ -1,15 +1,15 @@
 <?xml version="1.0" ?>
 <sdf version="1.8">
   <model name="simple_boat">
-    <pose>0 0 0.35 0 0 0</pose>
+    <pose>0 0 0.4375 0 0 0</pose>
 
     <link name="hull">
       <inertial>
-        <mass>70.0</mass>
+        <mass>150.0</mass>
         <inertia>
-          <ixx>22.0</ixx>
-          <iyy>48.0</iyy>
-          <izz>58.0</izz>
+          <ixx>85.0</ixx>
+          <iyy>180.0</iyy>
+          <izz>220.0</izz>
           <ixy>0</ixy>
           <ixz>0</ixz>
           <iyz>0</iyz>
@@ -17,19 +17,19 @@
       </inertial>
 
       <collision name="hull_collision">
-        <pose>0 0 -0.05 0 0 0</pose>
+        <pose>0 0 -0.0625 0 0 0</pose>
         <geometry>
           <box>
-            <size>3.4 1.9 0.5</size>
+            <size>5.61 3.135 0.625</size>
           </box>
         </geometry>
       </collision>
 
       <visual name="lower_hull">
-        <pose>-0.05 0 -0.16 0 0 0</pose>
+        <pose>-0.0825 0 -0.2 0 0 0</pose>
         <geometry>
           <box>
-            <size>3.25 1.65 0.28</size>
+            <size>5.3625 2.7225 0.35</size>
           </box>
         </geometry>
         <material>
@@ -40,10 +40,10 @@
       </visual>
 
       <visual name="upper_hull">
-        <pose>-0.1 0 0.05 0 0 0</pose>
+        <pose>-0.165 0 0.0625 0 0 0</pose>
         <geometry>
           <box>
-            <size>3.15 1.82 0.32</size>
+            <size>5.1975 3.003 0.4</size>
           </box>
         </geometry>
         <material>
@@ -54,10 +54,10 @@
       </visual>
 
       <visual name="bow_side_left">
-        <pose>1.46 0.52 0.04 0 0 0.31</pose>
+        <pose>2.409 0.858 0.05 0 0 0.31</pose>
         <geometry>
           <box>
-            <size>0.92 0.16 0.38</size>
+            <size>1.518 0.264 0.475</size>
           </box>
         </geometry>
         <material>
@@ -68,10 +68,10 @@
       </visual>
 
       <visual name="bow_side_right">
-        <pose>1.46 -0.52 0.04 0 0 -0.31</pose>
+        <pose>2.409 -0.858 0.05 0 0 -0.31</pose>
         <geometry>
           <box>
-            <size>0.92 0.16 0.38</size>
+            <size>1.518 0.264 0.475</size>
           </box>
         </geometry>
         <material>
@@ -82,10 +82,10 @@
       </visual>
 
       <visual name="bow_center_nose">
-        <pose>1.82 0 0.04 0 0 0</pose>
+        <pose>3.003 0 0.05 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.2 0.32 0.4</size>
+            <size>0.33 0.528 0.5</size>
           </box>
         </geometry>
         <material>
@@ -96,11 +96,11 @@
       </visual>
 
       <visual name="bow_keel_line">
-        <pose>1.55 0 -0.34 0 1.5708 0</pose>
+        <pose>2.5575 0 -0.425 0 1.5708 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.028</radius>
-            <length>0.72</length>
+            <radius>0.035</radius>
+            <length>0.9</length>
           </cylinder>
         </geometry>
         <material>
@@ -110,10 +110,10 @@
       </visual>
 
       <visual name="foredeck_slope">
-        <pose>1.05 0 0.36 0 -0.16 0</pose>
+        <pose>1.7325 0 0.45 0 -0.16 0</pose>
         <geometry>
           <box>
-            <size>1.1 1.16 0.055</size>
+            <size>1.815 1.914 0.06875</size>
           </box>
         </geometry>
         <material>
@@ -124,10 +124,10 @@
       </visual>
 
       <visual name="bow_stem">
-        <pose>1.94 0 0.03 0 0 0</pose>
+        <pose>3.201 0 0.0375 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.08 0.12 0.42</size>
+            <size>0.132 0.198 0.525</size>
           </box>
         </geometry>
         <material>
@@ -138,10 +138,10 @@
       </visual>
 
       <visual name="hull_side_fairing_left">
-        <pose>0.05 0.86 0.04 0 0 0.035</pose>
+        <pose>0.0825 1.419 0.05 0 0 0.035</pose>
         <geometry>
           <box>
-            <size>2.65 0.08 0.22</size>
+            <size>4.3725 0.132 0.275</size>
           </box>
         </geometry>
         <material>
@@ -152,10 +152,10 @@
       </visual>
 
       <visual name="hull_side_fairing_right">
-        <pose>0.05 -0.86 0.04 0 0 -0.035</pose>
+        <pose>0.0825 -1.419 0.05 0 0 -0.035</pose>
         <geometry>
           <box>
-            <size>2.65 0.08 0.22</size>
+            <size>4.3725 0.132 0.275</size>
           </box>
         </geometry>
         <material>
@@ -166,10 +166,10 @@
       </visual>
 
       <visual name="deck">
-        <pose>-0.25 0 0.25 0 0 0</pose>
+        <pose>-0.4125 0 0.3125 0 0 0</pose>
         <geometry>
           <box>
-            <size>2.85 1.5 0.08</size>
+            <size>4.7025 2.475 0.1</size>
           </box>
         </geometry>
         <material>
@@ -180,10 +180,10 @@
       </visual>
 
       <visual name="cabin_body">
-        <pose>0.2 0 0.58 0 0 0</pose>
+        <pose>0.33 0 0.725 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.78 0.62 0.48</size>
+            <size>1.287 1.023 0.6</size>
           </box>
         </geometry>
         <material>
@@ -194,10 +194,10 @@
       </visual>
 
       <visual name="front_window">
-        <pose>0.6 0 0.64 0 0.28 0</pose>
+        <pose>0.99 0 0.8 0 0.28 0</pose>
         <geometry>
           <box>
-            <size>0.035 0.48 0.24</size>
+            <size>0.05775 0.792 0.3</size>
           </box>
         </geometry>
         <material>
@@ -208,10 +208,10 @@
       </visual>
 
       <visual name="left_window">
-        <pose>0.2 0.325 0.64 0 0 0</pose>
+        <pose>0.33 0.53625 0.8 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.45 0.025 0.22</size>
+            <size>0.7425 0.04125 0.275</size>
           </box>
         </geometry>
         <material>
@@ -222,10 +222,10 @@
       </visual>
 
       <visual name="right_window">
-        <pose>0.2 -0.325 0.64 0 0 0</pose>
+        <pose>0.33 -0.53625 0.8 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.45 0.025 0.22</size>
+            <size>0.7425 0.04125 0.275</size>
           </box>
         </geometry>
         <material>
@@ -236,10 +236,10 @@
       </visual>
 
       <visual name="cabin_roof">
-        <pose>0.15 0 0.85 0 0 0</pose>
+        <pose>0.2475 0 1.0625 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.92 0.72 0.08</size>
+            <size>1.518 1.188 0.1</size>
           </box>
         </geometry>
         <material>
@@ -250,10 +250,10 @@
       </visual>
 
       <collision name="landing_pad_collision">
-        <pose>-0.92 0 0.36 0 0 0</pose>
+        <pose>-1.518 0 0.45 0 0 0</pose>
         <geometry>
           <box>
-            <size>1.7 1.55 0.24</size>
+            <size>2.805 2.5575 0.3</size>
           </box>
         </geometry>
         <surface>
@@ -273,10 +273,10 @@
       </collision>
 
       <visual name="landing_pad_visual">
-        <pose>-0.92 0 0.38 0 0 0</pose>
+        <pose>-1.518 0 0.475 0 0 0</pose>
         <geometry>
           <box>
-            <size>1.15 1.15 0.08</size>
+            <size>2.72 2.46 0.1</size>
           </box>
         </geometry>
         <material>
@@ -287,11 +287,11 @@
       </visual>
 
       <visual name="landing_pad_ring">
-        <pose>-0.92 0 0.435 0 0 0</pose>
+        <pose>-1.518 0 0.54375 0 0 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.48</radius>
-            <length>0.012</length>
+            <radius>1.08</radius>
+            <length>0.015</length>
           </cylinder>
         </geometry>
         <material>
@@ -301,11 +301,11 @@
       </visual>
 
       <visual name="landing_pad_center">
-        <pose>-0.92 0 0.445 0 0 0</pose>
+        <pose>-1.518 0 0.55625 0 0 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.36</radius>
-            <length>0.014</length>
+            <radius>0.86</radius>
+            <length>0.0175</length>
           </cylinder>
         </geometry>
         <material>
@@ -315,10 +315,10 @@
       </visual>
 
       <visual name="landing_h_left">
-        <pose>-0.92 0.22 0.458 0 0 0</pose>
+        <pose>-1.518 0.62 0.5725 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.58 0.07 0.012</size>
+            <size>1.55 0.18 0.015</size>
           </box>
         </geometry>
         <material>
@@ -328,10 +328,10 @@
       </visual>
 
       <visual name="landing_h_right">
-        <pose>-0.92 -0.22 0.458 0 0 0</pose>
+        <pose>-1.518 -0.62 0.5725 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.58 0.07 0.012</size>
+            <size>1.55 0.18 0.015</size>
           </box>
         </geometry>
         <material>
@@ -341,10 +341,10 @@
       </visual>
 
       <visual name="landing_h_crossbar">
-        <pose>-0.92 0 0.462 0 0 0</pose>
+        <pose>-1.518 0 0.5775 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.08 0.52 0.012</size>
+            <size>0.2 1.42 0.015</size>
           </box>
         </geometry>
         <material>
@@ -354,11 +354,11 @@
       </visual>
 
       <visual name="mast">
-        <pose>-0.05 0 1.1 0 0 0</pose>
+        <pose>-0.0825 0 1.375 0 0 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.018</radius>
-            <length>0.55</length>
+            <radius>0.0225</radius>
+            <length>0.6875</length>
           </cylinder>
         </geometry>
         <material>
@@ -368,10 +368,10 @@
       </visual>
 
       <visual name="nav_light">
-        <pose>-0.05 0 1.39 0 0 0</pose>
+        <pose>-0.0825 0 1.7375 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.055</radius>
+            <radius>0.06875</radius>
           </sphere>
         </geometry>
         <material>
@@ -382,11 +382,11 @@
       </visual>
 
       <visual name="lidar_mount">
-        <pose>0.55 0 1.24 0 0 0</pose>
+        <pose>0.9075 0 1.175 0 0 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.09</radius>
-            <length>0.62</length>
+            <radius>0.1125</radius>
+            <length>0.775</length>
           </cylinder>
         </geometry>
         <material>
@@ -397,11 +397,11 @@
       </visual>
 
       <visual name="lidar_body">
-        <pose>0.55 0 1.57 0 0 0</pose>
+        <pose>0.9075 0 1.5875 0 0 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.14</radius>
-            <length>0.08</length>
+            <radius>0.175</radius>
+            <length>0.1</length>
           </cylinder>
         </geometry>
         <material>
@@ -412,10 +412,10 @@
       </visual>
 
       <visual name="front_camera_mount_base">
-        <pose>1.2 0 0.455 0 0 0</pose>
+        <pose>1.98 0 0.56875 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.24 0.2 0.04</size>
+            <size>0.396 0.33 0.05</size>
           </box>
         </geometry>
         <material>
@@ -426,11 +426,11 @@
       </visual>
 
       <visual name="front_camera_mount_post">
-        <pose>1.2 0 0.65 0 0 0</pose>
+        <pose>1.98 0 0.8125 0 0 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.035</radius>
-            <length>0.35</length>
+            <radius>0.04375</radius>
+            <length>0.4375</length>
           </cylinder>
         </geometry>
         <material>
@@ -441,10 +441,10 @@
       </visual>
 
       <visual name="front_camera_body">
-        <pose>1.29 0 0.86 0 0 0</pose>
+        <pose>2.1285 0 1.075 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.16 0.18 0.12</size>
+            <size>0.264 0.297 0.15</size>
           </box>
         </geometry>
         <material>
@@ -455,11 +455,11 @@
       </visual>
 
       <visual name="front_camera_lens">
-        <pose>1.385 0 0.86 0 1.5708 0</pose>
+        <pose>2.28525 0 1.075 0 1.5708 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.045</radius>
-            <length>0.025</length>
+            <radius>0.05625</radius>
+            <length>0.03125</length>
           </cylinder>
         </geometry>
         <material>
@@ -470,14 +470,14 @@
       </visual>
 
       <sensor name="front_camera" type="camera">
-        <pose>1.405 0 0.86 0 0 0</pose>
+        <pose>2.31825 0 1.075 0 0 0</pose>
         <topic>/boat/front_camera</topic>
-        <update_rate>15</update_rate>
+        <update_rate>20</update_rate>
         <camera>
           <horizontal_fov>1.047</horizontal_fov>
           <image>
-            <width>1280</width>
-            <height>720</height>
+            <width>640</width>
+            <height>360</height>
             <format>R8G8B8</format>
           </image>
           <clip>
@@ -491,7 +491,7 @@
 
       <sensor name="front_lidar" type="gpu_lidar">
         <gz_frame_id>landing_boat/hull/front_lidar</gz_frame_id>
-        <pose>0.55 0 1.55 0 0 0</pose>
+        <pose>0.9075 0 1.5625 0 0 0</pose>
         <topic>/boat/scan</topic>
         <update_rate>10</update_rate>
         <ray>
@@ -513,6 +513,7 @@
             <mean>0</mean>
             <stddev>0.01</stddev>
           </noise>
+          <visibility_mask>0x01</visibility_mask>
         </ray>
         <always_on>true</always_on>
         <visualize>true</visualize>
@@ -544,7 +545,7 @@
     <plugin
       filename="libBoatWaveFollower.so"
       name="gz::sim::systems::BoatWaveFollower">
-      <mean_z>0.42</mean_z>
+      <mean_z>0.55</mean_z>
       <heave_amplitude>0.11</heave_amplitude>
       <roll_amplitude>0.055</roll_amplitude>
       <pitch_amplitude>0.045</pitch_amplitude>

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import copy
 import math
 import time
 
@@ -12,11 +13,13 @@ from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import Odometry
 import rclpy
 from rclpy.duration import Duration
+from rclpy._rclpy_pybind11 import RCLError
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy
 from rclpy.qos import HistoryPolicy
 from rclpy.qos import QoSProfile
 from rclpy.qos import ReliabilityPolicy
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker
@@ -27,6 +30,14 @@ def yaw_from_quaternion(q):
     siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
     cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
     return math.atan2(siny_cosp, cosy_cosp)
+
+
+def roll_pitch_from_quaternion(q):
+    sinr_cosp = 2.0 * (q.w * q.x + q.y * q.z)
+    cosr_cosp = 1.0 - 2.0 * (q.x * q.x + q.y * q.y)
+    roll = math.atan2(sinr_cosp, cosr_cosp)
+    sinp = clamp(2.0 * (q.w * q.y - q.z * q.x), -1.0, 1.0)
+    return roll, math.asin(sinp)
 
 
 def clamp(value, lower, upper):
@@ -85,20 +96,22 @@ class BoatNav2Interface(Node):
         self.declare_parameter('model_pose_topic', '/boat/pose')
         self.declare_parameter('boat_cmd_topic', '/model/simple_boat/cmd_vel')
         self.declare_parameter('cmd_vel_topic', '/cmd_vel')
-        self.declare_parameter('scan_topic', '/boat/scan')
+        self.declare_parameter('scan_topic', '/boat/scan_raw')
+        self.declare_parameter('filtered_scan_topic', '/boat/scan')
         self.declare_parameter('scan_range_topic', '/boat/scan_range')
         self.declare_parameter('boat_name', 'landing_boat')
         self.declare_parameter('map_frame_id', 'map')
         self.declare_parameter('odom_frame_id', 'odom')
         self.declare_parameter('base_frame_id', 'landing_boat/base_link')
         self.declare_parameter('lidar_frame_id', 'landing_boat/hull/front_lidar')
-        self.declare_parameter('lidar_offset_x', 0.55)
+        self.declare_parameter('lidar_offset_x', 0.9075)
         self.declare_parameter('lidar_offset_y', 0.0)
-        self.declare_parameter('lidar_offset_z', 1.55)
+        self.declare_parameter('lidar_offset_z', 1.5625)
         self.declare_parameter('map_resolution', 0.5)
         self.declare_parameter('map_width', 240.0)
         self.declare_parameter('map_height', 180.0)
         self.declare_parameter('map_publish_period', 2.0)
+        self.declare_parameter('publish_empty_map', True)
         self.declare_parameter('cmd_timeout', 0.8)
         self.declare_parameter('marker_topic', '/boat/nav2_reference_markers')
         self.declare_parameter('control_frequency', 20.0)
@@ -115,15 +128,32 @@ class BoatNav2Interface(Node):
         self.declare_parameter('velocity_measurement_alpha', 0.3)
         self.declare_parameter('linear_setpoint_alpha', 0.45)
         self.declare_parameter('angular_setpoint_alpha', 0.6)
-        self.declare_parameter('max_linear_output', 1.4)
+        self.declare_parameter('max_linear_output', 2.8)
+        self.declare_parameter('min_linear_output', -0.65)
         self.declare_parameter('max_angular_output', 2.2)
         self.declare_parameter('command_deadband', 0.01)
+        self.declare_parameter('enable_lidar_safety', True)
+        self.declare_parameter('safety_slow_distance', 9.0)
+        self.declare_parameter('safety_stop_distance', 3.8)
+        self.declare_parameter('safety_escape_distance', 2.2)
+        self.declare_parameter('safety_release_distance', 4.8)
+        self.declare_parameter('safety_reverse_speed', -0.42)
+        self.declare_parameter('safety_turn_rate', 0.9)
+        self.declare_parameter('safety_blocked_timeout', 1.5)
+        self.declare_parameter('safety_min_escape_duration', 2.5)
+        self.declare_parameter('safety_max_escape_duration', 6.0)
+        self.declare_parameter('max_scan_tilt', 0.025)
+        self.declare_parameter('filter_wave_points', True)
+        self.declare_parameter('min_obstacle_world_z', 0.9)
 
         self.pose_topic = self.get_parameter('pose_topic').value
         self.model_pose_topic = self.get_parameter('model_pose_topic').value
         self.boat_cmd_topic = self.get_parameter('boat_cmd_topic').value
         self.cmd_vel_topic = self.get_parameter('cmd_vel_topic').value
         self.scan_topic = self.get_parameter('scan_topic').value
+        self.filtered_scan_topic = self.get_parameter(
+            'filtered_scan_topic'
+        ).value
         self.scan_range_topic = self.get_parameter('scan_range_topic').value
         self.boat_name = self.get_parameter('boat_name').value
         self.map_frame_id = self.get_parameter('map_frame_id').value
@@ -138,6 +168,9 @@ class BoatNav2Interface(Node):
         self.map_height = float(self.get_parameter('map_height').value)
         self.map_publish_period = float(
             self.get_parameter('map_publish_period').value
+        )
+        self.publish_empty_map = bool(
+            self.get_parameter('publish_empty_map').value
         )
         self.cmd_timeout = float(self.get_parameter('cmd_timeout').value)
         self.marker_topic = self.get_parameter('marker_topic').value
@@ -170,6 +203,10 @@ class BoatNav2Interface(Node):
             0.0,
             float(self.get_parameter('max_linear_output').value),
         )
+        self.min_linear_output = min(
+            0.0,
+            float(self.get_parameter('min_linear_output').value),
+        )
         self.max_angular_output = max(
             0.0,
             float(self.get_parameter('max_angular_output').value),
@@ -177,6 +214,59 @@ class BoatNav2Interface(Node):
         self.command_deadband = max(
             0.0,
             float(self.get_parameter('command_deadband').value),
+        )
+        self.enable_lidar_safety = bool(
+            self.get_parameter('enable_lidar_safety').value
+        )
+        self.safety_slow_distance = max(
+            0.1,
+            float(self.get_parameter('safety_slow_distance').value),
+        )
+        self.safety_stop_distance = clamp(
+            float(self.get_parameter('safety_stop_distance').value),
+            0.1,
+            self.safety_slow_distance,
+        )
+        self.safety_escape_distance = clamp(
+            float(self.get_parameter('safety_escape_distance').value),
+            0.1,
+            self.safety_stop_distance,
+        )
+        self.safety_release_distance = max(
+            self.safety_stop_distance,
+            float(self.get_parameter('safety_release_distance').value),
+        )
+        self.safety_reverse_speed = clamp(
+            float(self.get_parameter('safety_reverse_speed').value),
+            self.min_linear_output,
+            0.0,
+        )
+        self.safety_turn_rate = clamp(
+            abs(float(self.get_parameter('safety_turn_rate').value)),
+            0.1,
+            self.max_angular_output,
+        )
+        self.safety_blocked_timeout = max(
+            0.1,
+            float(self.get_parameter('safety_blocked_timeout').value),
+        )
+        self.safety_min_escape_duration = max(
+            0.1,
+            float(self.get_parameter('safety_min_escape_duration').value),
+        )
+        self.safety_max_escape_duration = max(
+            self.safety_min_escape_duration,
+            float(self.get_parameter('safety_max_escape_duration').value),
+        )
+        self.max_scan_tilt = max(
+            0.0,
+            float(self.get_parameter('max_scan_tilt').value),
+        )
+        self.filter_wave_points = bool(
+            self.get_parameter('filter_wave_points').value
+        )
+        self.min_obstacle_world_z = float(
+            self.get_parameter('min_obstacle_world_z').value
         )
         self.linear_pid = VelocityPid(
             float(self.get_parameter('linear_kp').value),
@@ -195,8 +285,6 @@ class BoatNav2Interface(Node):
 
         self.gz_node = GzTransportNode()
         self.gz_cmd_pub = self.gz_node.advertise(self.boat_cmd_topic, GzTwist)
-        self.gz_node.subscribe(Pose_V, self.pose_topic, self._on_pose_v)
-        self.gz_node.subscribe(Pose, self.model_pose_topic, self._on_model_pose)
 
         transient_qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
@@ -204,8 +292,19 @@ class BoatNav2Interface(Node):
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
         )
-        self.map_pub = self.create_publisher(OccupancyGrid, '/map', transient_qos)
+        self.map_pub = None
+        if self.publish_empty_map:
+            self.map_pub = self.create_publisher(
+                OccupancyGrid,
+                '/map',
+                transient_qos,
+            )
         self.odom_pub = self.create_publisher(Odometry, '/odom', 20)
+        self.scan_pub = self.create_publisher(
+            LaserScan,
+            self.filtered_scan_topic,
+            qos_profile_sensor_data,
+        )
         self.scan_range_pub = self.create_publisher(LaserScan, self.scan_range_topic, 1)
         self.marker_pub = self.create_publisher(
             MarkerArray,
@@ -238,29 +337,51 @@ class BoatNav2Interface(Node):
         self.last_output_cmd = (0.0, 0.0)
         self.last_control_time = time.monotonic()
         self.command_timed_out = False
-        self.empty_map = self.make_empty_map()
+        self.forward_clearance = math.inf
+        self.left_clearance = math.inf
+        self.right_clearance = math.inf
+        self.safety_escape_active = False
+        self.safety_turn_direction = 1.0
+        self.safety_blocked_duration = 0.0
+        self.safety_escape_started = 0.0
+        self.empty_map = (
+            self.make_empty_map() if self.publish_empty_map else None
+        )
 
-        self.map_timer = self.create_timer(self.map_publish_period, self.publish_map)
+        self.gz_node.subscribe(Pose_V, self.pose_topic, self._on_pose_v)
+        self.gz_node.subscribe(Pose, self.model_pose_topic, self._on_model_pose)
+
+        self.map_timer = None
+        if self.publish_empty_map:
+            self.map_timer = self.create_timer(
+                self.map_publish_period,
+                self.publish_map,
+            )
         self.control_timer = self.create_timer(
             1.0 / self.control_frequency,
             self.update_velocity_control,
         )
         self.marker_timer = self.create_timer(1.0, self.publish_reference_markers)
 
-        self.publish_map()
+        if self.publish_empty_map:
+            self.publish_map()
         self.get_logger().info(
-            'Nav2 interface ready: %s -> PID -> %s, odom=/odom, map=/map, '
-            'scan=%s, pose=%s, velocity_pid=%s.'
+            'Nav2 interface ready: %s -> PID -> %s, odom=/odom, '
+            'empty_map=%s, scan=%s -> %s, pose=%s, velocity_pid=%s.'
             % (
                 self.cmd_vel_topic,
                 self.boat_cmd_topic,
+                self.publish_empty_map,
                 self.scan_topic,
+                self.filtered_scan_topic,
                 self.model_pose_topic,
                 self.enable_velocity_pid,
             )
         )
 
     def destroy_node(self):
+        self.gz_node.unsubscribe(self.pose_topic)
+        self.gz_node.unsubscribe(self.model_pose_topic)
         self.publish_gz_cmd(0.0, 0.0)
         super().destroy_node()
 
@@ -275,6 +396,8 @@ class BoatNav2Interface(Node):
         self.process_pose(msg)
 
     def process_pose(self, pose):
+        if not rclpy.ok():
+            return
         now = self.get_clock().now()
         stamp = now.to_msg()
         dt = None
@@ -301,13 +424,21 @@ class BoatNav2Interface(Node):
         alpha = self.velocity_measurement_alpha
         self.filtered_velocity[0] += alpha * (vx - self.filtered_velocity[0])
         self.filtered_velocity[1] += alpha * (wz - self.filtered_velocity[1])
-        self.publish_tf_and_odom(pose, stamp, vx, wz)
+        try:
+            self.publish_tf_and_odom(pose, stamp, vx, wz)
+        except RCLError:
+            if rclpy.ok():
+                raise
 
     def _on_cmd_vel(self, msg):
         self.last_cmd_time = time.monotonic()
         self.command_timed_out = False
         self.target_cmd = (
-            clamp(float(msg.linear.x), 0.0, self.max_linear_output),
+            clamp(
+                float(msg.linear.x),
+                self.min_linear_output,
+                self.max_linear_output,
+            ),
             clamp(
                 float(msg.angular.z),
                 -self.max_angular_output,
@@ -316,6 +447,52 @@ class BoatNav2Interface(Node):
         )
 
     def _on_scan(self, msg):
+        if self.boat_pose is not None:
+            roll, pitch = roll_pitch_from_quaternion(
+                self.boat_pose.orientation
+            )
+            if max(abs(roll), abs(pitch)) > self.max_scan_tilt:
+                return
+
+        filtered_msg = copy.deepcopy(msg)
+        filtered_ranges = list(msg.ranges)
+        if self.filter_wave_points and self.boat_pose is not None:
+            for index, distance in enumerate(filtered_ranges):
+                if (
+                    not math.isfinite(distance)
+                    or distance < msg.range_min
+                    or distance > msg.range_max
+                ):
+                    continue
+                angle = msg.angle_min + index * msg.angle_increment
+                if (
+                    self.scan_endpoint_world_z(distance, angle)
+                    < self.min_obstacle_world_z
+                ):
+                    filtered_ranges[index] = math.inf
+        filtered_msg.ranges = filtered_ranges
+
+        sectors = {'front': [], 'left': [], 'right': []}
+        for index, distance in enumerate(filtered_ranges):
+            if (
+                not math.isfinite(distance)
+                or distance < msg.range_min
+                or distance > msg.range_max
+            ):
+                continue
+            angle = msg.angle_min + index * msg.angle_increment
+            if abs(angle) <= 0.42:
+                sectors['front'].append(distance)
+            if 0.25 <= angle <= 1.35:
+                sectors['left'].append(distance)
+            if -1.35 <= angle <= -0.25:
+                sectors['right'].append(distance)
+
+        self.forward_clearance = self.robust_sector_min(sectors['front'])
+        self.left_clearance = self.robust_sector_min(sectors['left'])
+        self.right_clearance = self.robust_sector_min(sectors['right'])
+        self.scan_pub.publish(filtered_msg)
+
         scan_range = LaserScan()
         scan_range.header = msg.header
         scan_range.angle_min = msg.angle_min
@@ -329,6 +506,109 @@ class BoatNav2Interface(Node):
         scan_range.intensities = [0.0] * len(msg.ranges)
         self.scan_range_pub.publish(scan_range)
 
+    def scan_endpoint_world_z(self, distance, angle):
+        q = self.boat_pose.orientation
+        local_x = self.lidar_offset_x + distance * math.cos(angle)
+        local_y = self.lidar_offset_y + distance * math.sin(angle)
+        local_z = self.lidar_offset_z
+        rotation_z_x = 2.0 * (q.x * q.z - q.w * q.y)
+        rotation_z_y = 2.0 * (q.y * q.z + q.w * q.x)
+        rotation_z_z = 1.0 - 2.0 * (q.x * q.x + q.y * q.y)
+        return (
+            self.boat_pose.position.z
+            + rotation_z_x * local_x
+            + rotation_z_y * local_y
+            + rotation_z_z * local_z
+        )
+
+    @staticmethod
+    def robust_sector_min(values):
+        if not values:
+            return math.inf
+        values.sort()
+        return values[min(2, len(values) - 1)]
+
+    def start_safety_escape(self, reason):
+        self.safety_escape_active = True
+        self.safety_escape_started = time.monotonic()
+        self.safety_blocked_duration = 0.0
+        self.safety_turn_direction = (
+            1.0 if self.left_clearance >= self.right_clearance else -1.0
+        )
+        self.reset_velocity_control()
+        self.get_logger().warn(
+            'Lidar safety escape (%s): obstacle %.2f m ahead, reversing %s.'
+            % (
+                reason,
+                self.forward_clearance,
+                'left' if self.safety_turn_direction > 0.0 else 'right',
+            )
+        )
+
+    def apply_lidar_safety(self, linear_target, angular_target, dt):
+        if not self.enable_lidar_safety:
+            return linear_target, angular_target
+
+        if self.safety_escape_active:
+            elapsed = time.monotonic() - self.safety_escape_started
+            can_release = (
+                elapsed >= self.safety_min_escape_duration
+                and self.forward_clearance >= self.safety_release_distance
+            )
+            if can_release or elapsed >= self.safety_max_escape_duration:
+                self.safety_escape_active = False
+                self.get_logger().info('Lidar safety escape completed.')
+            else:
+                return (
+                    self.safety_reverse_speed,
+                    self.safety_turn_direction * self.safety_turn_rate,
+                )
+
+        if (
+            linear_target >= 0.0
+            and self.forward_clearance < self.safety_escape_distance
+        ):
+            self.start_safety_escape('distance')
+            return (
+                self.safety_reverse_speed,
+                self.safety_turn_direction * self.safety_turn_rate,
+            )
+
+        near_shore_and_still = (
+            self.forward_clearance < self.safety_stop_distance
+            and abs(self.filtered_velocity[0]) < 0.08
+            and abs(self.filtered_velocity[1]) < 0.12
+        )
+        if near_shore_and_still:
+            self.safety_blocked_duration += dt
+        else:
+            self.safety_blocked_duration = 0.0
+        if self.safety_blocked_duration >= self.safety_blocked_timeout:
+            self.start_safety_escape('blocked')
+            return (
+                self.safety_reverse_speed,
+                self.safety_turn_direction * self.safety_turn_rate,
+            )
+
+        if linear_target > 0.0:
+            if self.forward_clearance < self.safety_stop_distance:
+                linear_target = 0.0
+                if abs(angular_target) < self.safety_turn_rate:
+                    direction = (
+                        1.0
+                        if self.left_clearance >= self.right_clearance
+                        else -1.0
+                    )
+                    angular_target = direction * self.safety_turn_rate
+            elif self.forward_clearance < self.safety_slow_distance:
+                span = self.safety_slow_distance - self.safety_stop_distance
+                scale = (
+                    self.forward_clearance - self.safety_stop_distance
+                ) / max(span, 1e-6)
+                linear_target *= clamp(scale, 0.0, 1.0)
+
+        return linear_target, angular_target
+
     def publish_gz_cmd(self, linear_x, angular_z):
         msg = GzTwist()
         msg.linear.x = float(linear_x)
@@ -341,13 +621,20 @@ class BoatNav2Interface(Node):
         self.last_control_time = now
 
         if now - self.last_cmd_time > self.cmd_timeout:
-            if not self.command_timed_out:
+            if not self.safety_escape_active and not self.command_timed_out:
                 self.command_timed_out = True
                 self.reset_velocity_control()
                 self.publish_gz_cmd(0.0, 0.0)
-            return
+            if not self.safety_escape_active:
+                return
+            self.target_cmd = (0.0, 0.0)
 
         linear_target, angular_target = self.target_cmd
+        linear_target, angular_target = self.apply_lidar_safety(
+            linear_target,
+            angular_target,
+            dt,
+        )
         self.filtered_setpoint[0] += self.linear_setpoint_alpha * (
             linear_target - self.filtered_setpoint[0]
         )
@@ -374,7 +661,11 @@ class BoatNav2Interface(Node):
             linear_output = self.filtered_setpoint[0]
             angular_output = self.filtered_setpoint[1]
 
-        linear_output = clamp(linear_output, 0.0, self.max_linear_output)
+        linear_output = clamp(
+            linear_output,
+            self.min_linear_output,
+            self.max_linear_output,
+        )
         angular_output = clamp(
             angular_output,
             -self.max_angular_output,
@@ -495,6 +786,8 @@ class BoatNav2Interface(Node):
                     grid.data[cy * grid.info.width + cx] = 100
 
     def publish_map(self):
+        if self.map_pub is None or self.empty_map is None:
+            return
         self.empty_map.header.stamp = self.get_clock().now().to_msg()
         self.map_pub.publish(self.empty_map)
 

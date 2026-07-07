@@ -118,6 +118,11 @@
       <pose>0 0 0 0 0 0.475</pose>
     </include>
     <include>
+      <uri>model://shore_helipad</uri>
+      <name>shore_helipad</name>
+      <pose>-16 0 0 0 0 0</pose>
+    </include>
+    <include>
       <uri>model://medium_buoy</uri>
       <name>medium_buoy_west_channel</name>
       <pose>-42 44 0 0 0 0.25</pose>
@@ -137,11 +142,12 @@
       name="gz::sim::systems::DroneDeckFollower">
       <boat_name>landing_boat</boat_name>
       <drone_name>x500_0</drone_name>
-      <deck_offset>-0.92 0 0.43 0 0 0</deck_offset>
+      <deck_offset>-1.518 0 0.56 0 0 0</deck_offset>
       <release_topic>/model/x500_0/release_from_deck</release_topic>
       <relock_duration>4.0</relock_duration>
       <release_vertical_speed>0.9</release_vertical_speed>
       <release_after>1000000</release_after>
+      <initially_released>true</initially_released>
     </plugin>
     <model name='navigation_lighthouse'>
       <static>true</static>
@@ -267,7 +273,27 @@
     <include>
       <uri>model://simple_boat</uri>
       <name>landing_boat</name>
-      <pose>0 0 0.34999999999999998 0 0 0</pose>
+      <pose>0 0 0.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://fleet_boat_blue</uri>
+      <name>landing_boat_02</name>
+      <pose>-18 15 0.58 0 0 0.15</pose>
+    </include>
+    <include>
+      <uri>model://fleet_boat_orange</uri>
+      <name>landing_boat_03</name>
+      <pose>-22 -16 0.58 0 0 -0.12</pose>
+    </include>
+    <include>
+      <uri>model://fleet_uav_blue</uri>
+      <name>fleet_uav_02</name>
+      <pose>-18 15 9.5 0 0 0.2</pose>
+    </include>
+    <include>
+      <uri>model://fleet_uav_orange</uri>
+      <name>fleet_uav_03</name>
+      <pose>-22 -16 10.5 0 0 -0.2</pose>
     </include>
     <light name='directionallight' type='directional'>
       <pose>3.6650413048508694 0.062467871162392719 2 0 0 0</pose>

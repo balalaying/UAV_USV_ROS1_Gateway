@@ -25,9 +25,9 @@ def generate_launch_description():
         DeclareLaunchArgument('deck_descent_rate', default_value='0.35'),
         DeclareLaunchArgument('deck_touchdown_tolerance', default_value='0.12'),
         DeclareLaunchArgument('deck_touchdown_hold_time', default_value='0.8'),
-        DeclareLaunchArgument('deck_offset_x', default_value='-0.92'),
+        DeclareLaunchArgument('deck_offset_x', default_value='-1.518'),
         DeclareLaunchArgument('deck_offset_y', default_value='0.0'),
-        DeclareLaunchArgument('deck_offset_z', default_value='0.43'),
+        DeclareLaunchArgument('deck_offset_z', default_value='0.56'),
         DeclareLaunchArgument('deck_land_altitude', default_value='0.1'),
         DeclareLaunchArgument('boat_speed', default_value='1.1'),
     ]

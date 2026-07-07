@@ -16,6 +16,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/TrackedObjectArray.msg"
   "msg/CollisionRisk.msg"
   "msg/ColregsDecision.msg"
+  "msg/VehicleState.msg"
+  "msg/ControlLease.msg"
+  "msg/FleetCommand.msg"
+  "msg/CommandAck.msg"
+  "msg/SensorStatus.msg"
   DEPENDENCIES
     builtin_interfaces
     geographic_msgs

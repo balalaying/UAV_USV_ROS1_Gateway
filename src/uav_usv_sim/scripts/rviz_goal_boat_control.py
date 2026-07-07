@@ -71,9 +71,9 @@ class RvizGoalBoatControl(Node):
         self.declare_parameter('avoidance_filter_alpha', 0.35)
         self.declare_parameter('avoidance_min_speed', 0.55)
         self.declare_parameter('scan_stale_timeout', 1.0)
-        self.declare_parameter('lidar_offset_x', 0.55)
+        self.declare_parameter('lidar_offset_x', 0.9075)
         self.declare_parameter('lidar_offset_y', 0.0)
-        self.declare_parameter('lidar_offset_z', 1.55)
+        self.declare_parameter('lidar_offset_z', 1.5625)
         self.declare_parameter('boat_frame_id', 'landing_boat/base_link')
         self.declare_parameter('lidar_frame_id', 'landing_boat/hull/front_lidar')
 

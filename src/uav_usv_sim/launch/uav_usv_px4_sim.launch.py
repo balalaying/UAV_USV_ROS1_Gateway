@@ -146,13 +146,13 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 'px4_model',
-                default_value='gz_x500',
-                description='PX4 Gazebo model target, for example gz_x500.',
+                default_value='gz_x500_mono_cam_down',
+                description='PX4 Gazebo model target with a downward camera.',
             ),
             DeclareLaunchArgument(
                 'model_pose',
-                default_value='-0.92,0,0.78,0,0,0',
-                description='PX4_GZ_MODEL_POSE used to spawn x500 on the boat landing pad.',
+                default_value='-16,0,3.55,0,0,0',
+                description='PX4_GZ_MODEL_POSE used to spawn x500 on the shoreline helipad.',
             ),
             DeclareLaunchArgument(
                 'start_rviz',

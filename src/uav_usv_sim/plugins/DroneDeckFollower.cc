@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <gz/msgs/boolean.pb.h>
 #include <gz/math/Pose3.hh>
@@ -11,7 +12,6 @@
 #include <gz/sim/EntityComponentManager.hh>
 #include <gz/sim/EventManager.hh>
 #include <gz/sim/System.hh>
-#include <gz/sim/components/LinearVelocity.hh>
 #include <gz/sim/components/Pose.hh>
 #include <gz/sim/components/PoseCmd.hh>
 #include <gz/transport/Node.hh>
@@ -81,6 +81,17 @@ class DroneDeckFollower
     {
       if (auto entity = _ecm.EntityByName(this->droneName))
         this->droneEntity = *entity;
+      else
+      {
+        for (const auto &fallback : this->droneNameFallbacks)
+        {
+          if (auto fallbackEntity = _ecm.EntityByName(fallback))
+          {
+            this->droneEntity = *fallbackEntity;
+            break;
+          }
+        }
+      }
     }
 
     if (this->boatEntity == kNullEntity || this->droneEntity == kNullEntity)
@@ -103,14 +114,6 @@ class DroneDeckFollower
     }
 
     if (simTime > this->releaseAfter)
-    {
-      this->released = true;
-      return;
-    }
-
-    auto droneVel = _ecm.Component<components::WorldLinearVelocity>(
-        this->droneEntity);
-    if (droneVel && droneVel->Data().Z() > this->releaseVerticalSpeed)
     {
       this->released = true;
       return;
@@ -167,8 +170,10 @@ class DroneDeckFollower
 
   private: std::string boatName{"landing_boat"};
   private: std::string droneName{"x500_0"};
+  private: std::vector<std::string> droneNameFallbacks{
+      "x500_mono_cam_down_0", "x500_mono_cam_0"};
   private: std::string releaseTopic{"/model/x500_0/release_from_deck"};
-  private: math::Pose3d deckOffset{-0.92, 0, 0.43, 0, 0, 0};
+  private: math::Pose3d deckOffset{-1.518, 0, 0.56, 0, 0, 0};
   private: double releaseVerticalSpeed{0.9};
   private: double releaseAfter{20.0};
   private: double relockDuration{2.5};

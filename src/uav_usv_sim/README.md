@@ -16,6 +16,11 @@ layout, and COLREGs test scenes, see `docs/多源海事感知第一阶段.md`.
 - `plugins/DroneDeckFollower.cc`: keeps `x500_0` attached to the boat deck while parked.
 - `scripts/keyboard_boat_control.py`: keyboard teleop for `/model/simple_boat/cmd_vel`.
 - `scripts/cooperative_lighthouse_mission.py`: MAVLink UAV + Gazebo USV cooperative lighthouse mission.
+- `scripts/uav_buoy_visual_mission.py`: UAV camera buoy detection and UAV-USV cooperative pursuit.
+- `launch/uav_buoy_cooperative_navigation.launch.py`: Nav2, UAV camera bridge,
+  visual mission, and dual-camera RViz bringup.
+- `launch/uav_buoy_patrol.launch.py`: UAV-only patrol and visual target
+  override; run it after the standalone boat Nav2 launch.
 - `launch/colregs_test_scenario.launch.py`: head-on, crossing, and overtaking AIS test scenes.
 
 ## Build Outside /home

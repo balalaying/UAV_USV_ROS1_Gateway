@@ -14,7 +14,7 @@ from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
 
-def bridge_action(name, argument):
+def bridge_action(name, argument, remappings=None):
     try:
         get_package_prefix('ros_gz_bridge')
     except PackageNotFoundError:
@@ -26,6 +26,7 @@ def bridge_action(name, argument):
         name=name,
         output='screen',
         arguments=[argument],
+        remappings=remappings or [],
     )
 
 
@@ -42,6 +43,11 @@ def generate_launch_description():
         package_share,
         'rviz',
         'boat_nav2_navigation.rviz',
+    )
+    default_map = os.path.join(
+        package_share,
+        'maps',
+        'sydney_coastline.yaml',
     )
     navigation_launch = os.path.join(
         nav2_bringup_share,
@@ -65,7 +71,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 'start_rviz',
-                default_value='true',
+                default_value='false',
                 description='Start RViz with Nav2 tools.',
             ),
             DeclareLaunchArgument(
@@ -74,9 +80,19 @@ def generate_launch_description():
                 description='RViz config file.',
             ),
             DeclareLaunchArgument(
+                'map',
+                default_value=default_map,
+                description='Static Sydney coastline occupancy map.',
+            ),
+            DeclareLaunchArgument(
                 'scan_topic',
                 default_value='/boat/scan',
-                description='Boat LaserScan topic from Gazebo.',
+                description='Tilt-filtered Boat LaserScan topic for Nav2.',
+            ),
+            DeclareLaunchArgument(
+                'raw_scan_topic',
+                default_value='/boat/scan_raw',
+                description='Raw Boat LaserScan topic from Gazebo.',
             ),
             DeclareLaunchArgument(
                 'boat_cmd_topic',
@@ -101,6 +117,9 @@ def generate_launch_description():
             bridge_action(
                 'boat_lidar_bridge',
                 '/boat/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
+                remappings=[
+                    ('/boat/scan', LaunchConfiguration('raw_scan_topic')),
+                ],
             ),
 
             Node(
@@ -112,9 +131,11 @@ def generate_launch_description():
                     LaunchConfiguration('params_file'),
                     {
                         'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
-                        'scan_topic': LaunchConfiguration('scan_topic'),
+                        'scan_topic': LaunchConfiguration('raw_scan_topic'),
+                        'filtered_scan_topic': LaunchConfiguration('scan_topic'),
                         'boat_cmd_topic': LaunchConfiguration('boat_cmd_topic'),
                         'cmd_vel_topic': LaunchConfiguration('cmd_vel_topic'),
+                        'publish_empty_map': False,
                     }
                 ],
             ),
@@ -127,6 +148,33 @@ def generate_launch_description():
                 parameters=[
                     {
                         'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
+                    }
+                ],
+            ),
+
+            Node(
+                package='nav2_map_server',
+                executable='map_server',
+                name='map_server',
+                output='screen',
+                parameters=[
+                    {
+                        'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
+                        'yaml_filename': LaunchConfiguration('map'),
+                    }
+                ],
+            ),
+
+            Node(
+                package='nav2_lifecycle_manager',
+                executable='lifecycle_manager',
+                name='lifecycle_manager_map_server',
+                output='screen',
+                parameters=[
+                    {
+                        'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
+                        'autostart': LaunchConfiguration('autostart'),
+                        'node_names': ['map_server'],
                     }
                 ],
             ),

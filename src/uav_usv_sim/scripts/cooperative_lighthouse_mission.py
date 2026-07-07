@@ -44,7 +44,7 @@ class CooperativeLighthouseMission(Node):
         )
         self.declare_parameter('pose_topic', '/world/default/pose/info')
         self.declare_parameter('boat_name', 'landing_boat')
-        self.declare_parameter('drone_name', 'x500_0')
+        self.declare_parameter('drone_name', 'x500_mono_cam_down_0')
         self.declare_parameter('target_x', 35.0)
         self.declare_parameter('target_y', 18.0)
         self.declare_parameter('target_radius', 5.0)
@@ -61,9 +61,9 @@ class CooperativeLighthouseMission(Node):
         self.declare_parameter('deck_descent_rate', 0.35)
         self.declare_parameter('deck_touchdown_tolerance', 0.12)
         self.declare_parameter('deck_touchdown_hold_time', 0.8)
-        self.declare_parameter('deck_offset_x', -0.92)
+        self.declare_parameter('deck_offset_x', -1.518)
         self.declare_parameter('deck_offset_y', 0.0)
-        self.declare_parameter('deck_offset_z', 0.43)
+        self.declare_parameter('deck_offset_z', 0.56)
         self.declare_parameter('boat_speed', 1.1)
         self.declare_parameter('boat_turn_gain', 1.4)
         self.declare_parameter('boat_max_turn', 0.8)
@@ -150,7 +150,13 @@ class CooperativeLighthouseMission(Node):
         for pose in msg.pose:
             if pose.name == self.boat_name:
                 self.boat_pose = pose
-            elif pose.name == self.drone_name:
+            elif (
+                pose.name == self.drone_name
+                or (
+                    self.drone_pose is None
+                    and pose.name in ('x500_0', 'x500_mono_cam_0')
+                )
+            ):
                 self.drone_pose = pose
 
     def _on_land_request(self, request, response):

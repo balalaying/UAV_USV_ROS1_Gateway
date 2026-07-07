@@ -29,3 +29,6 @@ Makefile
 
 # Generated simulation files
 *.sdf.tmp
+
+# Large third-party source trees downloaded by setup scripts
+third_party/PX4-Autopilot/

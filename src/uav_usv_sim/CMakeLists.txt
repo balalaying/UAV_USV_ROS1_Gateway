@@ -93,6 +93,14 @@ install(PROGRAMS
 )
 
 install(PROGRAMS
+  scripts/uav_buoy_visual_mission.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME uav_buoy_visual_mission
+)
+
+install(PROGRAMS
+  tools/build_coastline_assets.py
+  tools/prepare_large_x500.py
   tools/run_gz_world.sh
   tools/prepare_coastline.sh
   tools/sync_to_px4.sh
@@ -105,6 +113,7 @@ install(DIRECTORY
   launch
   rviz
   config
+  maps
   docs
   urdf
   DESTINATION share/${PROJECT_NAME}

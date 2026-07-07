@@ -35,9 +35,24 @@ if [ -z "${SOURCE_DIR}" ] || [ ! -f "${SOURCE_DIR}/meshes/sydney_regatta.dae" ];
 fi
 
 mkdir -p "${TARGET_DIR}"
-ln -sfn "${SOURCE_DIR}/meshes" "${TARGET_DIR}/meshes"
+if [ -L "${TARGET_DIR}/meshes" ]; then
+  rm "${TARGET_DIR}/meshes"
+fi
+mkdir -p "${TARGET_DIR}/meshes"
 ln -sfn "${SOURCE_DIR}/materials" "${TARGET_DIR}/materials"
 cp "${SHARE_DIR}/config/sydney_coast.model.sdf" "${TARGET_DIR}/model.sdf"
 cp "${SHARE_DIR}/config/sydney_coast.model.config" "${TARGET_DIR}/model.config"
+
+BUILD_VERSION="dual_exit_v1"
+if [ "${UAV_USV_REFRESH_COASTLINE:-0}" = "1" ] || \
+   [ ! -f "${TARGET_DIR}/.${BUILD_VERSION}" ] || \
+   [ ! -f "${TARGET_DIR}/meshes/sydney_regatta.dae" ] || \
+   [ ! -f "${TARGET_DIR}/meshes/sydney_regatta_shore.dae" ]; then
+  rm -f "${TARGET_DIR}"/.dual_exit_v*
+  python3 "${SCRIPT_DIR}/build_coastline_assets.py" \
+    --source-dir "${SOURCE_DIR}" \
+    --target-dir "${TARGET_DIR}"
+  touch "${TARGET_DIR}/.${BUILD_VERSION}"
+fi
 
 echo "Sydney coastline prepared at ${TARGET_DIR}"
