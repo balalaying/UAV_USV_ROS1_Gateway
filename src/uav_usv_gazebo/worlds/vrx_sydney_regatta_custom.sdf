@@ -1,0 +1,130 @@
+<sdf version="1.10">
+  <world name="vrx_sydney_regatta_custom">
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
+    <plugin filename="gz-sim-magnetometer-system" name="gz::sim::systems::Magnetometer"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-particle-emitter-system" name="gz::sim::systems::ParticleEmitter"/>
+    <plugin filename="gz-sim-wind-effects-system" name="gz::sim::systems::WindEffects">
+      <force_approximation_scaling_factor>0.35</force_approximation_scaling_factor>
+      <horizontal>
+        <magnitude>
+          <time_for_rise>12</time_for_rise>
+          <sin><amplitude_percent>0.08</amplitude_percent><period>45</period></sin>
+          <noise type="gaussian"><mean>0</mean><stddev>0.0004</stddev></noise>
+        </magnitude>
+        <direction>
+          <time_for_rise>20</time_for_rise>
+          <sin><amplitude>6</amplitude><period>60</period></sin>
+          <noise type="gaussian"><mean>0</mean><stddev>0.025</stddev></noise>
+        </direction>
+      </horizontal>
+      <vertical>
+        <noise type="gaussian"><mean>0</mean><stddev>0.015</stddev></noise>
+      </vertical>
+    </plugin>
+
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6.0e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type="adiabatic"/>
+    <wind><linear_velocity>4 1.5 0</linear_velocity></wind>
+
+    <scene>
+      <grid>false</grid>
+      <ambient>0.42 0.42 0.42 1</ambient>
+      <background>0.70 0.76 0.80 1</background>
+      <shadows>true</shadows>
+      <fog>
+        <type>linear</type>
+        <color>0.72 0.78 0.80 1</color>
+        <start>160</start>
+        <end>900</end>
+        <density>0.002</density>
+      </fog>
+    </scene>
+
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>-33.722655</latitude_deg>
+      <longitude_deg>150.674160</longitude_deg>
+      <elevation>0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+    <model name="ocean_collision_plane">
+      <static>true</static>
+      <link name="ocean_link">
+        <collision name="ocean_collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>2200 2200</size>
+            </plane>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <include>
+      <name>animated_ocean_waves</name>
+      <pose>0 0 0.018 0 0 0</pose>
+      <uri>model://waves</uri>
+    </include>
+
+    <include>
+      <name>vrx_sydney_regatta_custom</name>
+      <pose>0 0 0.2 0 0 0</pose>
+      <uri>model://vrx_sydney_regatta_custom</uri>
+    </include>
+
+    <include>
+      <name>ocean_surface_details</name>
+      <pose>0 0 0 0 0 0</pose>
+      <uri>model://ocean_surface_details</uri>
+    </include>
+
+    <include>
+      <name>three_tier_uav_launch_platform</name>
+      <pose>120.00003 -165.63286 0 0 0 1.57080</pose>
+      <uri>model://uav_launch_platform_3tier</uri>
+    </include>
+
+    <include>
+      <name>random_reef_field</name>
+      <pose>-122.86969 -131.48282 0 0 0 -0.20000</pose>
+      <uri>model://random_reef_field</uri>
+    </include>
+
+    <include>
+      <name>breakwater_harbor_island_lighthouse</name>
+      <pose>152.84325 426.51996 6.88003 -0.01271 -0.01220 -1.64267</pose>
+      <uri>model://breakwater_harbor_island_lighthouse</uri>
+    </include>
+
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.82 0.82 0.78 1</diffuse>
+      <specular>0.25 0.25 0.22 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+  </world>
+</sdf>

@@ -10,6 +10,9 @@ in `uav_usv_sim`.
 
 - `worlds/default.sdf`: complete ocean environment with coastline, weather,
   fog, wind field, obstacles, moving vessels, and offshore facilities.
+- `worlds/vrx_sydney_regatta_custom.sdf`: isolated VRX-style Sydney Regatta
+  environment owned by this package, with the custom platform, reefs, harbor,
+  lighthouses, buoys, and animated full-ocean wave surface.
 - `plugins/BoatWaveFollower.cc`: wave-following motion for boats and floating objects.
 - `plugins/DroneDeckFollower.cc`: parked-UAV deck attachment system.
 - `config/sydney_coast.model.*`: local wrapper for the Sydney Regatta coastline.
@@ -38,6 +41,12 @@ in `uav_usv_sim`.
 source /opt/ros/jazzy/setup.bash
 source /home/ssy/UAV_USV/install/setup.bash
 ros2 run uav_usv_gazebo run_gz_world.sh
+```
+
+Run the isolated VRX-style world without changing the default world:
+
+```bash
+ros2 run uav_usv_gazebo run_gz_world.sh vrx_sydney_regatta_custom
 ```
 
 PX4 asset synchronization is also owned by this package:

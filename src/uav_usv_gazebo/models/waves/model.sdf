@@ -34,13 +34,13 @@
                         <shader>vertex</shader>
                         <name>bumpScale</name>
                         <type>float_array</type>
-                        <value>25 25</value>
+                        <value>115 95</value>
                     </param>
                     <param>
                         <shader>vertex</shader>
                         <name>bumpSpeed</name>
                         <type>float_array</type>
-                        <value>0.01 0.01</value>
+                        <value>0.055 0.022</value>
                     </param>
                     <param>
                         <shader>vertex</shader>
@@ -107,13 +107,13 @@
                         <shader>fragment</shader>
                         <name>hdrMultiplier</name>
                         <type>float</type>
-                        <value>0.4</value>
+                        <value>0.65</value>
                     </param>
                     <param>
                         <shader>fragment</shader>
                         <name>fresnelPower</name>
                         <type>float</type>
-                        <value>5.0</value>
+                        <value>4.2</value>
                     </param>
                     <param>
                         <shader>fragment</shader>
