@@ -4,6 +4,9 @@
         <static>true</static>
         <link name="link">
             <visual name="visual">
+                <!-- Keep animated waves visible to cameras, but exclude them
+                     from the navigation LiDAR's 0x01 visibility mask. -->
+                <visibility_flags>0x02</visibility_flags>
                 <geometry>
                     <mesh>
                         <uri>meshes/mesh.dae</uri>

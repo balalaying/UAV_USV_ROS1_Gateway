@@ -330,7 +330,7 @@
       <relock_duration>4.0</relock_duration>
       <release_vertical_speed>0.9</release_vertical_speed>
       <release_after>1000000</release_after>
-      <initially_released>false</initially_released>
+      <initially_released>true</initially_released>
     </plugin>
     <model name='navigation_lighthouse'>
       <static>true</static>

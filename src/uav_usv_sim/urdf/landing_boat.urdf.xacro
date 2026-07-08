@@ -4,7 +4,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <box size="3.4 1.9 0.5"/>
+        <box size="5.61 3.135 0.625"/>
       </geometry>
       <material name="boat_black">
         <color rgba="0.03 0.03 0.035 1"/>
@@ -16,34 +16,34 @@
   <joint name="front_lidar_joint" type="fixed">
     <parent link="base_link"/>
     <child link="hull/front_lidar"/>
-    <origin xyz="0.55 0 1.55" rpy="0 0 0"/>
+    <origin xyz="0.9075 0 1.5625" rpy="0 0 0"/>
   </joint>
 
   <link name="mid360_link"/>
   <joint name="mid360_joint" type="fixed">
     <parent link="base_link"/>
     <child link="mid360_link"/>
-    <origin xyz="0.55 0 1.55" rpy="0 0 0"/>
+    <origin xyz="0.9075 0 1.5625" rpy="0 0 0"/>
   </joint>
 
   <link name="front_camera_link"/>
   <joint name="front_camera_joint" type="fixed">
     <parent link="base_link"/>
     <child link="front_camera_link"/>
-    <origin xyz="1.405 0 0.86" rpy="0 0 0"/>
+    <origin xyz="2.31825 0 1.075" rpy="0 0 0"/>
   </joint>
 
   <link name="imu_link"/>
   <joint name="imu_joint" type="fixed">
     <parent link="base_link"/>
     <child link="imu_link"/>
-    <origin xyz="0 0 0.45" rpy="0 0 0"/>
+    <origin xyz="0 0 0.5625" rpy="0 0 0"/>
   </joint>
 
   <link name="landing_pad_link"/>
   <joint name="landing_pad_joint" type="fixed">
     <parent link="base_link"/>
     <child link="landing_pad_link"/>
-    <origin xyz="-0.92 0 0.43" rpy="0 0 0"/>
+    <origin xyz="-1.518 0 0.56" rpy="0 0 0"/>
   </joint>
 </robot>

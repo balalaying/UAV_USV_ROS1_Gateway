@@ -1,0 +1,318 @@
+<sdf version='1.10'>
+  <world name='default'>
+    <plugin
+      filename='gz-sim-physics-system'
+      name='gz::sim::systems::Physics'/>
+    <plugin
+      filename='gz-sim-user-commands-system'
+      name='gz::sim::systems::UserCommands'/>
+    <plugin
+      filename='gz-sim-scene-broadcaster-system'
+      name='gz::sim::systems::SceneBroadcaster'/>
+    <plugin
+      filename='gz-sim-contact-system'
+      name='gz::sim::systems::Contact'/>
+    <plugin
+      filename='gz-sim-imu-system'
+      name='gz::sim::systems::Imu'/>
+    <plugin
+      filename='gz-sim-air-pressure-system'
+      name='gz::sim::systems::AirPressure'/>
+    <plugin
+      filename='gz-sim-air-speed-system'
+      name='gz::sim::systems::AirSpeed'/>
+    <plugin
+      filename='gz-sim-apply-link-wrench-system'
+      name='gz::sim::systems::ApplyLinkWrench'/>
+    <plugin
+      filename='gz-sim-navsat-system'
+      name='gz::sim::systems::NavSat'/>
+    <plugin
+      filename='gz-sim-magnetometer-system'
+      name='gz::sim::systems::Magnetometer'/>
+    <plugin
+      filename='gz-sim-sensors-system'
+      name='gz::sim::systems::Sensors'>
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <physics type='ode'>
+      <max_step_size>0.0040000000000000001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+    <gravity>0 0 -9.8000000000000007</gravity>
+    <magnetic_field>6.0000000000000002e-06 2.3e-05 -4.1999999999999998e-05</magnetic_field>
+    <atmosphere type='adiabatic'/>
+    <scene>
+      <grid>false</grid>
+      <ambient>0.400000006 0.400000006 0.400000006 1</ambient>
+      <background>0.699999988 0.699999988 0.699999988 1</background>
+      <shadows>true</shadows>
+    </scene>
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>47.397971057728974</latitude_deg>
+      <longitude_deg>8.5461637398001464</longitude_deg>
+      <elevation>0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+    <model name='ocean_plane'>
+      <static>true</static>
+      <link name='ocean_link'>
+        <visual name='ocean_visual'>
+          <pose>0 0 -0.02 0 0 0</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>1000 1000</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0 0.08 0.16 0.45</ambient>
+            <diffuse>0 0.18 0.3 0.45</diffuse>
+            <specular>0.03 0.05 0.06 1</specular>
+          </material>
+        </visual>
+        <collision name='ocean_collision'>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>300 300</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <self_collide>false</self_collide>
+      <pose>0 0 0 0 0 0</pose>
+    </model>
+    <include>
+      <uri>model://waves</uri>
+      <name>waves</name>
+      <pose>0 0 0.015 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://sydney_coast</uri>
+      <name>sydney_coastline</name>
+      <pose>0 0 0 0 0 0.475</pose>
+    </include>
+    <include>
+      <uri>model://shore_helipad</uri>
+      <name>shore_helipad</name>
+      <pose>-16 0 0 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://medium_buoy</uri>
+      <name>medium_buoy_west_channel</name>
+      <pose>-42 44 0 0 0 0.25</pose>
+    </include>
+    <include>
+      <uri>model://medium_buoy</uri>
+      <name>medium_buoy_south_channel</name>
+      <pose>34 -56 0 0 0 -0.35</pose>
+    </include>
+    <include>
+      <uri>model://medium_buoy</uri>
+      <name>medium_buoy_east_channel</name>
+      <pose>78 28 0 0 0 0.7</pose>
+    </include>
+    <plugin
+      filename="libDroneDeckFollower.so"
+      name="gz::sim::systems::DroneDeckFollower">
+      <boat_name>landing_boat</boat_name>
+      <drone_name>x500_0</drone_name>
+      <deck_offset>-1.518 0 0.56 0 0 0</deck_offset>
+      <release_topic>/model/x500_0/release_from_deck</release_topic>
+      <relock_duration>4.0</relock_duration>
+      <release_vertical_speed>0.9</release_vertical_speed>
+      <release_after>1000000</release_after>
+      <initially_released>true</initially_released>
+    </plugin>
+    <model name='navigation_lighthouse'>
+      <static>true</static>
+      <pose>35 18 0 0 0 0</pose>
+      <link name='lighthouse_link'>
+        <collision name='base_collision'>
+          <pose>0 0 0.3 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>2.2</radius>
+              <length>0.6</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name='base_visual'>
+          <pose>0 0 0.3 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>2.2</radius>
+              <length>0.6</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.12 0.12 0.12 1</ambient>
+            <diffuse>0.18 0.18 0.16 1</diffuse>
+            <specular>0.05 0.05 0.05 1</specular>
+          </material>
+        </visual>
+        <collision name='tower_collision'>
+          <pose>0 0 4.4 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.85</radius>
+              <length>8.2</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name='tower_white_visual'>
+          <pose>0 0 4.4 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.85</radius>
+              <length>8.2</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.85 0.83 0.76 1</ambient>
+            <diffuse>0.95 0.93 0.84 1</diffuse>
+            <specular>0.2 0.2 0.18 1</specular>
+          </material>
+        </visual>
+        <visual name='red_band_lower_visual'>
+          <pose>0 0 2.7 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.88</radius>
+              <length>0.65</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.55 0.04 0.03 1</ambient>
+            <diffuse>0.85 0.06 0.04 1</diffuse>
+            <specular>0.15 0.03 0.03 1</specular>
+          </material>
+        </visual>
+        <visual name='red_band_upper_visual'>
+          <pose>0 0 5.8 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.88</radius>
+              <length>0.65</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.55 0.04 0.03 1</ambient>
+            <diffuse>0.85 0.06 0.04 1</diffuse>
+            <specular>0.15 0.03 0.03 1</specular>
+          </material>
+        </visual>
+        <visual name='lantern_room_visual'>
+          <pose>0 0 8.8 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>1.05</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.95 0.82 0.32 0.85</ambient>
+            <diffuse>1 0.88 0.4 0.85</diffuse>
+            <specular>1 0.95 0.7 1</specular>
+          </material>
+        </visual>
+        <visual name='roof_visual'>
+          <pose>0 0 9.55 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>1.2</radius>
+              <length>0.45</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.45 0.02 0.02 1</ambient>
+            <diffuse>0.7 0.03 0.03 1</diffuse>
+            <specular>0.18 0.04 0.04 1</specular>
+          </material>
+        </visual>
+        <light name='beacon_light' type='point'>
+          <pose>0 0 8.95 0 0 0</pose>
+          <cast_shadows>false</cast_shadows>
+          <intensity>3</intensity>
+          <diffuse>1 0.86 0.35 1</diffuse>
+          <specular>1 0.9 0.55 1</specular>
+          <attenuation>
+            <range>80</range>
+            <constant>0.6</constant>
+            <linear>0.02</linear>
+            <quadratic>0.001</quadratic>
+          </attenuation>
+        </light>
+      </link>
+    </model>
+    <include>
+      <uri>model://simple_boat</uri>
+      <name>landing_boat</name>
+      <pose>0 0 0.55 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://fleet_boat_blue</uri>
+      <name>landing_boat_02</name>
+      <pose>-18 15 0.58 0 0 0.15</pose>
+    </include>
+    <include>
+      <uri>model://fleet_boat_orange</uri>
+      <name>landing_boat_03</name>
+      <pose>-22 -16 0.58 0 0 -0.12</pose>
+    </include>
+    <include>
+      <uri>model://fleet_uav_blue</uri>
+      <name>fleet_uav_02</name>
+      <pose>-18 15 9.5 0 0 0.2</pose>
+    </include>
+    <include>
+      <uri>model://fleet_uav_orange</uri>
+      <name>fleet_uav_03</name>
+      <pose>-22 -16 10.5 0 0 -0.2</pose>
+    </include>
+    <light name='directionallight' type='directional'>
+      <pose>3.6650413048508694 0.062467871162392719 2 0 0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>1</intensity>
+      <direction>0 0 -1</direction>
+      <diffuse>0.800000012 0.800000012 0.800000012 1</diffuse>
+      <specular>0.200000003 0.200000003 0.200000003 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <linear>0.01</linear>
+        <constant>0.90000000000000002</constant>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
+  </world>
+</sdf>

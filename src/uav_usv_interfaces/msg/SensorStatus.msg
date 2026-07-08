@@ -1,0 +1,10 @@
+std_msgs/Header header
+string vehicle_id
+string sensor_id
+string uplink_topic
+string message_type
+float32 measured_rate_hz
+float32 age_seconds
+uint64 total_messages
+uint64 total_bytes
+bool healthy

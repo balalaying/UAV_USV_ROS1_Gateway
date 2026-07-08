@@ -1,0 +1,7 @@
+image: sydney_coastline.pgm
+mode: trinary
+resolution: 0.5
+origin: [-250.0, -200.0, 0.0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.25

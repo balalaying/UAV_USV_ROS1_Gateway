@@ -7,17 +7,33 @@ boat_nav2_interface:
     linear_ki: 0.05
     linear_kd: 0.01
     linear_integral_limit: 0.5
-    angular_kp: 0.28
+    angular_kp: 0.20
     angular_ki: 0.04
-    angular_kd: 0.015
+    angular_kd: 0.025
     angular_integral_limit: 0.8
     derivative_filter_alpha: 0.2
     velocity_measurement_alpha: 0.3
     linear_setpoint_alpha: 0.45
-    angular_setpoint_alpha: 0.6
-    max_linear_output: 1.4
-    max_angular_output: 2.2
+    angular_setpoint_alpha: 0.12
+    max_linear_output: 3.6
+    min_linear_output: -0.65
+    max_angular_output: 1.2
     command_deadband: 0.01
+    enable_lidar_safety: true
+    safety_slow_distance: 18.0
+    safety_stop_distance: 7.5
+    safety_escape_distance: 4.0
+    safety_release_distance: 10.0
+    safety_reverse_speed: -0.42
+    safety_turn_rate: 0.9
+    safety_blocked_timeout: 1.5
+    safety_min_escape_duration: 2.5
+    safety_max_escape_duration: 6.0
+    # Publish 2D scans only near level attitude; tilted scans smear shorelines.
+    max_scan_tilt: 0.025
+    # Remove finite returns whose world endpoint lies in the wave-height band.
+    filter_wave_points: true
+    min_obstacle_world_z: 0.9
 
 bt_navigator:
   ros__parameters:
@@ -100,7 +116,7 @@ controller_server:
     progress_checker:
       plugin: nav2_controller::SimpleProgressChecker
       required_movement_radius: 0.7
-      movement_time_allowance: 30.0
+      movement_time_allowance: 8.0
 
     general_goal_checker:
       stateful: true
@@ -114,18 +130,18 @@ controller_server:
       model_dt: 0.05
       batch_size: 1800
       iteration_count: 1
-      vx_std: 0.45
+      vx_std: 0.9
       vy_std: 0.0
-      wz_std: 0.75
-      vx_max: 1.25
+      wz_std: 0.22
+      vx_max: 3.2
       vx_min: 0.0
       vy_max: 0.0
-      wz_max: 2.1
-      ax_max: 0.6
-      ax_min: -0.8
+      wz_max: 1.0
+      ax_max: 1.6
+      ax_min: -2.2
       ay_min: 0.0
       ay_max: 0.0
-      az_max: 3.2
+      az_max: 0.6
       temperature: 0.3
       gamma: 0.015
       motion_model: DiffDrive
@@ -148,9 +164,9 @@ controller_server:
       CostCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 3.8
+        cost_weight: 5.0
         critical_cost: 300.0
-        consider_footprint: false
+        consider_footprint: true
         collision_cost: 1000000.0
         near_goal_distance: 2.0
         trajectory_point_step: 3
@@ -197,10 +213,10 @@ local_costmap:
       global_frame: odom
       robot_base_frame: landing_boat/base_link
       rolling_window: true
-      width: 70
-      height: 70
+      width: 100
+      height: 100
       resolution: 0.25
-      robot_radius: 1.8
+      footprint: "[[3.1, 1.7], [3.1, -1.7], [-3.1, -1.7], [-3.1, 1.7]]"
       plugins: [obstacle_layer, inflation_layer]
       obstacle_layer:
         plugin: nav2_costmap_2d::ObstacleLayer
@@ -212,25 +228,26 @@ local_costmap:
           clearing: true
           marking: true
           data_type: LaserScan
+          observation_persistence: 0.5
           raytrace_max_range: 80.0
           raytrace_min_range: 0.0
-          obstacle_max_range: 45.0
+          obstacle_max_range: 70.0
           obstacle_min_range: 0.0
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 2.2
-        inflation_radius: 3.0
+        inflation_radius: 5.5
       always_send_full_costmap: true
 
 global_costmap:
   global_costmap:
     ros__parameters:
       use_sim_time: true
-      update_frequency: 1.0
-      publish_frequency: 1.0
+      update_frequency: 3.0
+      publish_frequency: 2.0
       global_frame: map
       robot_base_frame: landing_boat/base_link
-      robot_radius: 1.8
+      footprint: "[[3.1, 1.7], [3.1, -1.7], [-3.1, -1.7], [-3.1, 1.7]]"
       resolution: 0.5
       track_unknown_space: false
       plugins: [static_layer, obstacle_layer, inflation_layer]
@@ -247,14 +264,15 @@ global_costmap:
           clearing: true
           marking: true
           data_type: LaserScan
+          observation_persistence: 0.8
           raytrace_max_range: 80.0
           raytrace_min_range: 0.0
-          obstacle_max_range: 45.0
+          obstacle_max_range: 70.0
           obstacle_min_range: 0.0
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 2.2
-        inflation_radius: 3.0
+        inflation_radius: 5.5
       always_send_full_costmap: true
 
 planner_server:
@@ -318,10 +336,10 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: false
     feedback: OPEN_LOOP
-    max_velocity: [1.25, 0.0, 2.1]
-    min_velocity: [0.0, 0.0, -2.1]
-    max_accel: [0.6, 0.0, 3.2]
-    max_decel: [-0.8, 0.0, -3.4]
+    max_velocity: [3.2, 0.0, 1.0]
+    min_velocity: [-0.65, 0.0, -1.0]
+    max_accel: [1.6, 0.0, 0.6]
+    max_decel: [-2.2, 0.0, -0.8]
     odom_topic: /odom
     odom_duration: 0.2
     deadband_velocity: [0.02, 0.0, 0.02]

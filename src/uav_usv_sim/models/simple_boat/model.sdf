@@ -1,0 +1,558 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <model name="simple_boat">
+    <pose>0 0 0.4375 0 0 0</pose>
+
+    <link name="hull">
+      <inertial>
+        <mass>150.0</mass>
+        <inertia>
+          <ixx>85.0</ixx>
+          <iyy>180.0</iyy>
+          <izz>220.0</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+
+      <collision name="hull_collision">
+        <pose>0 0 -0.0625 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>5.61 3.135 0.625</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <visual name="lower_hull">
+        <pose>-0.0825 0 -0.2 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>5.3625 2.7225 0.35</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.08 0.08 0.09 1</ambient>
+          <diffuse>0.12 0.12 0.13 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+
+      <visual name="upper_hull">
+        <pose>-0.165 0 0.0625 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>5.1975 3.003 0.4</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.015 0.015 0.018 1</ambient>
+          <diffuse>0.025 0.025 0.03 1</diffuse>
+          <specular>0.18 0.18 0.2 1</specular>
+        </material>
+      </visual>
+
+      <visual name="bow_side_left">
+        <pose>2.409 0.858 0.05 0 0 0.31</pose>
+        <geometry>
+          <box>
+            <size>1.518 0.264 0.475</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.015 0.015 0.018 1</ambient>
+          <diffuse>0.025 0.025 0.03 1</diffuse>
+          <specular>0.18 0.18 0.2 1</specular>
+        </material>
+      </visual>
+
+      <visual name="bow_side_right">
+        <pose>2.409 -0.858 0.05 0 0 -0.31</pose>
+        <geometry>
+          <box>
+            <size>1.518 0.264 0.475</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.015 0.015 0.018 1</ambient>
+          <diffuse>0.025 0.025 0.03 1</diffuse>
+          <specular>0.18 0.18 0.2 1</specular>
+        </material>
+      </visual>
+
+      <visual name="bow_center_nose">
+        <pose>3.003 0 0.05 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.33 0.528 0.5</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.012 0.012 0.015 1</ambient>
+          <diffuse>0.022 0.022 0.026 1</diffuse>
+          <specular>0.16 0.16 0.18 1</specular>
+        </material>
+      </visual>
+
+      <visual name="bow_keel_line">
+        <pose>2.5575 0 -0.425 0 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.035</radius>
+            <length>0.9</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.006 0.006 0.008 1</ambient>
+          <diffuse>0.012 0.012 0.014 1</diffuse>
+        </material>
+      </visual>
+
+      <visual name="foredeck_slope">
+        <pose>1.7325 0 0.45 0 -0.16 0</pose>
+        <geometry>
+          <box>
+            <size>1.815 1.914 0.06875</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.12 0.12 0.115 1</ambient>
+          <diffuse>0.2 0.19 0.17 1</diffuse>
+          <specular>0.08 0.08 0.08 1</specular>
+        </material>
+      </visual>
+
+      <visual name="bow_stem">
+        <pose>3.201 0 0.0375 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.132 0.198 0.525</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.01 0.01 0.012 1</ambient>
+          <diffuse>0.02 0.02 0.024 1</diffuse>
+          <specular>0.16 0.16 0.18 1</specular>
+        </material>
+      </visual>
+
+      <visual name="hull_side_fairing_left">
+        <pose>0.0825 1.419 0.05 0 0 0.035</pose>
+        <geometry>
+          <box>
+            <size>4.3725 0.132 0.275</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.01 0.01 0.012 1</ambient>
+          <diffuse>0.018 0.018 0.022 1</diffuse>
+          <specular>0.14 0.14 0.16 1</specular>
+        </material>
+      </visual>
+
+      <visual name="hull_side_fairing_right">
+        <pose>0.0825 -1.419 0.05 0 0 -0.035</pose>
+        <geometry>
+          <box>
+            <size>4.3725 0.132 0.275</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.01 0.01 0.012 1</ambient>
+          <diffuse>0.018 0.018 0.022 1</diffuse>
+          <specular>0.14 0.14 0.16 1</specular>
+        </material>
+      </visual>
+
+      <visual name="deck">
+        <pose>-0.4125 0 0.3125 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>4.7025 2.475 0.1</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.18 0.18 0.17 1</ambient>
+          <diffuse>0.26 0.25 0.22 1</diffuse>
+          <specular>0.08 0.08 0.08 1</specular>
+        </material>
+      </visual>
+
+      <visual name="cabin_body">
+        <pose>0.33 0 0.725 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.287 1.023 0.6</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.86 0.86 0.8 1</ambient>
+          <diffuse>0.96 0.95 0.86 1</diffuse>
+          <specular>0.28 0.28 0.24 1</specular>
+        </material>
+      </visual>
+
+      <visual name="front_window">
+        <pose>0.99 0 0.8 0 0.28 0</pose>
+        <geometry>
+          <box>
+            <size>0.05775 0.792 0.3</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.05 0.22 0.36 0.65</ambient>
+          <diffuse>0.08 0.38 0.62 0.65</diffuse>
+          <specular>0.9 0.95 1 1</specular>
+        </material>
+      </visual>
+
+      <visual name="left_window">
+        <pose>0.33 0.53625 0.8 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.7425 0.04125 0.275</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.05 0.22 0.36 0.65</ambient>
+          <diffuse>0.08 0.38 0.62 0.65</diffuse>
+          <specular>0.9 0.95 1 1</specular>
+        </material>
+      </visual>
+
+      <visual name="right_window">
+        <pose>0.33 -0.53625 0.8 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.7425 0.04125 0.275</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.05 0.22 0.36 0.65</ambient>
+          <diffuse>0.08 0.38 0.62 0.65</diffuse>
+          <specular>0.9 0.95 1 1</specular>
+        </material>
+      </visual>
+
+      <visual name="cabin_roof">
+        <pose>0.2475 0 1.0625 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.518 1.188 0.1</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.08 0.08 0.08 1</ambient>
+          <diffuse>0.12 0.12 0.12 1</diffuse>
+          <specular>0.18 0.18 0.18 1</specular>
+        </material>
+      </visual>
+
+      <collision name="landing_pad_collision">
+        <pose>-1.518 0 0.45 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>2.805 2.5575 0.3</size>
+          </box>
+        </geometry>
+        <surface>
+          <contact>
+            <ode>
+              <min_depth>0.001</min_depth>
+              <max_vel>0</max_vel>
+            </ode>
+          </contact>
+          <friction>
+            <ode>
+              <mu>1.5</mu>
+              <mu2>1.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+
+      <visual name="landing_pad_visual">
+        <pose>-1.518 0 0.475 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>2.72 2.46 0.1</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.04 0.04 0.045 1</ambient>
+          <diffuse>0.08 0.08 0.09 1</diffuse>
+          <specular>0.08 0.08 0.08 1</specular>
+        </material>
+      </visual>
+
+      <visual name="landing_pad_ring">
+        <pose>-1.518 0 0.54375 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>1.08</radius>
+            <length>0.015</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+        </material>
+      </visual>
+
+      <visual name="landing_pad_center">
+        <pose>-1.518 0 0.55625 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.86</radius>
+            <length>0.0175</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.04 0.04 0.045 1</ambient>
+          <diffuse>0.08 0.08 0.09 1</diffuse>
+        </material>
+      </visual>
+
+      <visual name="landing_h_left">
+        <pose>-1.518 0.62 0.5725 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.55 0.18 0.015</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+        </material>
+      </visual>
+
+      <visual name="landing_h_right">
+        <pose>-1.518 -0.62 0.5725 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.55 0.18 0.015</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+        </material>
+      </visual>
+
+      <visual name="landing_h_crossbar">
+        <pose>-1.518 0 0.5775 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.2 1.42 0.015</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+        </material>
+      </visual>
+
+      <visual name="mast">
+        <pose>-0.0825 0 1.375 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.0225</radius>
+            <length>0.6875</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.02 0.02 0.02 1</ambient>
+          <diffuse>0.02 0.02 0.02 1</diffuse>
+        </material>
+      </visual>
+
+      <visual name="nav_light">
+        <pose>-0.0825 0 1.7375 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.06875</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>1 0.85 0.25 1</ambient>
+          <diffuse>1 0.85 0.25 1</diffuse>
+          <specular>1 0.9 0.5 1</specular>
+        </material>
+      </visual>
+
+      <visual name="lidar_mount">
+        <pose>0.9075 0 1.175 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.1125</radius>
+            <length>0.775</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.02 0.02 0.022 1</ambient>
+          <diffuse>0.04 0.04 0.045 1</diffuse>
+          <specular>0.2 0.2 0.22 1</specular>
+        </material>
+      </visual>
+
+      <visual name="lidar_body">
+        <pose>0.9075 0 1.5875 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.175</radius>
+            <length>0.1</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.01 0.01 0.012 1</ambient>
+          <diffuse>0.02 0.02 0.024 1</diffuse>
+          <specular>0.35 0.35 0.38 1</specular>
+        </material>
+      </visual>
+
+      <visual name="front_camera_mount_base">
+        <pose>1.98 0 0.56875 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.396 0.33 0.05</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.025 0.025 0.028 1</ambient>
+          <diffuse>0.04 0.04 0.045 1</diffuse>
+          <specular>0.18 0.18 0.2 1</specular>
+        </material>
+      </visual>
+
+      <visual name="front_camera_mount_post">
+        <pose>1.98 0 0.8125 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.04375</radius>
+            <length>0.4375</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.018 0.018 0.02 1</ambient>
+          <diffuse>0.03 0.03 0.034 1</diffuse>
+          <specular>0.18 0.18 0.2 1</specular>
+        </material>
+      </visual>
+
+      <visual name="front_camera_body">
+        <pose>2.1285 0 1.075 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.264 0.297 0.15</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.015 0.015 0.018 1</ambient>
+          <diffuse>0.025 0.025 0.03 1</diffuse>
+          <specular>0.2 0.2 0.22 1</specular>
+        </material>
+      </visual>
+
+      <visual name="front_camera_lens">
+        <pose>2.28525 0 1.075 0 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.05625</radius>
+            <length>0.03125</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.02 0.04 0.06 1</ambient>
+          <diffuse>0.03 0.08 0.12 1</diffuse>
+          <specular>0.8 0.9 1 1</specular>
+        </material>
+      </visual>
+
+      <sensor name="front_camera" type="camera">
+        <pose>2.31825 0 1.075 0 0 0</pose>
+        <topic>/boat/front_camera</topic>
+        <update_rate>20</update_rate>
+        <camera>
+          <horizontal_fov>1.047</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>360</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>200</far>
+          </clip>
+        </camera>
+        <always_on>true</always_on>
+        <visualize>true</visualize>
+      </sensor>
+
+      <sensor name="front_lidar" type="gpu_lidar">
+        <gz_frame_id>landing_boat/hull/front_lidar</gz_frame_id>
+        <pose>0.9075 0 1.5625 0 0 0</pose>
+        <topic>/boat/scan</topic>
+        <update_rate>10</update_rate>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>361</samples>
+              <resolution>1</resolution>
+              <min_angle>-1.5708</min_angle>
+              <max_angle>1.5708</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.35</min>
+            <max>80</max>
+            <resolution>0.02</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+          <visibility_mask>0x01</visibility_mask>
+        </ray>
+        <always_on>true</always_on>
+        <visualize>true</visualize>
+      </sensor>
+    </link>
+
+    <plugin
+      filename="gz-sim-velocity-control-system"
+      name="gz::sim::systems::VelocityControl">
+      <topic>/model/simple_boat/cmd_vel</topic>
+      <control_linear_velocity>true</control_linear_velocity>
+      <control_angular_velocity>true</control_angular_velocity>
+    </plugin>
+
+    <plugin
+      filename="gz-sim-pose-publisher-system"
+      name="gz::sim::systems::PosePublisher">
+      <publish_model_pose>true</publish_model_pose>
+      <publish_link_pose>false</publish_link_pose>
+      <publish_collision_pose>false</publish_collision_pose>
+      <publish_visual_pose>false</publish_visual_pose>
+      <publish_nested_model_pose>false</publish_nested_model_pose>
+      <publish_sensor_pose>false</publish_sensor_pose>
+      <use_pose_vector_msg>false</use_pose_vector_msg>
+      <topic>/boat/pose</topic>
+      <update_frequency>30</update_frequency>
+    </plugin>
+
+    <plugin
+      filename="libBoatWaveFollower.so"
+      name="gz::sim::systems::BoatWaveFollower">
+      <mean_z>0.55</mean_z>
+      <heave_amplitude>0.11</heave_amplitude>
+      <roll_amplitude>0.055</roll_amplitude>
+      <pitch_amplitude>0.045</pitch_amplitude>
+      <primary_frequency>1.1</primary_frequency>
+      <secondary_frequency>1.7</secondary_frequency>
+      <wave_number_x>0.35</wave_number_x>
+      <wave_number_y>0.22</wave_number_y>
+    </plugin>
+  </model>
+</sdf>

@@ -143,6 +143,36 @@ source /opt/ros/humble/setup.bash
 source /你的路径/UAV_USV/install/setup.bash
 ```
 
+### 2.1 可选：把 PX4 下载到本项目目录
+
+如果电脑上还没有 PX4，可以使用项目提供的脚本下载到 `third_party`，不需要
+手动到其它目录克隆：
+
+```bash
+./tools/setup_px4.sh
+```
+
+默认下载位置：
+
+```text
+third_party/PX4-Autopilot
+```
+
+然后在当前终端设置：
+
+```bash
+export PX4_DIR="$PWD/third_party/PX4-Autopilot"
+```
+
+如果这台电脑从未安装过 PX4 依赖，可以显式执行：
+
+```bash
+./tools/setup_px4.sh --install-system-deps
+```
+
+该命令会调用 PX4 自带的 Ubuntu 依赖安装脚本，可能需要输入 sudo 密码。
+`third_party/PX4-Autopilot` 已加入 `.gitignore`，不会被提交到本仓库。
+
 ### 3. 启动海面世界
 
 ```bash
@@ -190,6 +220,55 @@ ros2 launch uav_usv_sim boat_nav2_navigation.launch.py
 ```bash
 ros2 launch uav_usv_sim colregs_test_scenario.launch.py
 ```
+
+### 7. 启动无人机视觉浮标协同导航
+
+终端 1 启动带下视相机的 PX4 无人机和仿真世界：
+
+```bash
+export PX4_DIR=/你的路径/PX4-Autopilot
+ros2 launch uav_usv_sim uav_usv_px4_sim.launch.py \
+  px4_dir:="$PX4_DIR"
+```
+
+终端 2 只启动船体 Nav2。它可以先接收人工目标并正常导航：
+
+```bash
+source /opt/ros/humble/setup.bash
+source /你的路径/UAV_USV/install/setup.bash
+ros2 launch uav_usv_sim boat_nav2_navigation.launch.py start_rviz:=false
+```
+
+终端 3 单独启动无人机巡逻、视觉识别、相机桥和 RViz：
+
+```bash
+source /opt/ros/humble/setup.bash
+source /你的路径/UAV_USV/install/setup.bash
+ros2 launch uav_usv_sim uav_buoy_patrol.launch.py
+```
+
+无人机将自动起飞并按航点巡逻。下视相机连续确认红色浮标后，节点发布浮标
+世界坐标，并通过 `/goal_pose` 覆盖船体当前 Nav2 目标，发送距浮标约 7 米的
+安全目标点。无人机飞到浮标上方，
+船体使用静态海岸地图和 LaserScan 动态避障前往目标。RViz 同时显示船头相机、
+无人机检测画面、目标标记、路径和代价地图。
+
+也可以使用集成 launch 同时启动 Nav2 和无人机巡逻：
+
+```bash
+ros2 launch uav_usv_sim uav_buoy_cooperative_navigation.launch.py
+```
+
+主要话题：
+
+| 话题 | 作用 |
+|---|---|
+| `/uav/down_camera/image` | 无人机下视相机原始画面 |
+| `/uav/down_camera/detections` | 标注浮标检测结果的画面 |
+| `/uav_usv/camera_mosaic` | RViz 默认显示的船头与无人机双画面 |
+| `/uav/detected_target` | 无人机确认的浮标世界坐标 |
+| `/goal_pose` | 发给船体 Nav2 的安全目标点 |
+| `/uav/visual_target_marker` | RViz 中的视觉目标标记 |
 
 ## 项目负责人日常操作
 

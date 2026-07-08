@@ -1,0 +1,122 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <model name="fleet_boat_blue">
+    <pose>0 0 0.58 0 0 0</pose>
+    <link name="hull">
+      <inertial>
+        <mass>260</mass>
+        <inertia>
+          <ixx>180</ixx>
+          <iyy>620</iyy>
+          <izz>720</izz>
+        </inertia>
+      </inertial>
+      <collision name="hull_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>8.6 3.0 1.0</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name="lower_hull">
+        <pose>-0.25 0 -0.24 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>8.3 2.6 0.62</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.02 0.12 0.22 1</ambient>
+          <diffuse>0.03 0.24 0.48 1</diffuse>
+          <specular>0.16 0.24 0.3 1</specular>
+        </material>
+      </visual>
+      <visual name="deck">
+        <pose>-0.35 0 0.22 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>7.8 2.75 0.22</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.72 0.74 0.72 1</ambient>
+          <diffuse>0.86 0.88 0.84 1</diffuse>
+        </material>
+      </visual>
+      <visual name="bow_left">
+        <pose>4.1 0.72 -0.05 0 0 0.42</pose>
+        <geometry>
+          <box>
+            <size>1.65 0.24 0.8</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.02 0.12 0.22 1</ambient>
+          <diffuse>0.03 0.24 0.48 1</diffuse>
+        </material>
+      </visual>
+      <visual name="bow_right">
+        <pose>4.1 -0.72 -0.05 0 0 -0.42</pose>
+        <geometry>
+          <box>
+            <size>1.65 0.24 0.8</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.02 0.12 0.22 1</ambient>
+          <diffuse>0.03 0.24 0.48 1</diffuse>
+        </material>
+      </visual>
+      <visual name="cabin">
+        <pose>-0.8 0 1.0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>2.3 1.7 1.25</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.88 0.9 0.86 1</ambient>
+          <diffuse>0.96 0.98 0.93 1</diffuse>
+        </material>
+      </visual>
+      <visual name="sensor_mast">
+        <pose>-0.9 0 2.2 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>2.2</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.05 0.05 0.05 1</ambient>
+          <diffuse>0.08 0.08 0.08 1</diffuse>
+        </material>
+      </visual>
+      <visual name="id_band">
+        <pose>1.7 0 0.45 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.2 2.85 0.08</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.0 0.65 1.0 1</ambient>
+          <diffuse>0.0 0.75 1.0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <plugin
+      filename="libBoatWaveFollower.so"
+      name="gz::sim::systems::BoatWaveFollower">
+      <mean_z>0.58</mean_z>
+      <heave_amplitude>0.07</heave_amplitude>
+      <roll_amplitude>0.026</roll_amplitude>
+      <pitch_amplitude>0.022</pitch_amplitude>
+      <primary_frequency>0.9</primary_frequency>
+      <secondary_frequency>1.45</secondary_frequency>
+      <wave_number_x>0.3</wave_number_x>
+      <wave_number_y>0.18</wave_number_y>
+    </plugin>
+  </model>
+</sdf>

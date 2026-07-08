@@ -1,0 +1,115 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.8
+      Cell Size: 10
+      Class: rviz_default_plugins/Grid
+      Color: 35; 35; 35
+      Enabled: true
+      Line Style:
+        Line Width: 0.04
+        Value: Lines
+      Name: Defense Sea Grid
+      Plane: XY
+      Plane Cell Count: 90
+      Reference Frame: map
+      Value: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 20
+      Name: Map Axes
+      Radius: 0.4
+      Reference Frame: map
+      Value: true
+    - Alpha: 1
+      Arrow Length: 12
+      Axes Length: 8
+      Axes Radius: 0.5
+      Class: rviz_default_plugins/PoseArray
+      Color: 30; 90; 255
+      Enabled: false
+      Head Length: 2
+      Head Radius: 1
+      Name: Own Ship Poses
+      Shaft Length: 8
+      Shaft Radius: 0.45
+      Shape: Arrow
+      Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /defense/own_ships
+      Value: false
+    - Alpha: 1
+      Arrow Length: 12
+      Axes Length: 8
+      Axes Radius: 0.5
+      Class: rviz_default_plugins/PoseArray
+      Color: 255; 40; 30
+      Enabled: false
+      Head Length: 2
+      Head Radius: 1
+      Name: Enemy Ship Poses
+      Shaft Length: 8
+      Shaft Radius: 0.45
+      Shape: Arrow
+      Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /defense/enemy_ships
+      Value: false
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Defense Strategy Markers
+      Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /defense/rviz_markers
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 248; 248; 248
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 320
+      Focal Point:
+        X: 35
+        Y: 0
+        Z: 0
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05
+      Invert Z Axis: false
+      Name: Defense Overview
+      Near Clip Distance: 0.01
+      Pitch: 1.5707
+      Target Frame: map
+      Value: Orbit (rviz)
+      Yaw: 0
+Window Geometry:
+  Height: 900
+  Width: 1500
+  X: 100
+  Y: 50

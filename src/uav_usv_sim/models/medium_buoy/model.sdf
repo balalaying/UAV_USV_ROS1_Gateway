@@ -1,0 +1,146 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <model name="medium_buoy">
+    <static>true</static>
+    <link name="body">
+      <collision name="base_collision">
+        <pose>0 0 0.45 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.7</radius>
+            <length>0.9</length>
+          </cylinder>
+        </geometry>
+      </collision>
+
+      <collision name="mast_collision">
+        <pose>0 0 2.55 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.11</radius>
+            <length>3.3</length>
+          </cylinder>
+        </geometry>
+      </collision>
+
+      <collision name="daymark_lower_collision">
+        <pose>0 0 2.0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.05 0.12 0.65</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="daymark_upper_collision">
+        <pose>0 0 3.1 0 0 1.5708</pose>
+        <geometry>
+          <box>
+            <size>1.05 0.12 0.65</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <visual name="base_float">
+        <pose>0 0 0.45 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.72</radius>
+            <length>0.9</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.65 0.05 0.04 1</ambient>
+          <diffuse>0.92 0.07 0.05 1</diffuse>
+          <specular>0.25 0.04 0.04 1</specular>
+        </material>
+      </visual>
+
+      <visual name="white_band">
+        <pose>0 0 0.82 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.73</radius>
+            <length>0.16</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.92 0.9 0.82 1</ambient>
+          <diffuse>1 0.98 0.88 1</diffuse>
+          <specular>0.45 0.45 0.4 1</specular>
+        </material>
+      </visual>
+
+      <visual name="tower_mast">
+        <pose>0 0 2.55 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>3.3</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.04 0.04 0.04 1</ambient>
+          <diffuse>0.06 0.06 0.06 1</diffuse>
+          <specular>0.2 0.2 0.2 1</specular>
+        </material>
+      </visual>
+
+      <visual name="daymark_lower">
+        <pose>0 0 2.0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.95 0.08 0.55</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.85 0.1 0.06 1</ambient>
+          <diffuse>1 0.15 0.08 1</diffuse>
+          <specular>0.3 0.05 0.03 1</specular>
+        </material>
+      </visual>
+
+      <visual name="daymark_upper">
+        <pose>0 0 3.1 0 0 1.5708</pose>
+        <geometry>
+          <box>
+            <size>0.95 0.08 0.55</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.85 0.1 0.06 1</ambient>
+          <diffuse>1 0.15 0.08 1</diffuse>
+          <specular>0.3 0.05 0.03 1</specular>
+        </material>
+      </visual>
+
+      <visual name="top_beacon">
+        <pose>0 0 4.35 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.22</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>1 0.78 0.1 1</ambient>
+          <diffuse>1 0.86 0.15 1</diffuse>
+          <specular>1 0.9 0.35 1</specular>
+        </material>
+      </visual>
+
+      <light name="buoy_light" type="point">
+        <pose>0 0 4.35 0 0 0</pose>
+        <cast_shadows>false</cast_shadows>
+        <intensity>1.2</intensity>
+        <diffuse>1 0.78 0.1 1</diffuse>
+        <specular>1 0.86 0.25 1</specular>
+        <attenuation>
+          <range>25</range>
+          <constant>0.7</constant>
+          <linear>0.04</linear>
+          <quadratic>0.002</quadratic>
+        </attenuation>
+      </light>
+    </link>
+  </model>
+</sdf>

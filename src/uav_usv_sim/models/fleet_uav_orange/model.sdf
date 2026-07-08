@@ -1,0 +1,120 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <model name="fleet_uav_orange">
+    <static>true</static>
+    <link name="base_link">
+      <visual name="body">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.15 0.9 0.3</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.45 0.16 0.02 1</ambient>
+          <diffuse>0.95 0.38 0.05 1</diffuse>
+        </material>
+      </visual>
+      <visual name="front_nose">
+        <pose>0.72 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.32 0.48 0.22</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.78 0.78 0.72 1</ambient>
+          <diffuse>0.92 0.92 0.84 1</diffuse>
+        </material>
+      </visual>
+      <visual name="arm_x">
+        <pose>0 0 0.03 0 0 0.785</pose>
+        <geometry>
+          <box>
+            <size>2.8 0.14 0.12</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.08 0.08 0.08 1</ambient>
+          <diffuse>0.12 0.12 0.12 1</diffuse>
+        </material>
+      </visual>
+      <visual name="arm_y">
+        <pose>0 0 0.03 0 0 -0.785</pose>
+        <geometry>
+          <box>
+            <size>2.8 0.14 0.12</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.08 0.08 0.08 1</ambient>
+          <diffuse>0.12 0.12 0.12 1</diffuse>
+        </material>
+      </visual>
+      <visual name="rotor_front_left">
+        <pose>1.0 1.0 0.07 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.38</radius>
+            <length>0.035</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.02 0.02 0.02 0.8</ambient>
+          <diffuse>0.03 0.03 0.03 0.8</diffuse>
+        </material>
+      </visual>
+      <visual name="rotor_front_right">
+        <pose>1.0 -1.0 0.07 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.38</radius>
+            <length>0.035</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.02 0.02 0.02 0.8</ambient>
+          <diffuse>0.03 0.03 0.03 0.8</diffuse>
+        </material>
+      </visual>
+      <visual name="rotor_back_left">
+        <pose>-1.0 1.0 0.07 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.38</radius>
+            <length>0.035</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.02 0.02 0.02 0.8</ambient>
+          <diffuse>0.03 0.03 0.03 0.8</diffuse>
+        </material>
+      </visual>
+      <visual name="rotor_back_right">
+        <pose>-1.0 -1.0 0.07 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.38</radius>
+            <length>0.035</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.02 0.02 0.02 0.8</ambient>
+          <diffuse>0.03 0.03 0.03 0.8</diffuse>
+        </material>
+      </visual>
+      <visual name="camera">
+        <pose>0.35 0 -0.24 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.24 0.24 0.22</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.0 0.0 0.0 1</ambient>
+          <diffuse>0.02 0.02 0.02 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

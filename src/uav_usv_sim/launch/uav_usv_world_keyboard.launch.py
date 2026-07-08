@@ -72,13 +72,9 @@ def _keyboard_terminal_command(command):
 def _launch_setup(context, *args, **kwargs):
     package_name = 'uav_usv_sim'
     package_share = get_package_share_directory(package_name)
-    gazebo_package_share = get_package_share_directory('uav_usv_gazebo')
-    gazebo_package_prefix = get_package_prefix('uav_usv_gazebo')
     package_prefix = get_package_prefix(package_name)
-    plugin_dir = os.path.join(
-        gazebo_package_prefix, 'lib', 'uav_usv_gazebo', 'plugins'
-    )
-    gazebo_models_dir = os.path.join(gazebo_package_share, 'models')
+    plugin_dir = os.path.join(package_prefix, 'lib', package_name, 'plugins')
+    models_dir = os.path.join(package_share, 'models')
     world_path = LaunchConfiguration('world').perform(context)
     gz_args = shlex.split(LaunchConfiguration('gz_args').perform(context))
     start_keyboard = _as_bool(LaunchConfiguration('start_keyboard').perform(context))
@@ -96,12 +92,10 @@ def _launch_setup(context, *args, **kwargs):
     )
     workspace_prefix = os.path.dirname(package_prefix)
     workspace_setup = os.path.join(workspace_prefix, 'setup.bash')
-    ros_distro = os.environ.get('ROS_DISTRO', 'humble')
-    ros_setup = os.path.join('/opt/ros', ros_distro, 'setup.bash')
     prepare_script = os.path.join(
-        gazebo_package_prefix,
+        package_prefix,
         'lib',
-        'uav_usv_gazebo',
+        package_name,
         'prepare_coastline.sh',
     )
     gz_command = ' '.join(
@@ -119,11 +113,8 @@ def _launch_setup(context, *args, **kwargs):
             additional_env={
                 'GZ_FUEL_CACHE_PATH': fuel_cache_path,
                 'UAV_USV_ASSET_ROOT': asset_root,
-                'GZ_CONFIG_PATH': (
-                    os.environ.get('GZ_CONFIG_PATH', '') + ':/usr/share/gz'
-                ),
                 'GZ_SIM_RESOURCE_PATH': (
-                    asset_root + ':' + gazebo_models_dir + ':'
+                    asset_root + ':' + models_dir + ':'
                     + os.environ.get('GZ_SIM_RESOURCE_PATH', '')
                 ),
                 'GZ_SIM_SYSTEM_PLUGIN_PATH': (
@@ -148,7 +139,7 @@ def _launch_setup(context, *args, **kwargs):
         return actions
 
     keyboard_command = (
-        f'source {shlex.quote(ros_setup)} && '
+        'source /opt/ros/humble/setup.bash && '
         f'source {shlex.quote(workspace_setup)} && '
         'ros2 run uav_usv_sim keyboard_boat_control '
         f'--ros-args -p topic:={shlex.quote(keyboard_topic)}'
@@ -203,8 +194,7 @@ def _launch_setup(context, *args, **kwargs):
 
 def generate_launch_description():
     package_share = get_package_share_directory('uav_usv_sim')
-    gazebo_package_share = get_package_share_directory('uav_usv_gazebo')
-    default_world = os.path.join(gazebo_package_share, 'worlds', 'default.sdf')
+    default_world = os.path.join(package_share, 'worlds', 'default.sdf')
     default_rviz_config = os.path.join(
         package_share,
         'rviz',
