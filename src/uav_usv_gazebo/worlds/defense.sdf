@@ -1,0 +1,163 @@
+<sdf version="1.10">
+  <world name="defense">
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+    <physics type="ode">
+      <max_step_size>0.01</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>100</real_time_update_rate>
+    </physics>
+    <gravity>0 0 -9.8</gravity>
+    <scene>
+      <ambient>0.55 0.58 0.6 1</ambient>
+      <background>0.78 0.84 0.9 1</background>
+      <grid>true</grid>
+      <shadows>true</shadows>
+    </scene>
+
+    <light name="sun" type="directional">
+      <pose>0 0 80 0.4 0.2 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>1.2</intensity>
+      <direction>-0.35 0.15 -0.92</direction>
+      <diffuse>0.9 0.9 0.84 1</diffuse>
+      <specular>0.25 0.25 0.22 1</specular>
+    </light>
+
+    <model name="sea_surface">
+      <static>true</static>
+      <link name="sea_link">
+        <collision name="sea_collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>900 520</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>0.9</mu>
+                <mu2>0.9</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="sea_visual">
+          <pose>0 0 -0.02 0 0 0</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>900 520</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.02 0.16 0.28 1</ambient>
+            <diffuse>0.02 0.28 0.48 1</diffuse>
+            <specular>0.15 0.22 0.28 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="base_camp">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="base_link">
+        <collision name="base_collision">
+          <pose>0 0 1 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>8</radius>
+              <length>2</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="base_platform">
+          <pose>0 0 1 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>8</radius>
+              <length>2</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.02 0.45 0.16 1</ambient>
+            <diffuse>0.05 0.8 0.26 1</diffuse>
+            <specular>0.1 0.25 0.1 1</specular>
+          </material>
+        </visual>
+        <visual name="base_tower">
+          <pose>0 0 7 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>2.4</radius>
+              <length>12</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.85 0.88 0.82 1</ambient>
+            <diffuse>0.95 0.98 0.9 1</diffuse>
+          </material>
+        </visual>
+        <visual name="base_beacon">
+          <pose>0 0 13.5 0 0 0</pose>
+          <geometry>
+            <sphere>
+              <radius>1.4</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>1 0.75 0.05 1</ambient>
+            <diffuse>1 0.85 0.1 1</diffuse>
+            <emissive>1 0.65 0.05 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="own_01">
+      <pose>-70 -42 0.55 0 0 0</pose>
+      <link name="hull"><collision name="c"><geometry><box><size>8 3 1</size></box></geometry></collision><visual name="h"><geometry><box><size>8 3 1</size></box></geometry><material><ambient>0.02 0.12 0.35 1</ambient><diffuse>0.04 0.32 0.95 1</diffuse></material></visual><visual name="cab"><pose>-1.2 0 1.05 0 0 0</pose><geometry><box><size>2.3 1.5 1.2</size></box></geometry><material><ambient>0.85 0.88 0.9 1</ambient><diffuse>0.95 0.98 1 1</diffuse></material></visual></link>
+      <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl"><topic>/model/own_01/cmd_vel</topic><control_linear_velocity>true</control_linear_velocity><control_angular_velocity>true</control_angular_velocity></plugin>
+    </model>
+    <model name="own_02">
+      <pose>-66 -14 0.55 0 0 0</pose>
+      <link name="hull"><collision name="c"><geometry><box><size>8 3 1</size></box></geometry></collision><visual name="h"><geometry><box><size>8 3 1</size></box></geometry><material><ambient>0.02 0.18 0.32 1</ambient><diffuse>0.04 0.45 0.88 1</diffuse></material></visual><visual name="cab"><pose>-1.2 0 1.05 0 0 0</pose><geometry><box><size>2.3 1.5 1.2</size></box></geometry><material><ambient>0.85 0.88 0.9 1</ambient><diffuse>0.95 0.98 1 1</diffuse></material></visual></link>
+      <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl"><topic>/model/own_02/cmd_vel</topic><control_linear_velocity>true</control_linear_velocity><control_angular_velocity>true</control_angular_velocity></plugin>
+    </model>
+    <model name="own_03">
+      <pose>-66 16 0.55 0 0 0</pose>
+      <link name="hull"><collision name="c"><geometry><box><size>8 3 1</size></box></geometry></collision><visual name="h"><geometry><box><size>8 3 1</size></box></geometry><material><ambient>0.02 0.16 0.36 1</ambient><diffuse>0.04 0.38 1 1</diffuse></material></visual><visual name="cab"><pose>-1.2 0 1.05 0 0 0</pose><geometry><box><size>2.3 1.5 1.2</size></box></geometry><material><ambient>0.85 0.88 0.9 1</ambient><diffuse>0.95 0.98 1 1</diffuse></material></visual></link>
+      <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl"><topic>/model/own_03/cmd_vel</topic><control_linear_velocity>true</control_linear_velocity><control_angular_velocity>true</control_angular_velocity></plugin>
+    </model>
+    <model name="own_04">
+      <pose>-70 44 0.55 0 0 0</pose>
+      <link name="hull"><collision name="c"><geometry><box><size>8 3 1</size></box></geometry></collision><visual name="h"><geometry><box><size>8 3 1</size></box></geometry><material><ambient>0.02 0.1 0.28 1</ambient><diffuse>0.02 0.25 0.75 1</diffuse></material></visual><visual name="cab"><pose>-1.2 0 1.05 0 0 0</pose><geometry><box><size>2.3 1.5 1.2</size></box></geometry><material><ambient>0.85 0.88 0.9 1</ambient><diffuse>0.95 0.98 1 1</diffuse></material></visual></link>
+      <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl"><topic>/model/own_04/cmd_vel</topic><control_linear_velocity>true</control_linear_velocity><control_angular_velocity>true</control_angular_velocity></plugin>
+    </model>
+
+    <model name="enemy_01">
+      <pose>360 -160 0.55 0 0 2.72</pose>
+      <link name="hull"><collision name="c"><geometry><box><size>8 3 1</size></box></geometry></collision><visual name="h"><geometry><box><size>8 3 1</size></box></geometry><material><ambient>0.45 0.02 0.02 1</ambient><diffuse>0.95 0.05 0.04 1</diffuse></material></visual><visual name="cab"><pose>-1.0 0 1.0 0 0 0</pose><geometry><box><size>2.0 1.4 1.1</size></box></geometry><material><ambient>0.12 0.12 0.12 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual></link>
+      <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl"><topic>/model/enemy_01/cmd_vel</topic><control_linear_velocity>true</control_linear_velocity><control_angular_velocity>true</control_angular_velocity></plugin>
+    </model>
+    <model name="enemy_02">
+      <pose>390 -60 0.55 0 0 2.99</pose>
+      <link name="hull"><collision name="c"><geometry><box><size>8 3 1</size></box></geometry></collision><visual name="h"><geometry><box><size>8 3 1</size></box></geometry><material><ambient>0.5 0.04 0.01 1</ambient><diffuse>1 0.12 0.04 1</diffuse></material></visual><visual name="cab"><pose>-1.0 0 1.0 0 0 0</pose><geometry><box><size>2.0 1.4 1.1</size></box></geometry><material><ambient>0.12 0.12 0.12 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual></link>
+      <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl"><topic>/model/enemy_02/cmd_vel</topic><control_linear_velocity>true</control_linear_velocity><control_angular_velocity>true</control_angular_velocity></plugin>
+    </model>
+    <model name="enemy_03">
+      <pose>390 65 0.55 0 0 -2.98</pose>
+      <link name="hull"><collision name="c"><geometry><box><size>8 3 1</size></box></geometry></collision><visual name="h"><geometry><box><size>8 3 1</size></box></geometry><material><ambient>0.48 0.02 0.02 1</ambient><diffuse>0.9 0.08 0.05 1</diffuse></material></visual><visual name="cab"><pose>-1.0 0 1.0 0 0 0</pose><geometry><box><size>2.0 1.4 1.1</size></box></geometry><material><ambient>0.12 0.12 0.12 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual></link>
+      <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl"><topic>/model/enemy_03/cmd_vel</topic><control_linear_velocity>true</control_linear_velocity><control_angular_velocity>true</control_angular_velocity></plugin>
+    </model>
+    <model name="enemy_04">
+      <pose>360 165 0.55 0 0 -2.71</pose>
+      <link name="hull"><collision name="c"><geometry><box><size>8 3 1</size></box></geometry></collision><visual name="h"><geometry><box><size>8 3 1</size></box></geometry><material><ambient>0.42 0.01 0.01 1</ambient><diffuse>0.82 0.04 0.04 1</diffuse></material></visual><visual name="cab"><pose>-1.0 0 1.0 0 0 0</pose><geometry><box><size>2.0 1.4 1.1</size></box></geometry><material><ambient>0.12 0.12 0.12 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual></link>
+      <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl"><topic>/model/enemy_04/cmd_vel</topic><control_linear_velocity>true</control_linear_velocity><control_angular_velocity>true</control_angular_velocity></plugin>
+    </model>
+  </world>
+</sdf>

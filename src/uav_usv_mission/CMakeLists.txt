@@ -21,6 +21,12 @@ install(PROGRAMS
   RENAME fleet_simulated_agent
 )
 
+install(PROGRAMS
+  scripts/defense_demo.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME defense_demo
+)
+
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 
 ament_package()
