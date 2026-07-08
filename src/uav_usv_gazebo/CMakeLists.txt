@@ -47,6 +47,7 @@ install(TARGETS
 install(PROGRAMS
   tools/run_gz_world.sh
   tools/prepare_coastline.sh
+  tools/build_coastline_assets.py
   tools/sync_to_px4.sh
   DESTINATION lib/${PROJECT_NAME}
 )

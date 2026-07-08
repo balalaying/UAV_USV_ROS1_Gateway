@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GAZEBO_SHARE_DIR="$(ros2 pkg prefix --share uav_usv_gazebo)"
 
 FUEL_CACHE="${GZ_FUEL_CACHE_PATH:-/var/tmp/UAV_USV_gz_fuel}"
