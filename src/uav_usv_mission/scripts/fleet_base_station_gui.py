@@ -19,6 +19,7 @@ from PyQt5.QtWidgets import QPlainTextEdit
 from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtWidgets import QSizePolicy
 from PyQt5.QtWidgets import QSplitter
+from PyQt5.QtWidgets import QTabWidget
 from PyQt5.QtWidgets import QTableWidget
 from PyQt5.QtWidgets import QTableWidgetItem
 from PyQt5.QtWidgets import QVBoxLayout
@@ -41,6 +42,7 @@ class GuiSignals(QObject):
     scan = pyqtSignal(object)
     sensor = pyqtSignal(object)
     vehicle = pyqtSignal(object)
+    defense = pyqtSignal(object)
     log = pyqtSignal(str)
 
 
@@ -94,6 +96,12 @@ class BaseStationGuiNode(Node):
             '/fleet/command_ack',
             self._on_ack,
             20,
+        )
+        self.create_subscription(
+            String,
+            '/defense/status',
+            self._on_defense_status,
+            10,
         )
         self.goal_pub = self.create_publisher(
             PoseStamped, '/fleet/base/operator_goal', 10
@@ -173,6 +181,15 @@ class BaseStationGuiNode(Node):
                 msg.message,
             )
         )
+
+    def _on_defense_status(self, msg):
+        fields = {}
+        for token in msg.data.split():
+            if '=' not in token:
+                continue
+            key, value = token.split('=', 1)
+            fields[key] = value
+        self.signals.defense.emit(fields)
 
     def publish_goal(self, x, y, altitude):
         msg = PoseStamped()
@@ -277,6 +294,7 @@ class BaseStationWindow(QMainWindow):
         signals.scan.connect(self.radar.set_scan)
         signals.sensor.connect(self._update_sensor)
         signals.vehicle.connect(self._update_vehicle)
+        signals.defense.connect(self._update_defense)
         signals.log.connect(self._append_log)
 
     def _build_ui(self):
@@ -299,6 +317,21 @@ class BaseStationWindow(QMainWindow):
         header.addWidget(self.link_label)
         layout.addLayout(header)
 
+        tabs = QTabWidget()
+        layout.addWidget(tabs, 1)
+
+        overview_tab = QWidget()
+        overview_layout = QVBoxLayout(overview_tab)
+        overview_layout.setContentsMargins(0, 0, 0, 0)
+        overview_layout.setSpacing(10)
+        tabs.addTab(overview_tab, '总览')
+
+        defense_tab = QWidget()
+        defense_layout = QVBoxLayout(defense_tab)
+        defense_layout.setContentsMargins(0, 0, 0, 0)
+        defense_layout.setSpacing(10)
+        tabs.addTab(defense_tab, '防御任务')
+
         camera_group = QGroupBox('基站接收的实时视频（三组船机）')
         camera_layout = QVBoxLayout(camera_group)
         self.camera = QLabel('等待 UAV / USV 相机数据')
@@ -306,7 +339,7 @@ class BaseStationWindow(QMainWindow):
         self.camera.setMinimumHeight(390)
         self.camera.setStyleSheet('background: #0d141a; color: #8fa5b2;')
         camera_layout.addWidget(self.camera)
-        layout.addWidget(camera_group, 5)
+        overview_layout.addWidget(camera_group, 5)
 
         lower = QSplitter(Qt.Horizontal)
         self.radar = RadarWidget()
@@ -337,7 +370,7 @@ class BaseStationWindow(QMainWindow):
         telemetry_layout.addWidget(vehicle_group)
         lower.addWidget(telemetry)
         lower.setSizes([520, 850])
-        layout.addWidget(lower, 4)
+        overview_layout.addWidget(lower, 4)
 
         control_group = QGroupBox('基站控制')
         controls = QGridLayout(control_group)
@@ -370,7 +403,7 @@ class BaseStationWindow(QMainWindow):
             (go_button, takeoff_button, hold_button, stop_button)
         ):
             controls.addWidget(button, 1, column * 2, 1, 2)
-        layout.addWidget(control_group)
+        overview_layout.addWidget(control_group)
 
         log_group = QGroupBox('基站命令回执')
         log_layout = QVBoxLayout(log_group)
@@ -379,7 +412,9 @@ class BaseStationWindow(QMainWindow):
         self.log.setMaximumBlockCount(200)
         self.log.setMinimumHeight(110)
         log_layout.addWidget(self.log)
-        layout.addWidget(log_group)
+        overview_layout.addWidget(log_group)
+
+        self._build_defense_tab(defense_layout)
 
         self.setCentralWidget(root)
         self.setStyleSheet(
@@ -411,6 +446,16 @@ class BaseStationWindow(QMainWindow):
             QPushButton:hover { background: #1d819f; }
             QPushButton#danger { background: #b63737; }
             QPushButton#danger:hover { background: #d04444; }
+            QTabWidget::pane {
+                border: 1px solid #b9c7ce; background: #f8fafb;
+            }
+            QTabBar::tab {
+                background: #d7e2e7; padding: 8px 18px;
+                border: 1px solid #b9c7ce; font-weight: 600;
+            }
+            QTabBar::tab:selected {
+                background: #176b87; color: white;
+            }
             QDoubleSpinBox {
                 background: white; border: 1px solid #aabcc5;
                 padding: 6px;
@@ -421,6 +466,40 @@ class BaseStationWindow(QMainWindow):
             }
             """
         )
+
+    def _build_defense_tab(self, layout):
+        summary_group = QGroupBox('防御任务状态')
+        summary_layout = QGridLayout(summary_group)
+        labels = [
+            ('当前模式', 'defense_mode'),
+            ('威胁数量', 'defense_threats'),
+            ('已拦截', 'defense_blocked'),
+            ('防守半径', 'defense_radius'),
+            ('预警半径', 'warning_radius'),
+            ('大本营安全半径', 'base_safety_radius'),
+        ]
+        self.defense_labels = {}
+        for index, (title, key) in enumerate(labels):
+            row = index // 3
+            column = (index % 3) * 2
+            summary_layout.addWidget(QLabel(title), row, column)
+            value = QLabel('等待数据')
+            value.setObjectName('defenseValue')
+            value.setAlignment(Qt.AlignCenter)
+            summary_layout.addWidget(value, row, column + 1)
+            self.defense_labels[key] = value
+        layout.addWidget(summary_group)
+
+        hint_group = QGroupBox('最小版本说明')
+        hint_layout = QVBoxLayout(hint_group)
+        hint = QLabel(
+            '此页先接入 /defense/status，用来验证 Qt 基站分页和防御任务状态显示。'
+            '后续可以继续加入二维态势图、参数滑条、开始/暂停/重置按钮。'
+        )
+        hint.setWordWrap(True)
+        hint_layout.addWidget(hint)
+        layout.addWidget(hint_group)
+        layout.addStretch()
 
     @staticmethod
     def _configure_table(table):
@@ -557,6 +636,31 @@ class BaseStationWindow(QMainWindow):
                 row, column, self._item(value, color)
             )
         self.vehicle_table.setToolTip('%s: %s' % (vehicle, status))
+
+    def _update_defense(self, fields):
+        mode_names = {
+            'patrol': '巡逻',
+            'guard': '防守',
+        }
+        mode = fields.get('mode', '-')
+        values = {
+            'defense_mode': mode_names.get(mode, mode),
+            'defense_threats': fields.get('threats', '-'),
+            'defense_blocked': fields.get('blocked', '-'),
+            'defense_radius': fields.get('defend_radius', '-') + ' m',
+            'warning_radius': fields.get('trigger_radius', '-') + ' m',
+            'base_safety_radius': fields.get('base_safety_radius', '-') + ' m',
+        }
+        for key, value in values.items():
+            self.defense_labels[key].setText(value)
+        if mode == 'guard':
+            self.defense_labels['defense_mode'].setStyleSheet(
+                'background: #ffe7d6; color: #9b3f00; padding: 8px;'
+            )
+        else:
+            self.defense_labels['defense_mode'].setStyleSheet(
+                'background: #d9f0e5; color: #176b47; padding: 8px;'
+            )
 
     def _append_log(self, text):
         timestamp = time.strftime('%H:%M:%S')
