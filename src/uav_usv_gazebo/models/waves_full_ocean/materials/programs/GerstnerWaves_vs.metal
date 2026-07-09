@@ -152,11 +152,11 @@ vertex PS_INPUT main_metal
   B = normalize(B)*p.rescale;
   T = normalize(T)*p.rescale;
   N = normalize(N);
-  // outVs won't accept float3x3, so pass components 
+  // outVs won't accept float3x3, so pass components
   outVs.B = B;
   outVs.T = T;
   outVs.N = N;
- 
+
   outVs.gl_Position = p.worldviewproj_matrix * P;
 
   // Compute texture coordinates for bump map

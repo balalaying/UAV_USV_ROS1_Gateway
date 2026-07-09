@@ -37,9 +37,15 @@ in `uav_usv_sim`.
 
 ## Run
 
+This workspace currently targets ROS 2 Humble. If your team uses another ROS 2
+distribution, make sure the Gazebo dependency versions in `CMakeLists.txt`
+match your local installation.
+
 ```bash
-source /opt/ros/jazzy/setup.bash
-source /home/ssy/UAV_USV/install/setup.bash
+cd ~/UAV_USV
+source /opt/ros/humble/setup.bash
+colcon build --packages-select uav_usv_gazebo
+source install/setup.bash
 ros2 run uav_usv_gazebo run_gz_world.sh
 ```
 
@@ -55,6 +61,10 @@ PX4 asset synchronization is also owned by this package:
 export PX4_DIR=/path/to/PX4-Autopilot
 ros2 run uav_usv_gazebo sync_to_px4.sh
 ```
+
+The first run may download the Sydney Regatta coastline into
+`/var/tmp/UAV_USV_gz_fuel` and generate local assets under
+`/var/tmp/UAV_USV_assets`.
 
 ## 第一阶段任务
 

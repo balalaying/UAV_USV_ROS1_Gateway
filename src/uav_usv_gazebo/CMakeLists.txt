@@ -59,11 +59,6 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
-install(DIRECTORY
-  worlds
-  DESTINATION share/${PROJECT_NAME}
-)
-
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 
 ament_package()

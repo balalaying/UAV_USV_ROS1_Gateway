@@ -94,7 +94,7 @@ sed \
   -e "s#model://fishing_boat#file://${HOME}/.gz/models/fishing_boat#g" \
   -e "s#model://person_overboard#file://${HOME}/.gz/models/person_overboard#g" \
   -e "s#model://sydney_coast#file://${UAV_USV_ASSET_ROOT}/sydney_coast#g" \
-  -e "s#<initially_released>false</initially_released>#<initially_released>${DRONE_INITIALLY_RELEASED}</initially_released>#g" \
+  -e "s#<initially_released>[^<]*</initially_released>#<initially_released>${DRONE_INITIALLY_RELEASED}</initially_released>#g" \
   -e "s#filename=\"libDroneDeckFollower.so\"#filename=\"${PLUGIN_DIR}/libDroneDeckFollower.so\"#g" \
   -e "s#filename='libDroneDeckFollower.so'#filename='${PLUGIN_DIR}/libDroneDeckFollower.so'#g" \
   "${GAZEBO_SHARE_DIR}/worlds/default.sdf" > "${PX4_DIR}/Tools/simulation/gz/worlds/default.sdf"
