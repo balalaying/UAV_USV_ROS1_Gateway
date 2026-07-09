@@ -1,0 +1,548 @@
+<sdf version="1.10">
+  <world name="vrx_sydney_regatta_custom">
+    <gui fullscreen="0">
+      <plugin filename="MinimalScene" name="3D View">
+        <gz-gui>
+          <title>3D View</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="string" key="state">docked</property>
+        </gz-gui>
+        <engine>ogre2</engine>
+        <scene>scene</scene>
+        <ambient_light>0.62 0.68 0.72</ambient_light>
+        <background_color>0.70 0.82 0.95</background_color>
+        <camera_pose>0 0 3200 0 1.5708 0</camera_pose>
+        <camera_clip>
+          <near>0.25</near>
+          <far>30000</far>
+        </camera_clip>
+      </plugin>
+
+      <plugin filename="EntityContextMenuPlugin" name="Entity context menu">
+        <gz-gui>
+          <property key="state" type="string">floating</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="GzSceneManager" name="Scene Manager">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="InteractiveViewControl" name="Interactive view control">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="CameraTracking" name="Camera Tracking">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="MarkerManager" name="Marker manager">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="SelectEntities" name="Select Entities">
+        <gz-gui>
+          <anchors target="Select entities">
+            <line own="right" target="right"/>
+            <line own="top" target="top"/>
+          </anchors>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="VisualizationCapabilities" name="Visualization Capabilities">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="Spawn" name="Spawn Entities">
+        <gz-gui>
+          <anchors target="Select entities">
+            <line own="right" target="right"/>
+            <line own="top" target="top"/>
+          </anchors>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+
+      <plugin filename="WorldControl" name="World control">
+        <gz-gui>
+          <title>World control</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="bool" key="resizable">false</property>
+          <property type="double" key="height">72</property>
+          <property type="double" key="width">121</property>
+          <property type="double" key="z">1</property>
+          <property type="string" key="state">floating</property>
+          <anchors target="3D View">
+            <line own="left" target="left"/>
+            <line own="bottom" target="bottom"/>
+          </anchors>
+        </gz-gui>
+        <play_pause>true</play_pause>
+        <step>true</step>
+        <start_paused>false</start_paused>
+        <use_event>true</use_event>
+      </plugin>
+
+      <plugin filename="WorldStats" name="World stats">
+        <gz-gui>
+          <title>World stats</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="bool" key="resizable">false</property>
+          <property type="double" key="height">110</property>
+          <property type="double" key="width">290</property>
+          <property type="double" key="z">1</property>
+          <property type="string" key="state">floating</property>
+          <anchors target="3D View">
+            <line own="right" target="right"/>
+            <line own="bottom" target="bottom"/>
+          </anchors>
+        </gz-gui>
+        <sim_time>true</sim_time>
+        <real_time>true</real_time>
+        <real_time_factor>true</real_time_factor>
+        <iterations>true</iterations>
+      </plugin>
+
+      <plugin filename="Shapes" name="Shapes">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="x" type="double">0</property>
+          <property key="y" type="double">0</property>
+          <property key="width" type="double">250</property>
+          <property key="height" type="double">50</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+          <property key="cardBackground" type="string">#666666</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="Lights" name="Lights">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="x" type="double">250</property>
+          <property key="y" type="double">0</property>
+          <property key="width" type="double">150</property>
+          <property key="height" type="double">50</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+          <property key="cardBackground" type="string">#666666</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="TransformControl" name="Transform control">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="x" type="double">0</property>
+          <property key="y" type="double">50</property>
+          <property key="width" type="double">250</property>
+          <property key="height" type="double">50</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+          <property key="cardBackground" type="string">#777777</property>
+        </gz-gui>
+        <legacy>false</legacy>
+      </plugin>
+      <plugin filename="Screenshot" name="Screenshot">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="x" type="double">250</property>
+          <property key="y" type="double">50</property>
+          <property key="width" type="double">50</property>
+          <property key="height" type="double">50</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+          <property key="cardBackground" type="string">#777777</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="ComponentInspector" name="Component inspector">
+        <gz-gui>
+          <property type="string" key="state">docked_collapsed</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="EntityTree" name="Entity tree">
+        <gz-gui>
+          <property type="string" key="state">docked_collapsed</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="ViewAngle" name="View angle">
+        <gz-gui>
+          <property type="string" key="state">docked_collapsed</property>
+        </gz-gui>
+        <legacy>false</legacy>
+      </plugin>
+    </gui>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
+    <plugin filename="gz-sim-magnetometer-system" name="gz::sim::systems::Magnetometer"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-particle-emitter-system" name="gz::sim::systems::ParticleEmitter"/>
+    <plugin filename="gz-sim-wind-effects-system" name="gz::sim::systems::WindEffects">
+      <force_approximation_scaling_factor>0.35</force_approximation_scaling_factor>
+      <horizontal>
+        <magnitude>
+          <time_for_rise>12</time_for_rise>
+          <sin><amplitude_percent>0.08</amplitude_percent><period>45</period></sin>
+          <noise type="gaussian"><mean>0</mean><stddev>0.0004</stddev></noise>
+        </magnitude>
+        <direction>
+          <time_for_rise>20</time_for_rise>
+          <sin><amplitude>6</amplitude><period>60</period></sin>
+          <noise type="gaussian"><mean>0</mean><stddev>0.025</stddev></noise>
+        </direction>
+      </horizontal>
+      <vertical>
+        <noise type="gaussian"><mean>0</mean><stddev>0.015</stddev></noise>
+      </vertical>
+    </plugin>
+
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6.0e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type="adiabatic"/>
+    <wind><linear_velocity>4 1.5 0</linear_velocity></wind>
+
+    <scene>
+      <grid>false</grid>
+      <ambient>0.62 0.68 0.72 1</ambient>
+      <background>0.70 0.82 0.95 1</background>
+      <shadows>true</shadows>
+      <fog>
+        <type>linear</type>
+        <color>0.70 0.82 0.95 1</color>
+        <start>700</start>
+        <end>3500</end>
+        <density>0.0008</density>
+      </fog>
+    </scene>
+
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>-33.722655</latitude_deg>
+      <longitude_deg>150.674160</longitude_deg>
+      <elevation>0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+    <model name="ocean_collision_plane">
+      <static>true</static>
+      <link name="ocean_link">
+        <visual name="ocean_backing_visual">
+          <pose>0 0 -0.75 0 0 0</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>12000 12000</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.0 0.06 0.13 1</ambient>
+            <diffuse>0.0 0.13 0.24 1</diffuse>
+            <specular>0.02 0.04 0.05 1</specular>
+            <emissive>0.0 0.015 0.035 1</emissive>
+          </material>
+        </visual>
+        <collision name="ocean_collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>12000 12000</size>
+            </plane>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <include>
+      <name>animated_full_ocean_waves</name>
+      <pose>0 0 0.018 0 0 0</pose>
+      <uri>model://waves_full_ocean</uri>
+    </include>
+
+    <include>
+      <name>vrx_sydney_regatta_custom</name>
+      <pose>0 0 0.2 0 0 0</pose>
+      <uri>model://vrx_sydney_regatta_custom</uri>
+    </include>
+
+    <include>
+      <name>ocean_surface_details</name>
+      <pose>0 0 0 0 0 0</pose>
+      <uri>model://ocean_surface_details</uri>
+    </include>
+
+    <include>
+      <name>three_tier_uav_launch_platform</name>
+      <pose>120.00003 -165.63286 0 0 0 1.57080</pose>
+      <uri>model://uav_launch_platform_3tier</uri>
+    </include>
+
+    <include>
+      <name>random_reef_field</name>
+      <pose>-122.86969 -131.48282 0 0 0 -0.20000</pose>
+      <uri>model://random_reef_field</uri>
+    </include>
+
+    <include>
+      <name>breakwater_harbor_island_lighthouse</name>
+      <pose>152.84325 426.51996 6.88003 -0.01271 -0.01220 -1.64267</pose>
+      <uri>model://breakwater_harbor_island_lighthouse</uri>
+    </include>
+
+    <!-- Full maritime scenario: channel marks, traffic, harbor assets, and training targets. -->
+    <include>
+      <name>vrx_channel_red_west_outer</name>
+      <pose>-260 20 0 0 0 0.25</pose>
+      <uri>model://medium_buoy</uri>
+    </include>
+    <include>
+      <name>vrx_channel_green_west_outer</name>
+      <pose>-260 132 0 0 0 0.25</pose>
+      <uri>model://green_channel_buoy</uri>
+    </include>
+    <include>
+      <name>vrx_channel_red_mid_01</name>
+      <pose>-125 -8 0 0 0 -0.15</pose>
+      <uri>model://medium_buoy</uri>
+    </include>
+    <include>
+      <name>vrx_channel_green_mid_01</name>
+      <pose>-125 110 0 0 0 -0.15</pose>
+      <uri>model://green_channel_buoy</uri>
+    </include>
+    <include>
+      <name>vrx_channel_red_mid_02</name>
+      <pose>45 -28 0 0 0 0.1</pose>
+      <uri>model://medium_buoy</uri>
+    </include>
+    <include>
+      <name>vrx_channel_green_mid_02</name>
+      <pose>45 102 0 0 0 0.1</pose>
+      <uri>model://green_channel_buoy</uri>
+    </include>
+    <include>
+      <name>vrx_channel_red_east</name>
+      <pose>205 -16 0 0 0 0.35</pose>
+      <uri>model://medium_buoy</uri>
+    </include>
+    <include>
+      <name>vrx_channel_green_east</name>
+      <pose>205 122 0 0 0 0.35</pose>
+      <uri>model://green_channel_buoy</uri>
+    </include>
+    <include>
+      <name>vrx_channel_red_exit</name>
+      <pose>342 6 0 0 0 -0.4</pose>
+      <uri>model://medium_buoy</uri>
+    </include>
+    <include>
+      <name>vrx_channel_green_exit</name>
+      <pose>342 136 0 0 0 -0.4</pose>
+      <uri>model://green_channel_buoy</uri>
+    </include>
+
+    <include>
+      <name>river_rock_outcrop_west_01</name>
+      <pose>-292 -82 0 0 0 0.45</pose>
+      <uri>model://rock_outcrop</uri>
+    </include>
+    <include>
+      <name>river_rock_outcrop_west_02</name>
+      <pose>-184 164 0 0 0 -0.7</pose>
+      <uri>model://rock_outcrop</uri>
+    </include>
+    <include>
+      <name>river_rock_outcrop_mid_01</name>
+      <pose>-26 -118 0 0 0 1.15</pose>
+      <uri>model://rock_outcrop</uri>
+    </include>
+    <include>
+      <name>river_rock_outcrop_mid_02</name>
+      <pose>126 164 0 0 0 -1.35</pose>
+      <uri>model://rock_outcrop</uri>
+    </include>
+    <include>
+      <name>river_rock_outcrop_east_01</name>
+      <pose>282 -100 0 0 0 0.85</pose>
+      <uri>model://rock_outcrop</uri>
+    </include>
+
+    <include>
+      <name>vrx_aquaculture_cage_01</name>
+      <pose>-385 265 0 0 0 0.08</pose>
+      <uri>model://aquaculture_cage</uri>
+    </include>
+    <include>
+      <name>vrx_aquaculture_cage_02</name>
+      <pose>-362 265 0 0 0 0.08</pose>
+      <uri>model://aquaculture_cage</uri>
+    </include>
+    <include>
+      <name>vrx_aquaculture_cage_03</name>
+      <pose>-385 290 0 0 0 0.08</pose>
+      <uri>model://aquaculture_cage</uri>
+    </include>
+    <include>
+      <name>vrx_aquaculture_cage_04</name>
+      <pose>-362 290 0 0 0 0.08</pose>
+      <uri>model://aquaculture_cage</uri>
+    </include>
+
+    <include>
+      <name>vrx_floating_barrel_01</name>
+      <pose>-210 -32 0 0 0 0.35</pose>
+      <uri>model://floating_barrel</uri>
+    </include>
+    <include>
+      <name>vrx_floating_barrel_02</name>
+      <pose>-72 72 0 0 0 -0.7</pose>
+      <uri>model://floating_barrel</uri>
+    </include>
+    <include>
+      <name>vrx_floating_barrel_03</name>
+      <pose>152 -54 0 0 0 1.1</pose>
+      <uri>model://floating_barrel</uri>
+    </include>
+    <include>
+      <name>vrx_driftwood_01</name>
+      <pose>-18 138 0 0 0 0.65</pose>
+      <uri>model://driftwood</uri>
+    </include>
+    <include>
+      <name>vrx_driftwood_02</name>
+      <pose>245 32 0 0 0 -0.45</pose>
+      <uri>model://driftwood</uri>
+    </include>
+    <include>
+      <name>vrx_abandoned_life_raft</name>
+      <pose>72 -118 0 0 0 -0.35</pose>
+      <uri>model://life_raft</uri>
+    </include>
+
+    <include>
+      <name>shore_support_uav_platform</name>
+      <pose>152 -136 0 0 0 1.5708</pose>
+      <uri>model://shore_platform</uri>
+    </include>
+    <include>
+      <name>vrx_service_marina_pier</name>
+      <pose>92 -205 0 0 0 1.5708</pose>
+      <uri>model://marina_pier</uri>
+    </include>
+    <include>
+      <name>vrx_platform_breakwater</name>
+      <pose>180 -222 0 0 0 1.5708</pose>
+      <uri>model://harbor_breakwater</uri>
+    </include>
+    <include>
+      <name>vrx_rescue_harbor_tug</name>
+      <pose>112 -214 0 0 0 1.5708</pose>
+      <uri>model://harbor_tug</uri>
+    </include>
+    <include>
+      <name>vrx_coastal_fishing_boat</name>
+      <pose>58 -232 0 0 0 1.25</pose>
+      <uri>model://fishing_boat</uri>
+    </include>
+    <include>
+      <name>vrx_rescue_casualty</name>
+      <pose>52 -182 0 0 0 0.2</pose>
+      <uri>model://person_overboard</uri>
+    </include>
+    <include>
+      <name>vrx_rescue_life_raft</name>
+      <pose>58 -176 0 0 0 -0.3</pose>
+      <uri>model://life_raft</uri>
+    </include>
+
+    <include>
+      <name>offshore_wind_turbine_west</name>
+      <pose>-430 -360 0 0 0 0.25</pose>
+      <uri>model://offshore_wind_turbine</uri>
+    </include>
+    <include>
+      <name>offshore_wind_turbine_center</name>
+      <pose>-365 -410 0 0 0 0.25</pose>
+      <uri>model://offshore_wind_turbine</uri>
+    </include>
+    <include>
+      <name>offshore_wind_turbine_east</name>
+      <pose>-300 -365 0 0 0 0.25</pose>
+      <uri>model://offshore_wind_turbine</uri>
+    </include>
+
+    <include>
+      <name>moving_cargo_vessel_north</name>
+      <pose>-118 210 0 0 0 -0.15</pose>
+      <uri>model://target_vessel</uri>
+    </include>
+    <include>
+      <name>moving_cargo_vessel_south</name>
+      <pose>265 -82 0 0 0 2.65</pose>
+      <uri>model://target_vessel</uri>
+    </include>
+    <include>
+      <name>landing_boat</name>
+      <pose>106 -148 0.35 0 0 1.5708</pose>
+      <uri>model://simple_boat</uri>
+    </include>
+
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.82 0.82 0.78 1</diffuse>
+      <specular>0.25 0.25 0.22 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+  </world>
+</sdf>

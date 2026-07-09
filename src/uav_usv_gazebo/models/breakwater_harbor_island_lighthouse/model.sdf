@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <model name="breakwater_harbor_island_lighthouse">
+    <static>true</static>
+    <link name="harbor_island">
+      <collision name="island_collision"><pose>-20 0 0.65 0 0 0.15</pose><geometry><ellipsoid><radii>24 15 1.45</radii></ellipsoid></geometry></collision>
+      <visual name="island_visual"><pose>-20 0 0.35 0 0 0.15</pose><geometry><ellipsoid><radii>24 15 1.35</radii></ellipsoid></geometry><material><ambient>0.11 0.24 0.09 1</ambient><diffuse>0.19 0.42 0.16 1</diffuse></material></visual>
+      <visual name="sand_ring"><pose>-20 0 0.42 0 0 0.15</pose><geometry><ellipsoid><radii>25 16 0.18</radii></ellipsoid></geometry><material><ambient>0.52 0.43 0.26 1</ambient><diffuse>0.78 0.66 0.42 1</diffuse></material></visual>
+
+      <collision name="north_breakwater_collision"><pose>28 18 1.1 0 0 0.08</pose><geometry><box><size>88 5 2.2</size></box></geometry></collision>
+      <collision name="south_breakwater_collision"><pose>28 -18 1.1 0 0 -0.08</pose><geometry><box><size>88 5 2.2</size></box></geometry></collision>
+      <collision name="quay_collision"><pose>-14 0 1.1 0 0 0</pose><geometry><box><size>6 38 2.2</size></box></geometry></collision>
+      <visual name="north_breakwater"><pose>28 18 1.1 0 0 0.08</pose><geometry><box><size>88 5 2.2</size></box></geometry><material><ambient>0.25 0.26 0.25 1</ambient><diffuse>0.42 0.43 0.41 1</diffuse></material></visual>
+      <visual name="south_breakwater"><pose>28 -18 1.1 0 0 -0.08</pose><geometry><box><size>88 5 2.2</size></box></geometry><material><ambient>0.25 0.26 0.25 1</ambient><diffuse>0.42 0.43 0.41 1</diffuse></material></visual>
+      <visual name="quay"><pose>-14 0 1.1 0 0 0</pose><geometry><box><size>6 38 2.2</size></box></geometry><material><ambient>0.22 0.23 0.22 1</ambient><diffuse>0.38 0.39 0.37 1</diffuse></material></visual>
+      <visual name="harbor_water_hint"><pose>20 0 0.05 0 0 0</pose><geometry><box><size>56 27 0.05</size></box></geometry><material><ambient>0.0 0.09 0.18 0.55</ambient><diffuse>0.0 0.18 0.32 0.55</diffuse></material></visual>
+
+      <collision name="lighthouse_base_collision"><pose>-30 0 1.65 0 0 0</pose><geometry><cylinder><radius>3.2</radius><length>1.0</length></cylinder></geometry></collision>
+      <visual name="lighthouse_base"><pose>-30 0 1.65 0 0 0</pose><geometry><cylinder><radius>3.2</radius><length>1.0</length></cylinder></geometry><material><ambient>0.18 0.18 0.17 1</ambient><diffuse>0.32 0.32 0.30 1</diffuse></material></visual>
+      <collision name="lighthouse_tower_collision"><pose>-30 0 8.0 0 0 0</pose><geometry><cylinder><radius>1.15</radius><length>12.2</length></cylinder></geometry></collision>
+      <visual name="lighthouse_tower"><pose>-30 0 8.0 0 0 0</pose><geometry><cylinder><radius>1.15</radius><length>12.2</length></cylinder></geometry><material><ambient>0.86 0.84 0.76 1</ambient><diffuse>0.96 0.94 0.84 1</diffuse></material></visual>
+      <visual name="lighthouse_red_band_low"><pose>-30 0 5.2 0 0 0</pose><geometry><cylinder><radius>1.2</radius><length>0.75</length></cylinder></geometry><material><ambient>0.55 0.02 0.02 1</ambient><diffuse>0.86 0.04 0.035 1</diffuse></material></visual>
+      <visual name="lighthouse_red_band_high"><pose>-30 0 9.3 0 0 0</pose><geometry><cylinder><radius>1.2</radius><length>0.75</length></cylinder></geometry><material><ambient>0.55 0.02 0.02 1</ambient><diffuse>0.86 0.04 0.035 1</diffuse></material></visual>
+      <visual name="lantern_room"><pose>-30 0 14.45 0 0 0</pose><geometry><cylinder><radius>1.55</radius><length>1.1</length></cylinder></geometry><material><ambient>0.92 0.78 0.28 0.85</ambient><diffuse>1 0.88 0.42 0.85</diffuse></material></visual>
+      <visual name="lighthouse_roof"><pose>-30 0 15.25 0 0 0</pose><geometry><cylinder><radius>1.85</radius><length>0.55</length></cylinder></geometry><material><ambient>0.45 0.02 0.02 1</ambient><diffuse>0.72 0.03 0.03 1</diffuse></material></visual>
+
+      <light name="lighthouse_beacon" type="point"><pose>-30 0 14.55 0 0 0</pose><cast_shadows>false</cast_shadows><intensity>5.0</intensity><diffuse>1 0.88 0.42 1</diffuse><specular>1 0.92 0.65 1</specular><attenuation><range>220</range><constant>0.45</constant><linear>0.012</linear><quadratic>0.00025</quadratic></attenuation></light>
+      <light name="green_harbor_light" type="point"><pose>70 18 4.2 0 0 0</pose><cast_shadows>false</cast_shadows><intensity>2.2</intensity><diffuse>0.05 1 0.22 1</diffuse><attenuation><range>70</range><constant>0.65</constant><linear>0.025</linear><quadratic>0.0008</quadratic></attenuation></light>
+      <light name="red_harbor_light" type="point"><pose>70 -18 4.2 0 0 0</pose><cast_shadows>false</cast_shadows><intensity>2.2</intensity><diffuse>1 0.05 0.025 1</diffuse><attenuation><range>70</range><constant>0.65</constant><linear>0.025</linear><quadratic>0.0008</quadratic></attenuation></light>
+    </link>
+  </model>
+</sdf>

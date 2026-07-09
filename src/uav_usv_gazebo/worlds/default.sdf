@@ -1,0 +1,481 @@
+<sdf version='1.10'>
+  <world name='default'>
+    <plugin
+      filename='gz-sim-physics-system'
+      name='gz::sim::systems::Physics'/>
+    <plugin
+      filename='gz-sim-user-commands-system'
+      name='gz::sim::systems::UserCommands'/>
+    <plugin
+      filename='gz-sim-scene-broadcaster-system'
+      name='gz::sim::systems::SceneBroadcaster'/>
+    <plugin
+      filename='gz-sim-contact-system'
+      name='gz::sim::systems::Contact'/>
+    <plugin
+      filename='gz-sim-imu-system'
+      name='gz::sim::systems::Imu'/>
+    <plugin
+      filename='gz-sim-air-pressure-system'
+      name='gz::sim::systems::AirPressure'/>
+    <plugin
+      filename='gz-sim-air-speed-system'
+      name='gz::sim::systems::AirSpeed'/>
+    <plugin
+      filename='gz-sim-apply-link-wrench-system'
+      name='gz::sim::systems::ApplyLinkWrench'/>
+    <plugin
+      filename='gz-sim-navsat-system'
+      name='gz::sim::systems::NavSat'/>
+    <plugin
+      filename='gz-sim-magnetometer-system'
+      name='gz::sim::systems::Magnetometer'/>
+    <plugin
+      filename='gz-sim-sensors-system'
+      name='gz::sim::systems::Sensors'>
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-particle-emitter-system" name="gz::sim::systems::ParticleEmitter"/>
+    <plugin filename="gz-sim-wind-effects-system" name="gz::sim::systems::WindEffects">
+      <force_approximation_scaling_factor>0.35</force_approximation_scaling_factor>
+      <horizontal>
+        <magnitude><time_for_rise>12</time_for_rise><sin><amplitude_percent>0.08</amplitude_percent><period>45</period></sin><noise type="gaussian"><mean>0</mean><stddev>0.0004</stddev></noise></magnitude>
+        <direction><time_for_rise>20</time_for_rise><sin><amplitude>6</amplitude><period>60</period></sin><noise type="gaussian"><mean>0</mean><stddev>0.025</stddev></noise></direction>
+      </horizontal>
+      <vertical><noise type="gaussian"><mean>0</mean><stddev>0.015</stddev></noise></vertical>
+    </plugin>
+    <physics type='ode'>
+      <max_step_size>0.0040000000000000001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+    <gravity>0 0 -9.8000000000000007</gravity>
+    <magnetic_field>6.0000000000000002e-06 2.3e-05 -4.1999999999999998e-05</magnetic_field>
+    <atmosphere type='adiabatic'/>
+    <wind><linear_velocity>4 1.5 0</linear_velocity></wind>
+    <scene>
+      <grid>false</grid>
+      <ambient>0.400000006 0.400000006 0.400000006 1</ambient>
+      <background>0.699999988 0.699999988 0.699999988 1</background>
+      <shadows>true</shadows>
+      <fog><type>linear</type><color>0.72 0.78 0.8 1</color><start>90</start><end>420</end><density>0.003</density></fog>
+    </scene>
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>47.397971057728974</latitude_deg>
+      <longitude_deg>8.5461637398001464</longitude_deg>
+      <elevation>0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+    <model name='ocean_plane'>
+      <static>true</static>
+      <link name='ocean_link'>
+        <visual name='ocean_visual'>
+          <pose>0 0 -0.02 0 0 0</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>1000 1000</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0 0.08 0.16 0.45</ambient>
+            <diffuse>0 0.18 0.3 0.45</diffuse>
+            <specular>0.03 0.05 0.06 1</specular>
+          </material>
+        </visual>
+        <collision name='ocean_collision'>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>1000 1000</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <self_collide>false</self_collide>
+      <pose>0 0 0 0 0 0</pose>
+    </model>
+    <include>
+      <uri>model://waves</uri>
+      <name>waves</name>
+      <pose>0 0 0.015 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://sydney_coast</uri>
+      <name>sydney_coastline</name>
+      <pose>0 0 0 0 0 0.475</pose>
+    </include>
+    <include>
+      <uri>model://medium_buoy</uri>
+      <name>medium_buoy_west_channel</name>
+      <pose>-42 44 0 0 0 0.25</pose>
+    </include>
+    <include>
+      <uri>model://medium_buoy</uri>
+      <name>medium_buoy_south_channel</name>
+      <pose>34 -56 0 0 0 -0.35</pose>
+    </include>
+    <include>
+      <uri>model://medium_buoy</uri>
+      <name>medium_buoy_east_channel</name>
+      <pose>78 28 0 0 0 0.7</pose>
+    </include>
+    <include>
+      <uri>model://medium_buoy</uri>
+      <name>medium_buoy_slalom_port</name>
+      <pose>-16 -18 0 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://medium_buoy</uri>
+      <name>medium_buoy_slalom_starboard</name>
+      <pose>16 -18 0 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://rock_outcrop</uri>
+      <name>rock_outcrop_northwest</name>
+      <pose>-26 24 0 0 0 0.4</pose>
+    </include>
+    <include>
+      <uri>model://rock_outcrop</uri>
+      <name>rock_outcrop_southeast</name>
+      <pose>24 -32 0 0 0 -0.7</pose>
+    </include>
+    <include>
+      <uri>model://rock_outcrop</uri>
+      <name>rock_outcrop_east</name>
+      <pose>72 -14 0 0 0 1.1</pose>
+    </include>
+    <include>
+      <uri>model://shore_platform</uri>
+      <name>shore_uav_platform</name>
+      <pose>165 18 0 0 0 3.6166</pose>
+    </include>
+    <!-- Paired red / green marks create a clear approach channel to the base. -->
+    <include>
+      <uri>model://medium_buoy</uri>
+      <name>approach_port_outer</name>
+      <pose>105 8 0 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://green_channel_buoy</uri>
+      <name>approach_starboard_outer</name>
+      <pose>105 28 0 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://medium_buoy</uri>
+      <name>approach_port_middle</name>
+      <pose>130 10 0 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://green_channel_buoy</uri>
+      <name>approach_starboard_middle</name>
+      <pose>130 30 0 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://medium_buoy</uri>
+      <name>approach_port_inner</name>
+      <pose>150 12 0 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://green_channel_buoy</uri>
+      <name>approach_starboard_inner</name>
+      <pose>150 32 0 0 0 0</pose>
+    </include>
+
+    <!-- Anchored aquaculture area, kept away from the approach channel. -->
+    <include>
+      <uri>model://aquaculture_cage</uri>
+      <name>aquaculture_cage_01</name>
+      <pose>-82 82 0 0 0 0.08</pose>
+    </include>
+    <include>
+      <uri>model://aquaculture_cage</uri>
+      <name>aquaculture_cage_02</name>
+      <pose>-64 82 0 0 0 0.08</pose>
+    </include>
+    <include>
+      <uri>model://aquaculture_cage</uri>
+      <name>aquaculture_cage_03</name>
+      <pose>-82 100 0 0 0 0.08</pose>
+    </include>
+    <include>
+      <uri>model://aquaculture_cage</uri>
+      <name>aquaculture_cage_04</name>
+      <pose>-64 100 0 0 0 0.08</pose>
+    </include>
+
+    <!-- Floating debris doubles as perception and collision-avoidance targets. -->
+    <include>
+      <uri>model://floating_barrel</uri>
+      <name>floating_barrel_01</name>
+      <pose>-25 10 0 0 0 0.35</pose>
+    </include>
+    <include>
+      <uri>model://floating_barrel</uri>
+      <name>floating_barrel_02</name>
+      <pose>15 35 0 0 0 -0.7</pose>
+    </include>
+    <include>
+      <uri>model://floating_barrel</uri>
+      <name>floating_barrel_03</name>
+      <pose>110 -15 0 0 0 1.1</pose>
+    </include>
+    <include>
+      <uri>model://life_raft</uri>
+      <name>abandoned_life_raft</name>
+      <pose>45 -35 0 0 0 -0.35</pose>
+    </include>
+    <include>
+      <uri>model://driftwood</uri>
+      <name>driftwood_01</name>
+      <pose>-45 -20 0 0 0 0.65</pose>
+    </include>
+    <include>
+      <uri>model://driftwood</uri>
+      <name>driftwood_02</name>
+      <pose>30 55 0 0 0 -0.45</pose>
+    </include>
+
+    <include>
+      <uri>model://marina_pier</uri>
+      <name>southwest_marina_pier</name>
+      <pose>195 42 0 0 0 3.6166</pose>
+    </include>
+
+    <!-- Offshore renewable-energy field with animated rotors. -->
+    <include>
+      <uri>model://offshore_wind_turbine</uri>
+      <name>wind_turbine_west</name>
+      <pose>-120 -75 0 0 0 0.25</pose>
+    </include>
+    <include>
+      <uri>model://offshore_wind_turbine</uri>
+      <name>wind_turbine_center</name>
+      <pose>-90 -75 0 0 0 0.25</pose>
+    </include>
+    <include>
+      <uri>model://offshore_wind_turbine</uri>
+      <name>wind_turbine_east</name>
+      <pose>-60 -75 0 0 0 0.25</pose>
+    </include>
+
+    <!-- Autonomous traffic vessels follow broad circular tracks. -->
+    <include>
+      <uri>model://target_vessel</uri>
+      <name>moving_cargo_vessel_01</name>
+      <pose>-20 65 0 0 0 -0.15</pose>
+    </include>
+    <include>
+      <uri>model://target_vessel</uri>
+      <name>moving_cargo_vessel_02</name>
+      <pose>75 -45 0 0 0 2.65</pose>
+    </include>
+
+    <!-- Southwest harbor and man-overboard rescue exercise. -->
+    <include>
+      <uri>model://harbor_breakwater</uri>
+      <name>southwest_breakwater_harbor</name>
+      <pose>180 42 0 0 0 3.6166</pose>
+    </include>
+    <include>
+      <uri>model://harbor_tug</uri>
+      <name>rescue_harbor_tug</name>
+      <pose>145 35 0 0 0 3.6166</pose>
+    </include>
+    <include>
+      <uri>model://fishing_boat</uri>
+      <name>coastal_fishing_boat</name>
+      <pose>95 55 0 0 0 -0.4</pose>
+    </include>
+    <include>
+      <uri>model://person_overboard</uri>
+      <name>rescue_casualty</name>
+      <pose>112 18 0 0 0 0.2</pose>
+    </include>
+    <include>
+      <uri>model://life_raft</uri>
+      <name>rescue_life_raft</name>
+      <pose>116 21 0 0 0 -0.3</pose>
+    </include>
+    <plugin
+      filename="libDroneDeckFollower.so"
+      name="gz::sim::systems::DroneDeckFollower">
+      <boat_name>landing_boat</boat_name>
+      <drone_name>x500_0</drone_name>
+      <deck_offset>-0.92 0 0.43 0 0 0</deck_offset>
+      <release_topic>/model/x500_0/release_from_deck</release_topic>
+      <relock_duration>4.0</relock_duration>
+      <release_vertical_speed>0.9</release_vertical_speed>
+      <release_after>1000000</release_after>
+      <initially_released>true</initially_released>
+    </plugin>
+    <model name='navigation_lighthouse'>
+      <static>true</static>
+      <pose>35 18 0 0 0 0</pose>
+      <link name='lighthouse_link'>
+        <collision name='base_collision'>
+          <pose>0 0 0.3 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>2.2</radius>
+              <length>0.6</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name='base_visual'>
+          <pose>0 0 0.3 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>2.2</radius>
+              <length>0.6</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.12 0.12 0.12 1</ambient>
+            <diffuse>0.18 0.18 0.16 1</diffuse>
+            <specular>0.05 0.05 0.05 1</specular>
+          </material>
+        </visual>
+        <collision name='tower_collision'>
+          <pose>0 0 4.4 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.85</radius>
+              <length>8.2</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name='tower_white_visual'>
+          <pose>0 0 4.4 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.85</radius>
+              <length>8.2</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.85 0.83 0.76 1</ambient>
+            <diffuse>0.95 0.93 0.84 1</diffuse>
+            <specular>0.2 0.2 0.18 1</specular>
+          </material>
+        </visual>
+        <visual name='red_band_lower_visual'>
+          <pose>0 0 2.7 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.88</radius>
+              <length>0.65</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.55 0.04 0.03 1</ambient>
+            <diffuse>0.85 0.06 0.04 1</diffuse>
+            <specular>0.15 0.03 0.03 1</specular>
+          </material>
+        </visual>
+        <visual name='red_band_upper_visual'>
+          <pose>0 0 5.8 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.88</radius>
+              <length>0.65</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.55 0.04 0.03 1</ambient>
+            <diffuse>0.85 0.06 0.04 1</diffuse>
+            <specular>0.15 0.03 0.03 1</specular>
+          </material>
+        </visual>
+        <visual name='lantern_room_visual'>
+          <pose>0 0 8.8 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>1.05</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.95 0.82 0.32 0.85</ambient>
+            <diffuse>1 0.88 0.4 0.85</diffuse>
+            <specular>1 0.95 0.7 1</specular>
+          </material>
+        </visual>
+        <visual name='roof_visual'>
+          <pose>0 0 9.55 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>1.2</radius>
+              <length>0.45</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.45 0.02 0.02 1</ambient>
+            <diffuse>0.7 0.03 0.03 1</diffuse>
+            <specular>0.18 0.04 0.04 1</specular>
+          </material>
+        </visual>
+        <light name='beacon_light' type='point'>
+          <pose>0 0 8.95 0 0 0</pose>
+          <cast_shadows>false</cast_shadows>
+          <intensity>3</intensity>
+          <diffuse>1 0.86 0.35 1</diffuse>
+          <specular>1 0.9 0.55 1</specular>
+          <attenuation>
+            <range>80</range>
+            <constant>0.6</constant>
+            <linear>0.02</linear>
+            <quadratic>0.001</quadratic>
+          </attenuation>
+        </light>
+      </link>
+    </model>
+    <include>
+      <uri>model://simple_boat</uri>
+      <name>landing_boat</name>
+      <pose>0 0 0.34999999999999998 0 0 0</pose>
+    </include>
+    <light name='directionallight' type='directional'>
+      <pose>3.6650413048508694 0.062467871162392719 2 0 0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>1</intensity>
+      <direction>0 0 -1</direction>
+      <diffuse>0.800000012 0.800000012 0.800000012 1</diffuse>
+      <specular>0.200000003 0.200000003 0.200000003 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <linear>0.01</linear>
+        <constant>0.90000000000000002</constant>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
+  </world>
+</sdf>

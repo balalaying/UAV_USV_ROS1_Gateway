@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sdf version="1.10">
+  <model name="sydney_coast">
+    <static>true</static>
+    <link name="coast_link">
+      <visual name="terrain_visual">
+        <geometry>
+          <mesh>
+            <uri>meshes/sydney_regatta.dae</uri>
+            <scale>0.15 0.15 0.15</scale>
+            <submesh><name>Terrain</name></submesh>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name="dock_dark_visual">
+        <geometry>
+          <mesh>
+            <uri>meshes/sydney_regatta.dae</uri>
+            <scale>0.15 0.15 0.15</scale>
+            <submesh><name>DockDark</name></submesh>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name="metal_visual">
+        <geometry>
+          <mesh>
+            <uri>meshes/sydney_regatta.dae</uri>
+            <scale>0.15 0.15 0.15</scale>
+            <submesh><name>MetalGalvanized</name></submesh>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name="dock_visual">
+        <geometry>
+          <mesh>
+            <uri>meshes/sydney_regatta.dae</uri>
+            <scale>0.15 0.15 0.15</scale>
+            <submesh><name>Dock</name></submesh>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name="windows_visual">
+        <geometry>
+          <mesh>
+            <uri>meshes/sydney_regatta.dae</uri>
+            <scale>0.15 0.15 0.15</scale>
+            <submesh><name>Windows_Dark</name></submesh>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name="roof_visual">
+        <geometry>
+          <mesh>
+            <uri>meshes/sydney_regatta.dae</uri>
+            <scale>0.15 0.15 0.15</scale>
+            <submesh><name>RoofCorrugated</name></submesh>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name="wall_visual">
+        <geometry>
+          <mesh>
+            <uri>meshes/sydney_regatta.dae</uri>
+            <scale>0.15 0.15 0.15</scale>
+            <submesh><name>Wall</name></submesh>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name="trees_visual">
+        <geometry>
+          <mesh>
+            <uri>meshes/sydney_regatta.dae</uri>
+            <scale>0.15 0.15 0.15</scale>
+            <submesh><name>TreeDiffuse</name></submesh>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <pbr>
+            <metal>
+              <albedo_map>materials/textures/TreeDiffuse.png</albedo_map>
+            </metal>
+          </pbr>
+        </material>
+      </visual>
+      <collision name="shore_collision">
+        <geometry>
+          <mesh>
+            <uri>meshes/sydney_regatta_shore.dae</uri>
+            <scale>0.15 0.15 0.15</scale>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>
