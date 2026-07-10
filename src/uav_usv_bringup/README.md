@@ -4,17 +4,18 @@ Ownership: system integration team.
 
 This package is the stable user entry point. During migration its launch files include the original `uav_usv_sim` launch files, so existing behavior remains unchanged.
 
-```bash
-ros2 launch uav_usv_bringup legacy_px4_sim.launch.py
-ros2 launch uav_usv_bringup legacy_boat_nav2.launch.py
-ros2 launch uav_usv_bringup legacy_colregs_test.launch.py
-```
+基础仿真、Nav2 和 COLREGs 测试仍由 `uav_usv_sim` 提供，避免在
+`uav_usv_bringup` 中维护重复 launch：
+
+- `ros2 launch uav_usv_sim uav_usv_px4_sim.launch.py`
+- `ros2 launch uav_usv_sim boat_nav2_navigation.launch.py`
+- `ros2 launch uav_usv_sim colregs_test_scenario.launch.py`
 
 ## 基站集中控制演示
 
 命名约定：
 
-- `Qt_cooperation.launch.py`：启动单主控链路的 Qt 协同基站，船01和无人机01是真实控制链路。
+- `Qt_cooperation.launch.py`：启动单主控链路的 Qt 协同基站，默认只显示船01和无人机01。
 - `All_Qt.launch.py`：启动三组船机 Qt 基站，额外显示船02/03和无人机02/03。
 - `Qt_base_station.rviz`：Qt 基站配套 RViz 可视化配置。
 

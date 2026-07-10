@@ -80,7 +80,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 'start_simulated_fleet',
-                default_value='true',
+                default_value='false',
                 description='Publish auxiliary fleet members 02 and 03.',
             ),
             DeclareLaunchArgument(

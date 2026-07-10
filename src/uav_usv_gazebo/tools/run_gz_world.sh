@@ -12,8 +12,6 @@ GAZEBO_PREFIX="$(ros2 pkg prefix uav_usv_gazebo)"
 PLUGIN_DIR="${GAZEBO_PREFIX}/lib/uav_usv_gazebo/plugins"
 WORLD_NAME="${1:-${UAV_USV_GZ_WORLD:-default.sdf}}"
 
-"${SCRIPT_DIR}/prepare_coastline.sh"
-
 export GZ_SIM_RESOURCE_PATH="${UAV_USV_ASSET_ROOT}:${GAZEBO_SHARE_DIR}/models:${GZ_SIM_RESOURCE_PATH:-}"
 export GZ_SIM_SYSTEM_PLUGIN_PATH="${PLUGIN_DIR}:${GZ_SIM_SYSTEM_PLUGIN_PATH:-}"
 
@@ -23,6 +21,12 @@ if [[ "${WORLD_NAME}" != */* ]]; then
 else
   WORLD_PATH="${WORLD_NAME}"
 fi
+
+case "$(basename "${WORLD_PATH}")" in
+  default.sdf|vrx_sydney_regatta_custom.sdf)
+    "${SCRIPT_DIR}/prepare_coastline.sh"
+    ;;
+esac
 
 read -r -a gz_args <<< "${GZ_SIM_ARGS:--r}"
 gz sim "${gz_args[@]}" "${WORLD_PATH}"

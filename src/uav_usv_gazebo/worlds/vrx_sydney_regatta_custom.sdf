@@ -187,22 +187,6 @@
           <property key="cardBackground" type="string">#777777</property>
         </gz-gui>
       </plugin>
-      <plugin filename="ComponentInspector" name="Component inspector">
-        <gz-gui>
-          <property type="string" key="state">docked_collapsed</property>
-        </gz-gui>
-      </plugin>
-      <plugin filename="EntityTree" name="Entity tree">
-        <gz-gui>
-          <property type="string" key="state">docked_collapsed</property>
-        </gz-gui>
-      </plugin>
-      <plugin filename="ViewAngle" name="View angle">
-        <gz-gui>
-          <property type="string" key="state">docked_collapsed</property>
-        </gz-gui>
-        <legacy>false</legacy>
-      </plugin>
     </gui>
 
     <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>

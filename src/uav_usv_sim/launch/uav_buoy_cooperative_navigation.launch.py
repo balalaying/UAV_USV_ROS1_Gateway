@@ -5,6 +5,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.actions import IncludeLaunchDescription
 from launch.actions import OpaqueFunction
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -95,12 +96,23 @@ def generate_launch_description():
                 default_value='24.0',
                 description='Detection and camera mosaic rate in FPS.',
             ),
+            DeclareLaunchArgument(
+                'start_nav2',
+                default_value='true',
+                description='Start the USV Nav2 stack for cooperative tracking.',
+            ),
+            DeclareLaunchArgument(
+                'start_rviz',
+                default_value='true',
+                description='Start RViz with maps, Nav2, and camera mosaic.',
+            ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(nav_launch),
                 launch_arguments={
                     'use_sim_time': use_sim_time,
                     'start_rviz': 'false',
                 }.items(),
+                condition=IfCondition(LaunchConfiguration('start_nav2')),
             ),
             OpaqueFunction(function=camera_bridge_setup),
             Node(
@@ -153,6 +165,7 @@ def generate_launch_description():
                         ),
                     }
                 ],
+                condition=IfCondition(LaunchConfiguration('start_rviz')),
             ),
         ]
     )

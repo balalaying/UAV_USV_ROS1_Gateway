@@ -28,6 +28,8 @@ class Boat:
     target_y: float
     state: str
     command_speed: float = 0.0
+    smooth_linear: float = 0.0
+    smooth_angular: float = 0.0
 
 
 class DefenseDemo(Node):
@@ -44,25 +46,30 @@ class DefenseDemo(Node):
         self.declare_parameter('base_safety_radius', 18.0)
         self.declare_parameter('own_patrol_speed', 7.0)
         self.declare_parameter('own_guard_speed', 15.0)
-        self.declare_parameter('enemy_speed', 3.5)
+        self.declare_parameter('enemy_speed', 4.5)
         self.declare_parameter('enemy_evasion_radius', 48.0)
         self.declare_parameter('enemy_evasion_gain', 36.0)
         self.declare_parameter('base_avoid_radius', 34.0)
         self.declare_parameter('base_avoid_gain', 2.8)
         self.declare_parameter('base_hard_keepout_radius', 16.0)
         self.declare_parameter('guard_spacing', 28.0)
-        self.declare_parameter('guard_lead_distance', 24.0)
-        self.declare_parameter('guard_target_alpha', 0.22)
-        self.declare_parameter('guard_stop_distance', 18.0)
-        self.declare_parameter('intercept_stop_distance', 26.0)
+        self.declare_parameter('guard_lead_distance', 12.0)
+        self.declare_parameter('guard_target_alpha', 0.12)
+        self.declare_parameter('guard_stop_distance', 20.0)
+        self.declare_parameter('enemy_guard_stop_distance', 22.0)
+        self.declare_parameter('intercept_stop_distance', 18.0)
         self.declare_parameter('own_avoid_radius', 30.0)
         self.declare_parameter('own_avoid_gain', 2.4)
         self.declare_parameter('own_yield_radius', 45.0)
         self.declare_parameter('own_brake_radius', 22.0)
+        self.declare_parameter('linear_accel_limit', 8.0)
+        self.declare_parameter('angular_accel_limit', 2.8)
+        self.declare_parameter('guard_switch_penalty', 120.0)
         self.declare_parameter('update_rate', 20.0)
         self.declare_parameter('rviz_marker_rate', 20.0)
         self.declare_parameter('gazebo_marker_rate', 5.0)
         self.declare_parameter('seed', 7)
+        self.declare_parameter('pose_topic', '/world/defense/pose/info')
 
         random.seed(int(self.get_parameter('seed').value))
         self.base_x = float(self.get_parameter('base_x').value)
@@ -79,13 +86,14 @@ class DefenseDemo(Node):
         self.guard_assignments = {}
 
         self.gz_node = GzTransportNode()
+        self.pose_topic = str(self.get_parameter('pose_topic').value)
         self.cmd_pubs = {}
         for boat in self.own_boats + self.enemy_boats:
             self.cmd_pubs[boat.name] = self.gz_node.advertise(
                 '/model/%s/cmd_vel' % boat.name,
                 Twist,
             )
-        self.gz_node.subscribe(Pose_V, '/world/defense/pose/info', self._on_pose_v)
+        self.gz_node.subscribe(Pose_V, self.pose_topic, self._on_pose_v)
         self.marker_pub = self.gz_node.advertise('/marker', GzMarker)
 
         self.own_pose_pub = self.create_publisher(
@@ -112,7 +120,9 @@ class DefenseDemo(Node):
         starts = [(-70.0, -42.0), (-66.0, -14.0), (-66.0, 16.0), (-70.0, 44.0)]
         boats = []
         for index in range(max(3, min(4, count))):
-            x, y = starts[index]
+            offset_x, offset_y = starts[index]
+            x = self.base_x + offset_x
+            y = self.base_y + offset_y
             boats.append(
                 Boat(
                     name='own_%02d' % (index + 1),
@@ -135,7 +145,9 @@ class DefenseDemo(Node):
         ]
         boats = []
         for index in range(max(3, min(4, count))):
-            x, y = starts[index]
+            offset_x, offset_y = starts[index]
+            x = self.base_x + offset_x
+            y = self.base_y + offset_y
             boats.append(
                 Boat(
                     name='enemy_%02d' % (index + 1),
@@ -202,8 +214,11 @@ class DefenseDemo(Node):
         guard_stop_distance = max(
             1.0, float(self.get_parameter('guard_stop_distance').value)
         )
+        enemy_guard_stop_distance = max(
+            1.0, float(self.get_parameter('enemy_guard_stop_distance').value)
+        )
         intercept_stop_distance = max(
-            guard_stop_distance,
+            1.0,
             float(self.get_parameter('intercept_stop_distance').value),
         )
         own_avoid_radius = max(
@@ -220,7 +235,6 @@ class DefenseDemo(Node):
             4.0, float(self.get_parameter('own_brake_radius').value)
         )
 
-        del dt
         for enemy in self.enemy_boats:
             enemy.command_speed = enemy_speed
             self._update_enemy_attack_target(
@@ -260,6 +274,7 @@ class DefenseDemo(Node):
                 base_safety_radius,
                 guard_lead_distance,
                 guard_stop_distance,
+                enemy_guard_stop_distance,
                 intercept_stop_distance,
             )
         else:
@@ -273,6 +288,7 @@ class DefenseDemo(Node):
                 boat.command_speed = own_patrol_speed
 
         self._send_all_velocity(
+            dt,
             own_avoid_radius,
             own_avoid_gain,
             own_yield_radius,
@@ -406,6 +422,9 @@ class DefenseDemo(Node):
             self._set_guard_target(boat, target_x, target_y, guard_target_alpha)
 
     def _assign_stable_boats(self, boats, guard_points):
+        switch_penalty = max(
+            0.0, float(self.get_parameter('guard_switch_penalty').value)
+        )
         points_by_slot = {
             slot_name: (guard_x, guard_y, threat, slot_name)
             for guard_x, guard_y, threat, slot_name in guard_points
@@ -437,7 +456,14 @@ class DefenseDemo(Node):
                 candidates = guard_points
             guard_x, guard_y, threat, slot_name = min(
                 candidates,
-                key=lambda point: self._distance(boat.x, boat.y, point[0], point[1]),
+                key=lambda point: (
+                    self._distance(boat.x, boat.y, point[0], point[1])
+                    + (
+                        0.0
+                        if self.guard_assignments.get(boat.name) == point[3]
+                        else switch_penalty
+                    )
+                ),
             )
             self.guard_assignments[boat.name] = slot_name
             assigned_slots.add(slot_name)
@@ -497,6 +523,7 @@ class DefenseDemo(Node):
         base_safety_radius,
         guard_lead_distance,
         stop_distance,
+        enemy_guard_stop_distance,
         intercept_stop_distance,
     ):
         for enemy in threats:
@@ -514,11 +541,15 @@ class DefenseDemo(Node):
                     self._distance(own.x, own.y, guard_x, guard_y)
                     <= stop_distance
                 )
+                enemy_near_guard_point = (
+                    self._distance(enemy.x, enemy.y, guard_x, guard_y)
+                    <= enemy_guard_stop_distance
+                )
                 close_to_defender = (
                     self._distance(own.x, own.y, enemy.x, enemy.y)
                     <= intercept_stop_distance
                 )
-                if near_guard_point or close_to_defender:
+                if (near_guard_point and enemy_near_guard_point) or close_to_defender:
                     guarded = True
                     break
             if guarded:
@@ -565,6 +596,7 @@ class DefenseDemo(Node):
 
     def _send_all_velocity(
         self,
+        dt,
         own_avoid_radius,
         own_avoid_gain,
         own_yield_radius,
@@ -615,9 +647,32 @@ class DefenseDemo(Node):
                     own_yield_radius,
                     own_brake_radius,
                 )
-            twist.linear.x = float(speed)
-            twist.angular.z = float(max(-1.4, min(1.4, yaw_error * 1.8)))
+            angular = float(max(-1.6, min(1.6, yaw_error * 2.2)))
+            linear_step = (
+                max(0.1, float(self.get_parameter('linear_accel_limit').value))
+                * dt
+            )
+            angular_step = (
+                max(0.1, float(self.get_parameter('angular_accel_limit').value))
+                * dt
+            )
+            boat.smooth_linear = self._slew(
+                boat.smooth_linear, float(speed), linear_step
+            )
+            boat.smooth_angular = self._slew(
+                boat.smooth_angular, angular, angular_step
+            )
+            twist.linear.x = float(boat.smooth_linear)
+            twist.angular.z = float(boat.smooth_angular)
             self.cmd_pubs[boat.name].publish(twist)
+
+    @staticmethod
+    def _slew(current, target, max_step):
+        if target > current + max_step:
+            return current + max_step
+        if target < current - max_step:
+            return current - max_step
+        return target
 
     def _base_avoidance_vector(
         self,
@@ -725,9 +780,27 @@ class DefenseDemo(Node):
     ):
         msg = String()
         blocked = sum(1 for enemy in self.enemy_boats if enemy.state == 'blocked')
+        own_targets = ','.join(
+            '%s:%.1f:%.1f:%s'
+            % (boat.name, boat.target_x, boat.target_y, boat.state)
+            for boat in self.own_boats
+        )
+        enemy_states = ','.join(
+            '%s:%s:%.1f'
+            % (
+                enemy.name,
+                enemy.state,
+                self._distance(enemy.x, enemy.y, self.base_x, self.base_y),
+            )
+            for enemy in self.enemy_boats
+        )
         msg.data = (
             'mode=%s threats=%d blocked=%d defend_radius=%.1f '
-            'trigger_radius=%.1f base_safety_radius=%.1f'
+            'trigger_radius=%.1f base_safety_radius=%.1f '
+            'own_guard_speed=%.1f enemy_speed=%.1f guard_stop_distance=%.1f '
+            'enemy_guard_stop_distance=%.1f intercept_stop_distance=%.1f '
+            'guard_spacing=%.1f '
+            'base=%.1f:%.1f own_targets=%s enemy_states=%s'
             % (
                 'guard' if threats else 'patrol',
                 len(threats),
@@ -735,6 +808,16 @@ class DefenseDemo(Node):
                 defend_radius,
                 trigger_radius,
                 base_safety_radius,
+                float(self.get_parameter('own_guard_speed').value),
+                float(self.get_parameter('enemy_speed').value),
+                float(self.get_parameter('guard_stop_distance').value),
+                float(self.get_parameter('enemy_guard_stop_distance').value),
+                float(self.get_parameter('intercept_stop_distance').value),
+                float(self.get_parameter('guard_spacing').value),
+                self.base_x,
+                self.base_y,
+                own_targets,
+                enemy_states,
             )
         )
         self.status_pub.publish(msg)

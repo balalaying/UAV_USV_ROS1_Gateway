@@ -8,8 +8,10 @@ from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 import numpy as np
 import rclpy
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy
 from rclpy.qos import QoSProfile
@@ -102,6 +104,9 @@ class FleetBaseStation(Node):
         base_sensor_qos = QoSProfile(depth=1)
         base_sensor_qos.reliability = ReliabilityPolicy.RELIABLE
         base_sensor_qos.durability = DurabilityPolicy.VOLATILE
+        mosaic_qos = QoSProfile(depth=1)
+        mosaic_qos.reliability = ReliabilityPolicy.BEST_EFFORT
+        mosaic_qos.durability = DurabilityPolicy.VOLATILE
 
         self.lease_pub = self.create_publisher(
             ControlLease, '/fleet/control_lease', lease_qos
@@ -116,7 +121,7 @@ class FleetBaseStation(Node):
             MarkerArray, '/fleet/base/markers', marker_qos
         )
         self.mosaic_pub = self.create_publisher(
-            Image, '/fleet/base/camera_mosaic', base_sensor_qos
+            Image, '/fleet/base/camera_mosaic', mosaic_qos
         )
         self.scan_pub = self.create_publisher(
             LaserScan, '/fleet/base/usv_scan', base_sensor_qos
@@ -143,6 +148,9 @@ class FleetBaseStation(Node):
 
         self.trackers = {}
         self.images = {}
+        self.camera_frames = {}
+        self.camera_frame_times = {}
+        self.camera_decode_period = 1.0 / 20.0
         self.vehicle_states = {}
         self.command_status = {}
         self.command_counter = 0
@@ -150,6 +158,8 @@ class FleetBaseStation(Node):
         self.demo_ready_time = time.monotonic() + 4.0
         self.demo_stage = 'waiting'
         self.takeoff_command_id = ''
+        self.image_callback_group = ReentrantCallbackGroup()
+        self.timer_callback_group = ReentrantCallbackGroup()
 
         for uav_id in self.uav_ids:
             self._add_image_sensor(
@@ -158,6 +168,7 @@ class FleetBaseStation(Node):
                 '/fleet/uplink/%s/camera' % uav_id,
                 self._make_image_callback(uav_id),
                 sensor_qos,
+                self.image_callback_group,
             )
         for usv_id in self.usv_ids:
             self._add_image_sensor(
@@ -166,6 +177,7 @@ class FleetBaseStation(Node):
                 '/fleet/uplink/%s/camera' % usv_id,
                 self._make_image_callback(usv_id),
                 sensor_qos,
+                self.image_callback_group,
             )
             scan_topic = '/fleet/uplink/%s/scan' % usv_id
             self.trackers[scan_topic] = SensorTracker(
@@ -191,11 +203,25 @@ class FleetBaseStation(Node):
                 sensor_qos,
             )
 
-        self.create_timer(1.0, self._publish_leases)
-        self.create_timer(1.0, self._publish_sensor_status)
-        self.create_timer(0.5, self._publish_markers)
-        self.create_timer(1.0 / 15.0, self._publish_camera_mosaic)
-        self.create_timer(0.5, self._advance_demo)
+        self.create_timer(
+            1.0, self._publish_leases, callback_group=self.timer_callback_group
+        )
+        self.create_timer(
+            1.0,
+            self._publish_sensor_status,
+            callback_group=self.timer_callback_group,
+        )
+        self.create_timer(
+            0.5, self._publish_markers, callback_group=self.timer_callback_group
+        )
+        self.create_timer(
+            1.0 / 30.0,
+            self._publish_camera_mosaic,
+            callback_group=self.timer_callback_group,
+        )
+        self.create_timer(
+            0.5, self._advance_demo, callback_group=self.timer_callback_group
+        )
         self.get_logger().info(
             'Base station %s online; lease=%s, vehicles=%s/%s, target=(%.1f, %.1f)'
             % (
@@ -218,18 +244,37 @@ class FleetBaseStation(Node):
         return ids
 
     def _add_image_sensor(
-        self, vehicle_id, sensor_id, topic, callback, qos
+        self, vehicle_id, sensor_id, topic, callback, qos, callback_group
     ):
         self.trackers[topic] = SensorTracker(
             vehicle_id, sensor_id, topic, 'sensor_msgs/Image'
         )
-        self.create_subscription(Image, topic, callback, qos)
+        self.create_subscription(
+            Image, topic, callback, qos, callback_group=callback_group
+        )
 
     def _make_image_callback(self, vehicle_id):
         def callback(msg):
             topic = '/fleet/uplink/%s/camera' % vehicle_id
             self.trackers[topic].update(len(msg.data))
             self.images[vehicle_id] = msg
+            now = time.monotonic()
+            last_decode = self.camera_frame_times.get(vehicle_id, 0.0)
+            if now - last_decode < self.camera_decode_period:
+                return
+            try:
+                self.camera_frames[vehicle_id] = cv2.resize(
+                    self._decode_image(msg),
+                    (240, 135),
+                    interpolation=cv2.INTER_AREA,
+                )
+                self.camera_frame_times[vehicle_id] = now
+            except Exception as exc:
+                self.get_logger().warn(
+                    'Unable to decode camera frame for %s: %s'
+                    % (vehicle_id, exc),
+                    throttle_duration_sec=5.0,
+                )
 
         return callback
 
@@ -395,35 +440,31 @@ class FleetBaseStation(Node):
             return cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
         return image.copy()
 
-    def _camera_panel(self, msg, title, tracker):
-        width, height = 480, 360
-        if msg is None:
+    def _camera_panel(self, frame, title, tracker):
+        width, height = 240, 135
+        if frame is None:
             panel = np.zeros((height, width, 3), dtype=np.uint8)
             cv2.putText(
                 panel,
                 'WAITING FOR SENSOR UPLINK',
-                (55, 190),
+                (18, 74),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.65,
+                0.36,
                 (255, 255, 255),
-                2,
+                1,
                 cv2.LINE_AA,
             )
         else:
-            panel = cv2.resize(
-                self._decode_image(msg),
-                (width, height),
-                interpolation=cv2.INTER_AREA,
-            )
-        cv2.rectangle(panel, (0, 0), (width, 48), (0, 0, 0), -1)
+            panel = frame.copy()
+        cv2.rectangle(panel, (0, 0), (width, 22), (0, 0, 0), -1)
         cv2.putText(
             panel,
             '%s  %.1f FPS' % (title, tracker.rate_hz),
-            (14, 32),
+            (6, 15),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
+            0.26,
             (70, 255, 90),
-            2,
+            1,
             cv2.LINE_AA,
         )
         return panel
@@ -439,7 +480,7 @@ class FleetBaseStation(Node):
                 ]
                 panels.append(
                     self._camera_panel(
-                        self.images.get(usv_id),
+                        self.camera_frames.get(usv_id),
                         '%s FRONT CAMERA' % usv_id.upper(),
                         tracker,
                     )
@@ -450,18 +491,19 @@ class FleetBaseStation(Node):
                 ]
                 panels.append(
                     self._camera_panel(
-                        self.images.get(uav_id),
+                        self.camera_frames.get(uav_id),
                         '%s DOWN CAMERA' % uav_id.upper(),
                         tracker,
                     )
                 )
             if not panels:
                 return
-            while len(panels) % 3:
+            columns = 4
+            while len(panels) % columns:
                 panels.append(np.zeros_like(panels[0]))
             rows = [
-                np.hstack(panels[index:index + 3])
-                for index in range(0, len(panels), 3)
+                np.hstack(panels[index:index + columns])
+                for index in range(0, len(panels), columns)
             ]
             mosaic = np.vstack(rows)
         except Exception as exc:
@@ -692,11 +734,14 @@ class FleetBaseStation(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = FleetBaseStation()
+    executor = MultiThreadedExecutor(num_threads=10)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

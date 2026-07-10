@@ -54,6 +54,7 @@ class FleetSimulatedAgent(Node):
         self.declare_parameter('pose_topic', '/world/default/pose/info')
         self.declare_parameter('image_rate', 5.0)
         self.declare_parameter('scan_rate', 5.0)
+        self.declare_parameter('publish_images', True)
 
         sensor_qos = QoSProfile(depth=1)
         sensor_qos.reliability = ReliabilityPolicy.BEST_EFFORT
@@ -97,14 +98,16 @@ class FleetSimulatedAgent(Node):
         self.lock = threading.Lock()
         self.gz_node = GzTransportNode()
         self.pose_topic = self.get_parameter('pose_topic').value
+        self.publish_images = bool(self.get_parameter('publish_images').value)
         self.gz_node.subscribe(Pose_V, self.pose_topic, self._on_pose_v)
 
         self.start_time = time.monotonic()
         self.create_timer(0.2, self._publish_states)
-        self.create_timer(
-            1.0 / max(0.5, float(self.get_parameter('image_rate').value)),
-            self._publish_images,
-        )
+        if self.publish_images:
+            self.create_timer(
+                1.0 / max(0.5, float(self.get_parameter('image_rate').value)),
+                self._publish_images,
+            )
         self.create_timer(
             1.0 / max(0.5, float(self.get_parameter('scan_rate').value)),
             self._publish_usv_sensors,

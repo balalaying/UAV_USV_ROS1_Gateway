@@ -111,6 +111,9 @@ git push -u origin feature/perception-mid360
 当前五人团队的具体任务、两周安排和验收方法见
 [第一阶段五人并行开发任务书](docs/第一阶段五人并行开发任务书.md)。
 
+海上防御演示的启动方式、Qt 基站页面、动态参数和 Topic 说明见
+[Defense 防御演示说明](docs/DEFENSE_README.md)。
+
 ## 运行项目
 
 ### 1. 环境要求

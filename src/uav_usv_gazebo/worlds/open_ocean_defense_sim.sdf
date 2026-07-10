@@ -1,0 +1,181 @@
+<sdf version='1.10'>
+  <world name='open_ocean_defense_sim'>
+    <gui fullscreen="0">
+      <plugin filename="MinimalScene" name="3D View">
+        <gz-gui><title>3D View</title><property type="bool" key="showTitleBar">false</property><property type="string" key="state">docked</property></gz-gui>
+        <engine>ogre2</engine>
+        <scene>scene</scene>
+        <ambient_light>0.82 0.84 0.86</ambient_light>
+        <background_color>1 1 1</background_color>
+        <camera_pose>-245 -255 220 0 1.05 0.72</camera_pose>
+        <camera_clip><near>0.25</near><far>5000</far></camera_clip>
+      </plugin>
+      <plugin filename="GzSceneManager" name="Scene Manager"><gz-gui><property key="resizable" type="bool">false</property><property key="width" type="double">5</property><property key="height" type="double">5</property><property key="state" type="string">floating</property><property key="showTitleBar" type="bool">false</property></gz-gui></plugin>
+      <plugin filename="InteractiveViewControl" name="Interactive view control"><gz-gui><property key="resizable" type="bool">false</property><property key="width" type="double">5</property><property key="height" type="double">5</property><property key="state" type="string">floating</property><property key="showTitleBar" type="bool">false</property></gz-gui></plugin>
+      <plugin filename="CameraTracking" name="Camera Tracking"><gz-gui><property key="resizable" type="bool">false</property><property key="width" type="double">5</property><property key="height" type="double">5</property><property key="state" type="string">floating</property><property key="showTitleBar" type="bool">false</property></gz-gui></plugin>
+      <plugin filename="MarkerManager" name="Marker manager"><gz-gui><property key="resizable" type="bool">false</property><property key="width" type="double">5</property><property key="height" type="double">5</property><property key="state" type="string">floating</property><property key="showTitleBar" type="bool">false</property></gz-gui></plugin>
+      <plugin filename="WorldControl" name="World control"><gz-gui><property type="bool" key="showTitleBar">false</property><property type="bool" key="resizable">false</property><property type="double" key="height">72</property><property type="double" key="width">121</property><property type="double" key="z">1</property><property type="string" key="state">floating</property><anchors target="3D View"><line own="left" target="left"/><line own="bottom" target="bottom"/></anchors></gz-gui><play_pause>true</play_pause><step>true</step><start_paused>false</start_paused><use_event>true</use_event></plugin>
+    </gui>
+    <plugin filename='gz-sim-physics-system' name='gz::sim::systems::Physics'/>
+    <plugin filename='gz-sim-user-commands-system' name='gz::sim::systems::UserCommands'/>
+    <plugin filename='gz-sim-scene-broadcaster-system' name='gz::sim::systems::SceneBroadcaster'/>
+    <plugin filename='gz-sim-contact-system' name='gz::sim::systems::Contact'/>
+    <plugin filename='gz-sim-imu-system' name='gz::sim::systems::Imu'/>
+    <plugin filename='gz-sim-air-pressure-system' name='gz::sim::systems::AirPressure'/>
+    <plugin filename='gz-sim-air-speed-system' name='gz::sim::systems::AirSpeed'/>
+    <plugin filename='gz-sim-apply-link-wrench-system' name='gz::sim::systems::ApplyLinkWrench'/>
+    <plugin filename='gz-sim-navsat-system' name='gz::sim::systems::NavSat'/>
+    <plugin filename='gz-sim-magnetometer-system' name='gz::sim::systems::Magnetometer'/>
+    <plugin filename='gz-sim-sensors-system' name='gz::sim::systems::Sensors'><render_engine>ogre2</render_engine></plugin>
+    <physics type='ode'><max_step_size>0.004</max_step_size><real_time_factor>1</real_time_factor><real_time_update_rate>250</real_time_update_rate></physics>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6.0e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type='adiabatic'/>
+    <scene><grid>false</grid><ambient>0.82 0.84 0.86 1</ambient><background>1 1 1 1</background><shadows>true</shadows></scene>
+    <spherical_coordinates><surface_model>EARTH_WGS84</surface_model><world_frame_orientation>ENU</world_frame_orientation><latitude_deg>47.397971057728974</latitude_deg><longitude_deg>8.5461637398001464</longitude_deg><elevation>0</elevation><heading_deg>0</heading_deg></spherical_coordinates>
+    <model name='ocean_plane'>
+      <static>true</static>
+      <link name='ocean_link'>
+        <visual name='ocean_visual'><pose>0 0 -0.02 0 0 0</pose><geometry><plane><normal>0 0 1</normal><size>1000 1000</size></plane></geometry><material><ambient>0 0.08 0.16 0.45</ambient><diffuse>0 0.18 0.3 0.45</diffuse><specular>0.03 0.05 0.06 1</specular></material></visual>
+        <collision name='ocean_collision'><geometry><plane><normal>0 0 1</normal><size>1000 1000</size></plane></geometry></collision>
+      </link>
+    </model>
+    <include><uri>model://waves</uri><name>waves</name><pose>0 0 0.015 0 0 0</pose></include>
+    <model name='navigation_lighthouse'>
+      <static>true</static>
+      <pose>35 18 0 0 0 0</pose>
+      <link name='lighthouse_link'>
+        <collision name='base_collision'>
+          <pose>0 0 0.3 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>2.2</radius>
+              <length>0.6</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name='base_visual'>
+          <pose>0 0 0.3 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>2.2</radius>
+              <length>0.6</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.12 0.12 0.12 1</ambient>
+            <diffuse>0.18 0.18 0.16 1</diffuse>
+            <specular>0.05 0.05 0.05 1</specular>
+          </material>
+        </visual>
+        <collision name='tower_collision'>
+          <pose>0 0 4.4 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.85</radius>
+              <length>8.2</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name='tower_white_visual'>
+          <pose>0 0 4.4 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.85</radius>
+              <length>8.2</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.85 0.83 0.76 1</ambient>
+            <diffuse>0.95 0.93 0.84 1</diffuse>
+            <specular>0.2 0.2 0.18 1</specular>
+          </material>
+        </visual>
+        <visual name='red_band_lower_visual'>
+          <pose>0 0 2.7 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.88</radius>
+              <length>0.65</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.55 0.04 0.03 1</ambient>
+            <diffuse>0.85 0.06 0.04 1</diffuse>
+            <specular>0.15 0.03 0.03 1</specular>
+          </material>
+        </visual>
+        <visual name='red_band_upper_visual'>
+          <pose>0 0 5.8 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.88</radius>
+              <length>0.65</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.55 0.04 0.03 1</ambient>
+            <diffuse>0.85 0.06 0.04 1</diffuse>
+            <specular>0.15 0.03 0.03 1</specular>
+          </material>
+        </visual>
+        <visual name='lantern_room_visual'>
+          <pose>0 0 8.8 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>1.05</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.95 0.82 0.32 0.85</ambient>
+            <diffuse>1 0.88 0.4 0.85</diffuse>
+            <specular>1 0.95 0.7 1</specular>
+          </material>
+        </visual>
+        <visual name='roof_visual'>
+          <pose>0 0 9.55 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>1.2</radius>
+              <length>0.45</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.45 0.02 0.02 1</ambient>
+            <diffuse>0.7 0.03 0.03 1</diffuse>
+            <specular>0.18 0.04 0.04 1</specular>
+          </material>
+        </visual>
+        <light name='beacon_light' type='point'>
+          <pose>0 0 8.95 0 0 0</pose>
+          <cast_shadows>false</cast_shadows>
+          <intensity>3</intensity>
+          <diffuse>1 0.86 0.35 1</diffuse>
+          <specular>1 0.9 0.55 1</specular>
+          <attenuation>
+            <range>80</range>
+            <constant>0.6</constant>
+            <linear>0.02</linear>
+            <quadratic>0.001</quadratic>
+          </attenuation>
+        </light>
+      </link>
+    </model>
+
+    <include><name>defense_base_platform</name><pose>-120 -120 0 0 0 0</pose><uri>model://four_level_uav_platform</uri></include>
+    <include><name>uav_01</name><pose>-120 -120 2.85 0 0 0</pose><uri>model://static_x500_fleet_uav_01</uri></include>
+    <include><name>uav_02</name><pose>-120 -120 6.35 0 0 0</pose><uri>model://static_x500_fleet_uav_02</uri></include>
+    <include><name>uav_03</name><pose>-120 -120 9.85 0 0 0</pose><uri>model://static_x500_fleet_uav_03</uri></include>
+    <include><name>uav_04</name><pose>-120 -120 13.35 0 0 0</pose><uri>model://static_x500_fleet_uav_04</uri></include>
+    <include><name>own_01</name><pose>-190 -162 0.35 0 0 0</pose><uri>model://defense_own_01_boat</uri></include>
+    <include><name>own_02</name><pose>-186 -134 0.35 0 0 0</pose><uri>model://defense_own_02_boat</uri></include>
+    <include><name>own_03</name><pose>-186 -104 0.35 0 0 0</pose><uri>model://defense_own_03_boat</uri></include>
+    <include><name>own_04</name><pose>-190 -76 0.35 0 0 0</pose><uri>model://defense_own_04_boat</uri></include>
+    <include><name>enemy_01</name><pose>240 -220 0.35 0 0 2.85</pose><uri>model://defense_enemy_01_boat</uri></include>
+    <include><name>enemy_02</name><pose>270 -145 0.35 0 0 3.05</pose><uri>model://defense_enemy_02_boat</uri></include>
+    <include><name>enemy_03</name><pose>270 -65 0.35 0 0 -3.05</pose><uri>model://defense_enemy_03_boat</uri></include>
+    <include><name>enemy_04</name><pose>240 20 0.35 0 0 -2.75</pose><uri>model://defense_enemy_04_boat</uri></include>
+    <light name='directionallight' type='directional'><pose>0 0 30 0 0 0</pose><cast_shadows>true</cast_shadows><intensity>1</intensity><direction>-0.35 0.15 -0.92</direction><diffuse>0.85 0.85 0.82 1</diffuse><specular>0.2 0.2 0.2 1</specular></light>
+  </world>
+</sdf>

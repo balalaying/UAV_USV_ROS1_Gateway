@@ -1,52 +1,13 @@
-import os
-
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.actions import OpaqueFunction
-from launch.conditions import IfCondition
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterValue
-
-
-def camera_bridge_setup(context):
-    model_name = LaunchConfiguration('uav_model_name').perform(context)
-    prefix = (
-        '/world/default/model/%s/link/camera_link/sensor/camera'
-        % model_name
-    )
-    return [
-        Node(
-            package='ros_gz_bridge',
-            executable='parameter_bridge',
-            name='uav_down_camera_bridge',
-            output='screen',
-            arguments=[
-                prefix + '/image@sensor_msgs/msg/Image[gz.msgs.Image',
-                (
-                    prefix
-                    + '/camera_info@sensor_msgs/msg/CameraInfo'
-                    + '[gz.msgs.CameraInfo'
-                ),
-            ],
-            remappings=[
-                (prefix + '/image', '/uav/down_camera/image'),
-                (prefix + '/camera_info', '/uav/down_camera/camera_info'),
-            ],
-        )
-    ]
+from launch.substitutions import PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    package_share = get_package_share_directory('uav_usv_sim')
-    rviz_config = os.path.join(
-        package_share,
-        'rviz',
-        'uav_buoy_cooperative_navigation.rviz',
-    )
-    use_sim_time = LaunchConfiguration('use_sim_time')
-
     return LaunchDescription(
         [
             DeclareLaunchArgument(
@@ -82,7 +43,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 'boat_standoff_distance',
                 default_value='7.0',
-                description='Safe Nav2 goal distance from the buoy.',
+                description='Safe goal distance from the buoy.',
             ),
             DeclareLaunchArgument(
                 'image_processing_rate',
@@ -92,60 +53,34 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 'start_rviz',
                 default_value='true',
-                description='Start RViz with maps, Nav2, and camera mosaic.',
+                description='Start RViz with the UAV camera mosaic.',
             ),
-            OpaqueFunction(function=camera_bridge_setup),
-            Node(
-                package='uav_usv_sim',
-                executable='uav_buoy_visual_mission',
-                name='uav_buoy_visual_mission',
-                output='screen',
-                parameters=[
-                    {
-                        'use_sim_time': ParameterValue(
-                            use_sim_time,
-                            value_type=bool,
-                        ),
-                        'mavlink_url': LaunchConfiguration('mavlink_url'),
-                        'drone_name': LaunchConfiguration('uav_model_name'),
-                        'takeoff_altitude': ParameterValue(
-                            LaunchConfiguration('takeoff_altitude'),
-                            value_type=float,
-                        ),
-                        'patrol_speed': ParameterValue(
-                            LaunchConfiguration('patrol_speed'),
-                            value_type=float,
-                        ),
-                        'target_speed': ParameterValue(
-                            LaunchConfiguration('target_speed'),
-                            value_type=float,
-                        ),
-                        'boat_standoff_distance': ParameterValue(
-                            LaunchConfiguration('boat_standoff_distance'),
-                            value_type=float,
-                        ),
-                        'image_processing_rate': ParameterValue(
-                            LaunchConfiguration('image_processing_rate'),
-                            value_type=float,
-                        ),
-                    }
-                ],
-            ),
-            Node(
-                package='rviz2',
-                executable='rviz2',
-                name='uav_patrol_rviz',
-                output='screen',
-                arguments=['-d', rviz_config],
-                parameters=[
-                    {
-                        'use_sim_time': ParameterValue(
-                            use_sim_time,
-                            value_type=bool,
-                        ),
-                    }
-                ],
-                condition=IfCondition(LaunchConfiguration('start_rviz')),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    PathJoinSubstitution(
+                        [
+                            FindPackageShare('uav_usv_sim'),
+                            'launch',
+                            'uav_buoy_cooperative_navigation.launch.py',
+                        ]
+                    )
+                ),
+                launch_arguments={
+                    'use_sim_time': LaunchConfiguration('use_sim_time'),
+                    'uav_model_name': LaunchConfiguration('uav_model_name'),
+                    'mavlink_url': LaunchConfiguration('mavlink_url'),
+                    'takeoff_altitude': LaunchConfiguration('takeoff_altitude'),
+                    'patrol_speed': LaunchConfiguration('patrol_speed'),
+                    'target_speed': LaunchConfiguration('target_speed'),
+                    'boat_standoff_distance': LaunchConfiguration(
+                        'boat_standoff_distance'
+                    ),
+                    'image_processing_rate': LaunchConfiguration(
+                        'image_processing_rate'
+                    ),
+                    'start_nav2': 'false',
+                    'start_rviz': LaunchConfiguration('start_rviz'),
+                }.items(),
             ),
         ]
     )
