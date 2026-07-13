@@ -33,7 +33,7 @@ class CaptureVisualizer(Node):
 
     def __init__(self):
         super().__init__('capture_visualizer')
-        self.declare_parameter('uav_visual_scale', 6.0)
+        self.declare_parameter('uav_visual_scale', 12.0)
         self.uav_visual_scale = max(
             0.5, float(self.get_parameter('uav_visual_scale').value)
         )

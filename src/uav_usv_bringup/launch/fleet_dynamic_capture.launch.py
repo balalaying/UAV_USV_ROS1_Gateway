@@ -244,7 +244,7 @@ def generate_launch_description():
         DeclareLaunchArgument('start_dds_agent', default_value='true'),
         DeclareLaunchArgument('enable_sudden_turn', default_value='true'),
         DeclareLaunchArgument('sudden_turn_time', default_value='55.0'),
-        DeclareLaunchArgument('uav_visual_scale', default_value='6.0'),
+        DeclareLaunchArgument('uav_visual_scale', default_value='12.0'),
         DeclareLaunchArgument(
             'simulate_usv_02_unreachable', default_value='false'
         ),

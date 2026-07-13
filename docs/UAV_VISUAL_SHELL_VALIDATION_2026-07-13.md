@@ -13,7 +13,7 @@
 - 显示实体复用 PX4 `x500_base` 的原版机架、电机和桨叶 mesh，只包含 visual。
 - `VisualPoseFollower` 从真实 x500 的 canonical link 恢复模型世界位姿，再同步显示实体。
 - 显示节点逐个隐藏真实 x500 机架和旋翼 link 的小尺寸 visual，连续三轮确认后才停止重试；不删除真实模型或 link。
-- 默认显示比例为 `uav_visual_scale:=6.0`，可以通过 launch 参数修改。
+- 默认显示比例为 `uav_visual_scale:=12.0`，可以通过 launch 参数修改。
 - Gazebo 显示 UAV 编号、颜色和角色；RViz 同步显示载具比例、角色、任务点和速度方向。
 
 ## 修改文件
@@ -34,14 +34,14 @@ cd <你的UAV_USV工作区>
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 ros2 launch uav_usv_bringup fleet_dynamic_capture.launch.py \
-  uav_visual_scale:=6.0
+  uav_visual_scale:=12.0
 ```
 
-临时恢复三倍显示：
+临时恢复六倍显示：
 
 ```bash
 ros2 launch uav_usv_bringup fleet_dynamic_capture.launch.py \
-  uav_visual_scale:=3.0
+  uav_visual_scale:=6.0
 ```
 
 ## 验证命令
@@ -63,7 +63,7 @@ ros2 topic echo --once /capture/roles
 - `/fleet/command` 保持 `FleetCommand`，一个任务发布者和六个 agent 订阅者。
 - 四架 UAV 获得不同 `air_observer` 槽位，两艘 USV 保持 `surface_interceptor` 角色。
 - 显示外壳与真实 UAV 同帧位置误差约为 0.0015 至 0.0033 米。
-- 真实小模型 visual 已隐藏，Gazebo 只显示六倍原版 x500 外壳。
+- 真实小模型 visual 已隐藏，Gazebo 只显示十二倍原版 x500 外壳。
 - 运行日志目录：`/home/dji/.ros/log/2026-07-13-22-43-28-133419-dji-Legion-R7000-AHP9-109037`。
 
 ## 已知问题

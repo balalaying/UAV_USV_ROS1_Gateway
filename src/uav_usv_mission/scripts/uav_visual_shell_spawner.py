@@ -61,7 +61,7 @@ class UavVisualShellSpawner(Node):
             'uav_ids', ['uav_01', 'uav_02', 'uav_03', 'uav_04']
         )
         self.declare_parameter('world_name', 'fleet_dynamic_capture')
-        self.declare_parameter('uav_visual_scale', 6.0)
+        self.declare_parameter('uav_visual_scale', 12.0)
         self.declare_parameter(
             'pose_topic', '/world/fleet_dynamic_capture/pose/info'
         )
@@ -271,7 +271,9 @@ class UavVisualShellSpawner(Node):
             # x500 geometry lives on link visuals (base plus four rotor
             # links). Toggling only the model entity leaves those visuals
             # rendered by some Gazebo GUI versions, so address every visual.
+            self._set_model_visibility(model, False)
             hidden = self._set_visual_children(model, False)
+            self._set_model_visibility(shell, True)
             shell_visible = self._set_visual_children(shell, True)
             if hidden and shell_visible:
                 self.visibility_passes[vehicle_id] += 1
@@ -283,6 +285,21 @@ class UavVisualShellSpawner(Node):
                     )
             else:
                 self.visibility_passes[vehicle_id] = 0
+
+    def _set_model_visibility(self, model, visible):
+        request = Visual()
+        request.id = model.id
+        request.name = model.name
+        request.type = Visual.MODEL
+        request.visible = visible
+        called, response = self.visibility_node.request(
+            '/world/%s/visual_config' % self.world_name,
+            request,
+            Visual,
+            Boolean,
+            1000,
+        )
+        return called and response.data
 
     def _set_visual_children(self, model, visible):
         visual_count = 0
