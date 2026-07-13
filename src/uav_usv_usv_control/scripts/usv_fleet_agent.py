@@ -236,9 +236,6 @@ class UsvFleetAgent(Node):
         goal_msg = NavigateToPose.Goal()
         goal_msg.pose = pending_goal
         self.pending_nav_goal = None
-        if self.nav_goal_handle is not None:
-            self.nav_goal_handle.cancel_goal_async()
-            self.nav_goal_handle = None
         future = self.nav_client.send_goal_async(
             goal_msg,
             feedback_callback=lambda feedback, cid=command_id: (
