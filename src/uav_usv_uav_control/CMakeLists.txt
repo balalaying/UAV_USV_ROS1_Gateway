@@ -9,6 +9,12 @@ install(PROGRAMS
   RENAME uav_fleet_agent
 )
 
+install(PROGRAMS
+  scripts/uav_dds_fleet_agent.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME uav_dds_fleet_agent
+)
+
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 
 ament_package()

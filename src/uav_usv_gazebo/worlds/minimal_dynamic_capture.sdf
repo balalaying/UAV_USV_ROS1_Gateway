@@ -1,0 +1,148 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <world name="minimal_dynamic_capture">
+    <gui fullscreen="0">
+      <plugin filename="MinimalScene" name="3D View">
+        <gz-gui>
+          <title>3D View</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="string" key="state">docked</property>
+        </gz-gui>
+        <engine>ogre2</engine>
+        <scene>scene</scene>
+        <ambient_light>0.75 0.78 0.82</ambient_light>
+        <background_color>0.82 0.9 0.96</background_color>
+        <camera_pose>-105 -115 105 0 0.72 0.76</camera_pose>
+        <camera_clip><near>0.15</near><far>2500</far></camera_clip>
+      </plugin>
+      <plugin filename="GzSceneManager" name="Scene Manager"/>
+      <plugin filename="InteractiveViewControl" name="Interactive view control"/>
+      <plugin filename="CameraTracking" name="Camera Tracking"/>
+      <plugin filename="MarkerManager" name="Marker manager"/>
+      <plugin filename="WorldControl" name="World control">
+        <gz-gui>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="bool" key="resizable">false</property>
+          <property type="double" key="height">72</property>
+          <property type="double" key="width">121</property>
+          <property type="double" key="z">1</property>
+          <property type="string" key="state">floating</property>
+          <anchors target="3D View">
+            <line own="left" target="left"/>
+            <line own="bottom" target="bottom"/>
+          </anchors>
+        </gz-gui>
+        <play_pause>true</play_pause>
+        <step>true</step>
+        <start_paused>false</start_paused>
+      </plugin>
+    </gui>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-air-pressure-system" name="gz::sim::systems::AirPressure"/>
+    <plugin filename="gz-sim-magnetometer-system" name="gz::sim::systems::Magnetometer"/>
+    <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
+
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+    <gravity>0 0 -9.8</gravity>
+    <scene>
+      <grid>false</grid>
+      <ambient>0.75 0.78 0.82 1</ambient>
+      <background>0.82 0.9 0.96 1</background>
+      <shadows>true</shadows>
+    </scene>
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>47.397971057728974</latitude_deg>
+      <longitude_deg>8.5461637398001464</longitude_deg>
+      <elevation>0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+    <model name="ocean_plane">
+      <static>true</static>
+      <link name="ocean_link">
+        <visual name="ocean_visual">
+          <pose>0 0 -0.02 0 0 0</pose>
+          <geometry><plane><normal>0 0 1</normal><size>600 600</size></plane></geometry>
+          <material>
+            <ambient>0 0.08 0.16 0.48</ambient>
+            <diffuse>0 0.2 0.34 0.48</diffuse>
+            <specular>0.05 0.08 0.1 1</specular>
+          </material>
+        </visual>
+        <collision name="ocean_collision">
+          <geometry><plane><normal>0 0 1</normal><size>600 600</size></plane></geometry>
+        </collision>
+      </link>
+    </model>
+    <include>
+      <uri>model://waves</uri>
+      <name>waves</name>
+      <pose>0 0 0.015 0 0 0</pose>
+    </include>
+
+    <model name="uav_launch_pad">
+      <static>true</static>
+      <pose>-30 -24 0 0 0 0</pose>
+      <link name="pad">
+        <collision name="pad_collision">
+          <pose>0 0 0.6 0 0 0</pose>
+          <geometry><box><size>10 10 1.2</size></box></geometry>
+        </collision>
+        <visual name="pad_visual">
+          <pose>0 0 0.6 0 0 0</pose>
+          <geometry><box><size>10 10 1.2</size></box></geometry>
+          <material><ambient>0.18 0.2 0.22 1</ambient><diffuse>0.32 0.36 0.4 1</diffuse></material>
+        </visual>
+        <visual name="h_crossbar">
+          <pose>0 0 1.22 0 0 0</pose>
+          <geometry><box><size>5.2 0.7 0.05</size></box></geometry>
+          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
+        </visual>
+        <visual name="h_upright">
+          <pose>0 0 1.23 0 0 1.5708</pose>
+          <geometry><box><size>4 0.7 0.05</size></box></geometry>
+          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <include>
+      <uri>model://x500</uri>
+      <name>uav_01</name>
+      <pose>-30 -24 1.35 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://simple_boat</uri>
+      <name>usv_01</name>
+      <pose>-12 4 0.35 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://target_vessel</uri>
+      <name>target_vessel</name>
+      <pose>42 -18 0 0 0 0.25</pose>
+    </include>
+
+    <light name="sun" type="directional">
+      <pose>0 0 80 0 0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>1.1</intensity>
+      <direction>-0.35 0.2 -0.92</direction>
+      <diffuse>0.9 0.9 0.86 1</diffuse>
+      <specular>0.25 0.25 0.25 1</specular>
+    </light>
+  </world>
+</sdf>

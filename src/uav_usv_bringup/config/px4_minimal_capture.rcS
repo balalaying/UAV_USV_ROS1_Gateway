@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# Run the standard PX4 SITL startup, then remove radio/GCS requirements for
+# this DDS-only simulation. Flight and estimator checks remain enabled.
+. ${R}etc/init.d-posix/rcS
+param set NAV_DLL_ACT 0
+param set COM_RCL_EXCEPT 4
+param set COM_DLL_EXCEPT 4

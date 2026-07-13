@@ -27,6 +27,24 @@ install(PROGRAMS
   RENAME defense_demo
 )
 
+install(PROGRAMS
+  scripts/target_tracker.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME target_tracker
+)
+
+install(PROGRAMS
+  scripts/capture_manager.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME capture_manager
+)
+
+install(PROGRAMS
+  scripts/capture_visualizer.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME capture_visualizer
+)
+
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 
 ament_package()

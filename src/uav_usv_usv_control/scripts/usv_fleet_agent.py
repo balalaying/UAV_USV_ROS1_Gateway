@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-import math
-
+from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
+from nav2_msgs.action import NavigateToPose
 import rclpy
+import time
+from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy
@@ -27,11 +29,11 @@ class UsvFleetAgent(Node):
         self.declare_parameter('odom_topic', '/odom')
         self.declare_parameter('camera_topic', '/boat/front_camera')
         self.declare_parameter('scan_topic', '/boat/scan')
-        self.declare_parameter('goal_topic', '/goal_pose')
+        self.declare_parameter('navigate_action', '/navigate_to_pose')
         self.declare_parameter('arrival_tolerance', 3.0)
 
         self.vehicle_id = self.get_parameter('vehicle_id').value
-        self.goal_topic = self.get_parameter('goal_topic').value
+        self.navigate_action = self.get_parameter('navigate_action').value
         self.arrival_tolerance = float(
             self.get_parameter('arrival_tolerance').value
         )
@@ -50,8 +52,8 @@ class UsvFleetAgent(Node):
         self.ack_pub = self.create_publisher(
             CommandAck, '/fleet/command_ack', 20
         )
-        self.goal_pub = self.create_publisher(
-            PoseStamped, self.goal_topic, 10
+        self.nav_client = ActionClient(
+            self, NavigateToPose, self.navigate_action
         )
         self.emergency_pub = self.create_publisher(
             Twist, '/model/simple_boat/cmd_vel', 10
@@ -97,6 +99,9 @@ class UsvFleetAgent(Node):
         self.active_target = None
         self.status_text = 'waiting for odometry'
         self.emergency_stop = False
+        self.nav_goal_handle = None
+        self.pending_nav_goal = None
+        self.last_feedback_ack = 0.0
         self.create_timer(0.2, self._update)
         self.get_logger().info(
             'USV fleet agent %s ready; uplink=%s/*'
@@ -159,6 +164,7 @@ class UsvFleetAgent(Node):
             return
 
         self.active_command_id = msg.command_id
+        self.last_feedback_ack = 0.0
         self._ack(
             msg.command_id,
             CommandAck.STATUS_ACCEPTED,
@@ -170,12 +176,13 @@ class UsvFleetAgent(Node):
             goal.header = msg.header
             goal.header.frame_id = goal.header.frame_id or 'map'
             goal.pose = msg.target_pose
-            self.goal_pub.publish(goal)
             self.active_target = (
                 msg.target_pose.position.x,
                 msg.target_pose.position.y,
             )
-            self.status_text = 'navigating to base-station target'
+            self.status_text = 'waiting for Nav2 action server'
+            self.pending_nav_goal = (goal, msg.command_id)
+            self._send_pending_nav_goal()
             self._ack(
                 msg.command_id,
                 CommandAck.STATUS_EXECUTING,
@@ -185,12 +192,8 @@ class UsvFleetAgent(Node):
         elif msg.command_type == FleetCommand.COMMAND_HOLD:
             self.emergency_stop = False
             self.active_target = None
-            if self.odom is not None:
-                goal = PoseStamped()
-                goal.header.stamp = self.get_clock().now().to_msg()
-                goal.header.frame_id = 'map'
-                goal.pose = self.odom.pose.pose
-                self.goal_pub.publish(goal)
+            self.pending_nav_goal = None
+            self._cancel_nav_goal()
             self.status_text = 'holding position'
             self._ack(
                 msg.command_id,
@@ -202,6 +205,8 @@ class UsvFleetAgent(Node):
         elif msg.command_type == FleetCommand.COMMAND_EMERGENCY_STOP:
             self.emergency_stop = True
             self.active_target = None
+            self.pending_nav_goal = None
+            self._cancel_nav_goal()
             self.status_text = 'emergency stop'
             self._ack(
                 msg.command_id,
@@ -217,27 +222,110 @@ class UsvFleetAgent(Node):
             )
             self.active_command_id = ''
 
+    def _cancel_nav_goal(self):
+        if self.nav_goal_handle is not None:
+            self.nav_goal_handle.cancel_goal_async()
+            self.nav_goal_handle = None
+
+    def _send_pending_nav_goal(self):
+        if self.pending_nav_goal is None:
+            return
+        if not self.nav_client.wait_for_server(timeout_sec=0.0):
+            return
+        pending_goal, command_id = self.pending_nav_goal
+        goal_msg = NavigateToPose.Goal()
+        goal_msg.pose = pending_goal
+        self.pending_nav_goal = None
+        if self.nav_goal_handle is not None:
+            self.nav_goal_handle.cancel_goal_async()
+            self.nav_goal_handle = None
+        future = self.nav_client.send_goal_async(
+            goal_msg,
+            feedback_callback=lambda feedback, cid=command_id: (
+                self._on_nav_feedback(feedback, cid)
+            ),
+        )
+        future.add_done_callback(
+            lambda response, cid=command_id: (
+                self._on_nav_goal_response(response, cid)
+            )
+        )
+        self.status_text = 'sending target to Nav2'
+
+    def _on_nav_goal_response(self, future, command_id):
+        if command_id != self.active_command_id:
+            return
+        try:
+            goal_handle = future.result()
+        except Exception as exc:
+            self._fail_active_command('Nav2 goal request failed: %s' % exc)
+            return
+        if not goal_handle.accepted:
+            self._fail_active_command('Nav2 rejected navigation goal')
+            return
+        self.nav_goal_handle = goal_handle
+        self.status_text = 'Nav2 navigation active'
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(
+            lambda result, cid=command_id: self._on_nav_result(result, cid)
+        )
+
+    def _on_nav_feedback(self, feedback_msg, command_id):
+        if command_id != self.active_command_id:
+            return
+        distance = float(feedback_msg.feedback.distance_remaining)
+        self.status_text = 'Nav2 active; %.1f m remaining' % distance
+        now = time.monotonic()
+        if now - self.last_feedback_ack < 1.0:
+            return
+        self.last_feedback_ack = now
+        self._ack(
+            self.active_command_id,
+            CommandAck.STATUS_EXECUTING,
+            self.status_text,
+            max(0.05, min(0.95, 1.0 / (1.0 + distance))),
+        )
+
+    def _on_nav_result(self, future, command_id):
+        if command_id != self.active_command_id:
+            return
+        try:
+            wrapped_result = future.result()
+            status = int(wrapped_result.status)
+        except Exception as exc:
+            self._fail_active_command('Nav2 result failed: %s' % exc)
+            return
+        self.active_command_id = ''
+        self.active_target = None
+        self.nav_goal_handle = None
+        if status == GoalStatus.STATUS_SUCCEEDED:
+            self.status_text = 'Nav2 navigation target reached'
+            self._ack(
+                command_id,
+                CommandAck.STATUS_SUCCEEDED,
+                self.status_text,
+                1.0,
+            )
+        else:
+            self.status_text = 'Nav2 navigation ended with status %d' % status
+            self._ack(
+                command_id,
+                CommandAck.STATUS_FAILED,
+                self.status_text,
+            )
+
+    def _fail_active_command(self, reason):
+        command_id = self.active_command_id
+        self.active_command_id = ''
+        self.active_target = None
+        self.nav_goal_handle = None
+        self.status_text = reason
+        self._ack(command_id, CommandAck.STATUS_FAILED, reason)
+
     def _update(self):
+        self._send_pending_nav_goal()
         if self.emergency_stop:
             self.emergency_pub.publish(Twist())
-
-        if self.active_target is not None and self.odom is not None:
-            pose = self.odom.pose.pose.position
-            distance = math.hypot(
-                pose.x - self.active_target[0],
-                pose.y - self.active_target[1],
-            )
-            if distance <= self.arrival_tolerance:
-                command_id = self.active_command_id
-                self.active_target = None
-                self.active_command_id = ''
-                self.status_text = 'navigation target reached'
-                self._ack(
-                    command_id,
-                    CommandAck.STATUS_SUCCEEDED,
-                    self.status_text,
-                    1.0,
-                )
 
         state = VehicleState()
         state.header.stamp = self.get_clock().now().to_msg()
