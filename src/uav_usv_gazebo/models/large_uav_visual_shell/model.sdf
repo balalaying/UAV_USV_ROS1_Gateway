@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <model name="large_uav_visual_shell">
+    <static>true</static>
+    <link name="visual_only">
+      <!-- These are the original PX4 x500 visual assets, flattened into one
+           visual-only link. The physical x500 remains a separate entity. -->
+      <visual name="x500_carbon_frame">
+        <pose>0 0 0.265 0 0 3.141592654</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://x500_base/meshes/NXP-HGD-CF.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+
+      <visual name="motor_base_0">
+        <pose>0.174 0.174 0.272 0 0 -0.45</pose>
+        <geometry><mesh><scale>1 1 1</scale><uri>model://x500_base/meshes/5010Base.dae</uri></mesh></geometry>
+      </visual>
+      <visual name="motor_base_1">
+        <pose>-0.174 0.174 0.272 0 0 -0.45</pose>
+        <geometry><mesh><scale>1 1 1</scale><uri>model://x500_base/meshes/5010Base.dae</uri></mesh></geometry>
+      </visual>
+      <visual name="motor_base_2">
+        <pose>0.174 -0.174 0.272 0 0 -0.45</pose>
+        <geometry><mesh><scale>1 1 1</scale><uri>model://x500_base/meshes/5010Base.dae</uri></mesh></geometry>
+      </visual>
+      <visual name="motor_base_3">
+        <pose>-0.174 -0.174 0.272 0 0 -0.45</pose>
+        <geometry><mesh><scale>1 1 1</scale><uri>model://x500_base/meshes/5010Base.dae</uri></mesh></geometry>
+      </visual>
+
+      <visual name="motor_bell_0">
+        <pose>0.174 -0.174 0.268 0 0 0</pose>
+        <geometry><mesh><scale>1 1 1</scale><uri>model://x500_base/meshes/5010Bell.dae</uri></mesh></geometry>
+      </visual>
+      <visual name="motor_bell_1">
+        <pose>-0.174 0.174 0.268 0 0 0</pose>
+        <geometry><mesh><scale>1 1 1</scale><uri>model://x500_base/meshes/5010Bell.dae</uri></mesh></geometry>
+      </visual>
+      <visual name="motor_bell_2">
+        <pose>0.174 0.174 0.268 0 0 0</pose>
+        <geometry><mesh><scale>1 1 1</scale><uri>model://x500_base/meshes/5010Bell.dae</uri></mesh></geometry>
+      </visual>
+      <visual name="motor_bell_3">
+        <pose>-0.174 -0.174 0.268 0 0 0</pose>
+        <geometry><mesh><scale>1 1 1</scale><uri>model://x500_base/meshes/5010Bell.dae</uri></mesh></geometry>
+      </visual>
+
+      <visual name="propeller_0">
+        <pose>0.152 -0.3203846154 0.284 0 0 0</pose>
+        <geometry><mesh><scale>0.8461538462 0.8461538462 0.8461538462</scale><uri>model://x500_base/meshes/1345_prop_ccw.stl</uri></mesh></geometry>
+        <material><ambient>0.08 0.08 0.09 1</ambient><diffuse>0.14 0.14 0.16 1</diffuse></material>
+      </visual>
+      <visual name="propeller_1">
+        <pose>-0.196 0.0276153846 0.284 0 0 0</pose>
+        <geometry><mesh><scale>0.8461538462 0.8461538462 0.8461538462</scale><uri>model://x500_base/meshes/1345_prop_ccw.stl</uri></mesh></geometry>
+        <material><ambient>0.08 0.08 0.09 1</ambient><diffuse>0.14 0.14 0.16 1</diffuse></material>
+      </visual>
+      <visual name="propeller_2">
+        <pose>0.152 0.0276153846 0.284 0 0 0</pose>
+        <geometry><mesh><scale>0.8461538462 0.8461538462 0.8461538462</scale><uri>model://x500_base/meshes/1345_prop_cw.stl</uri></mesh></geometry>
+        <material><ambient>0.08 0.08 0.09 1</ambient><diffuse>0.14 0.14 0.16 1</diffuse></material>
+      </visual>
+      <visual name="propeller_3">
+        <pose>-0.196 -0.3203846154 0.284 0 0 0</pose>
+        <geometry><mesh><scale>0.8461538462 0.8461538462 0.8461538462</scale><uri>model://x500_base/meshes/1345_prop_cw.stl</uri></mesh></geometry>
+        <material><ambient>0.08 0.08 0.09 1</ambient><diffuse>0.14 0.14 0.16 1</diffuse></material>
+      </visual>
+
+      <!-- Per-vehicle color is injected by the spawner. -->
+      <visual name="nose_accent">
+        <pose>0.105 0 0.305 0 0 0</pose>
+        <geometry><box><size>0.13 0.055 0.014</size></box></geometry>
+        <material><ambient>0.08 0.45 0.95 1</ambient><diffuse>0.08 0.45 0.95 1</diffuse></material>
+      </visual>
+    </link>
+    <plugin filename="libVisualPoseFollower.so" name="gz::sim::systems::VisualPoseFollower">
+      <target_entity>uav_01</target_entity>
+      <pose_offset>0 0 0 0 0 0</pose_offset>
+    </plugin>
+  </model>
+</sdf>

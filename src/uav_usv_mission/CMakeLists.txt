@@ -54,6 +54,12 @@ install(PROGRAMS
   RENAME capture_target_motion
 )
 
+install(PROGRAMS
+  scripts/uav_visual_shell_spawner.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME uav_visual_shell_spawner
+)
+
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)

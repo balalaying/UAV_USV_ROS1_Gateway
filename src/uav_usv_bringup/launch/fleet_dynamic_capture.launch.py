@@ -166,6 +166,7 @@ def generate_launch_description():
     simulate_usv_02_unreachable = LaunchConfiguration(
         'simulate_usv_02_unreachable'
     )
+    uav_visual_scale = LaunchConfiguration('uav_visual_scale')
 
     px4_dir_default = os.path.expanduser(
         os.environ.get('PX4_DIR', '~/PX4-Autopilot')
@@ -243,6 +244,7 @@ def generate_launch_description():
         DeclareLaunchArgument('start_dds_agent', default_value='true'),
         DeclareLaunchArgument('enable_sudden_turn', default_value='true'),
         DeclareLaunchArgument('sudden_turn_time', default_value='55.0'),
+        DeclareLaunchArgument('uav_visual_scale', default_value='6.0'),
         DeclareLaunchArgument(
             'simulate_usv_02_unreachable', default_value='false'
         ),
@@ -368,10 +370,30 @@ def generate_launch_description():
         ),
         Node(
             package='uav_usv_mission',
+            executable='uav_visual_shell_spawner',
+            name='uav_visual_shell_spawner',
+            output='screen',
+            parameters=[{
+                'use_sim_time': False,
+                'uav_ids': [item[0] for item in UAV_CONFIG],
+                'world_name': WORLD_NAME,
+                'pose_topic': '/world/%s/pose/info' % WORLD_NAME,
+                'uav_visual_scale': ParameterValue(
+                    uav_visual_scale, value_type=float
+                ),
+            }],
+        ),
+        Node(
+            package='uav_usv_mission',
             executable='capture_visualizer',
             name='capture_visualizer',
             output='screen',
-            parameters=[{'use_sim_time': False}],
+            parameters=[{
+                'use_sim_time': False,
+                'uav_visual_scale': ParameterValue(
+                    uav_visual_scale, value_type=float
+                ),
+            }],
         ),
         Node(
             package='rviz2',

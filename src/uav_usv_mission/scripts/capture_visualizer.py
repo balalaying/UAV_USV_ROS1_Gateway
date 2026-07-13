@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Render capture topics as RViz markers without making task decisions."""
 
+import copy
 import math
 
 from geometry_msgs.msg import Point
@@ -32,6 +33,10 @@ class CaptureVisualizer(Node):
 
     def __init__(self):
         super().__init__('capture_visualizer')
+        self.declare_parameter('uav_visual_scale', 6.0)
+        self.uav_visual_scale = max(
+            0.5, float(self.get_parameter('uav_visual_scale').value)
+        )
         self.target = None
         self.states = {}
         self.prediction = None
@@ -273,30 +278,110 @@ class CaptureVisualizer(Node):
         for index, vehicle_id in enumerate(sorted(self.states)):
             state = self.states[vehicle_id]
             color = self.COLORS[index % len(self.COLORS)]
+            marker_base = 100 + index * 10
+            is_uav = state.vehicle_type == VehicleState.TYPE_UAV
             marker = self._marker(
-                100 + index * 2, Marker.SPHERE, 'vehicles', stamp
+                marker_base,
+                Marker.CUBE,
+                'vehicle_models',
+                stamp,
             )
-            marker.pose = state.pose
-            marker.scale.x = marker.scale.y = marker.scale.z = 2.6
+            marker.pose = copy.deepcopy(state.pose)
+            if is_uav:
+                marker.scale.x = 0.45 * self.uav_visual_scale
+                marker.scale.y = 0.45 * self.uav_visual_scale
+                marker.scale.z = 0.22 * self.uav_visual_scale
+            else:
+                marker.scale.x = 9.0
+                marker.scale.y = 3.4
+                marker.scale.z = 1.2
             self._set_color(marker, color)
             result.markers.append(marker)
+
+            if is_uav:
+                rotor_extent = self._marker(
+                    marker_base + 1,
+                    Marker.CYLINDER,
+                    'vehicle_models',
+                    stamp,
+                )
+                rotor_extent.pose = copy.deepcopy(state.pose)
+                rotor_extent.pose.position.z += 0.28 * self.uav_visual_scale
+                rotor_extent.scale.x = 0.72 * self.uav_visual_scale
+                rotor_extent.scale.y = 0.72 * self.uav_visual_scale
+                rotor_extent.scale.z = 0.018 * self.uav_visual_scale
+                self._set_color(rotor_extent, color, 0.22)
+                result.markers.append(rotor_extent)
 
             metadata = self.assignment_metadata.get(vehicle_id, {})
             role = metadata.get('role', 'unassigned')
             if not metadata.get('active', False):
                 role += ' | ' + metadata.get('status', 'inactive')
             label = self._marker(
-                101 + index * 2,
+                marker_base + 2,
                 Marker.TEXT_VIEW_FACING,
                 'vehicle_roles',
                 stamp,
             )
-            label.pose.position = state.pose.position
-            label.pose.position.z += 4.0
-            label.scale.z = 1.7
+            label.pose.position = copy.deepcopy(state.pose.position)
+            label.pose.position.z += (
+                0.55 * self.uav_visual_scale if is_uav else 4.0
+            )
+            label.scale.z = 0.22 * self.uav_visual_scale if is_uav else 1.7
             self._set_color(label, (0.08, 0.08, 0.08))
-            label.text = '%s | %s' % (vehicle_id, role)
+            display_role = self._display_role(role)
+            label.text = '%s | %s' % (
+                self._display_id(vehicle_id), display_role
+            )
             result.markers.append(label)
+
+            speed = math.hypot(
+                state.twist.linear.x, state.twist.linear.y
+            )
+            if speed > 0.05:
+                arrow = self._marker(
+                    marker_base + 3,
+                    Marker.ARROW,
+                    'velocity_vectors',
+                    stamp,
+                )
+                length_scale = 2.0 if is_uav else 3.0
+                arrow.points = [
+                    Point(
+                        x=state.pose.position.x,
+                        y=state.pose.position.y,
+                        z=state.pose.position.z + 0.8,
+                    ),
+                    Point(
+                        x=state.pose.position.x
+                        + state.twist.linear.x * length_scale,
+                        y=state.pose.position.y
+                        + state.twist.linear.y * length_scale,
+                        z=state.pose.position.z
+                        + state.twist.linear.z * length_scale
+                        + 0.8,
+                    ),
+                ]
+                arrow.scale.x = 0.3
+                arrow.scale.y = 0.7
+                arrow.scale.z = 1.0
+                self._set_color(arrow, color, 0.95)
+                result.markers.append(arrow)
+
+    @staticmethod
+    def _display_id(vehicle_id):
+        return vehicle_id.replace('_', '-').upper()
+
+    @staticmethod
+    def _display_role(role):
+        lowered = role.lower()
+        if 'observer' in lowered:
+            return 'Observer'
+        if 'interceptor' in lowered:
+            return 'Interceptor'
+        if 'inactive' in lowered or 'unassigned' in lowered:
+            return 'Standby'
+        return role
 
     def _append_status(self, result, stamp):
         status = self._marker(200, Marker.TEXT_VIEW_FACING, 'status', stamp)
