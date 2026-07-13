@@ -66,6 +66,21 @@ class VisualPoseFollower
     // the canonical link.
     const math::Pose3d targetPose = worldPose(targetLink, _ecm) *
         linkPose->Data().Inverse() * this->poseOffset;
+    // The shell is a static, visual-only top-level model. Updating its Pose
+    // component keeps the server scene graph and Gazebo GUI renderer in sync;
+    // WorldPoseCmd alone can update pose/info while leaving a static visual at
+    // its spawn position on some Gazebo Sim 8 GUI backends.
+    if (_ecm.Component<components::Pose>(this->visualEntity))
+    {
+      _ecm.SetComponentData<components::Pose>(
+          this->visualEntity, targetPose);
+    }
+    else
+    {
+      _ecm.CreateComponent(
+          this->visualEntity, components::Pose(targetPose));
+    }
+
     if (_ecm.Component<components::WorldPoseCmd>(this->visualEntity))
     {
       _ecm.SetComponentData<components::WorldPoseCmd>(

@@ -312,6 +312,8 @@ class UavVisualShellSpawner(Node):
                 request.parent_id = link.id
                 request.type = Visual.VISUAL
                 request.visible = visible
+                request.transparency = 0.0 if visible else 1.0
+                request.cast_shadows = visible
                 called, response = self.visibility_node.request(
                     '/world/%s/visual_config' % self.world_name,
                     request,
