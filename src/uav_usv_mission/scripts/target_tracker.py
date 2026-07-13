@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Convert one Gazebo target pose into the shared tracked-object contract."""
 
+import math
 import threading
 
 from gz.msgs10.pose_v_pb2 import Pose_V
@@ -42,6 +43,8 @@ class TargetTracker(Node):
         self.previous_position = None
         self.previous_time = None
         self.velocity = [0.0, 0.0, 0.0]
+        self.previous_yaw = None
+        self.yaw_rate = 0.0
         self.first_seen = None
         if not self.gz_node.subscribe(Pose_V, self.pose_topic, self._on_pose_v):
             raise RuntimeError('failed to subscribe Gazebo topic ' + self.pose_topic)
@@ -64,6 +67,16 @@ class TargetTracker(Node):
                 float(pose.position.y),
                 float(pose.position.z),
             )
+            yaw = math.atan2(
+                2.0 * (
+                    pose.orientation.w * pose.orientation.z
+                    + pose.orientation.x * pose.orientation.y
+                ),
+                1.0 - 2.0 * (
+                    pose.orientation.y * pose.orientation.y
+                    + pose.orientation.z * pose.orientation.z
+                ),
+            )
             if self.previous_position is not None and self.previous_time is not None:
                 dt = (now - self.previous_time).nanoseconds * 1e-9
                 if 1e-3 < dt < 1.0:
@@ -75,9 +88,19 @@ class TargetTracker(Node):
                         self.velocity[index] += alpha * (
                             measured - self.velocity[index]
                         )
+                    if self.previous_yaw is not None:
+                        yaw_delta = math.atan2(
+                            math.sin(yaw - self.previous_yaw),
+                            math.cos(yaw - self.previous_yaw),
+                        )
+                        measured_rate = yaw_delta / dt
+                        self.yaw_rate += alpha * (
+                            measured_rate - self.yaw_rate
+                        )
             self.pose = pose
             self.previous_position = position
             self.previous_time = now
+            self.previous_yaw = yaw
             if self.first_seen is None:
                 self.first_seen = now.to_msg()
 
@@ -87,6 +110,7 @@ class TargetTracker(Node):
                 return
             pose = self.pose
             velocity = tuple(self.velocity)
+            yaw_rate = self.yaw_rate
             first_seen = self.first_seen
 
         now = self.get_clock().now().to_msg()
@@ -106,6 +130,7 @@ class TargetTracker(Node):
         tracked.twist.twist.linear.x = velocity[0]
         tracked.twist.twist.linear.y = velocity[1]
         tracked.twist.twist.linear.z = velocity[2]
+        tracked.twist.twist.angular.z = yaw_rate
         tracked.dimensions.x = 7.0
         tracked.dimensions.y = 2.6
         tracked.dimensions.z = 3.5

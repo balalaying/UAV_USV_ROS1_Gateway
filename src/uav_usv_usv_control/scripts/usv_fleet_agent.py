@@ -31,6 +31,10 @@ class UsvFleetAgent(Node):
         self.declare_parameter('scan_topic', '/boat/scan')
         self.declare_parameter('navigate_action', '/navigate_to_pose')
         self.declare_parameter('arrival_tolerance', 3.0)
+        self.declare_parameter(
+            'emergency_cmd_topic', '/model/simple_boat/cmd_vel'
+        )
+        self.declare_parameter('simulate_unreachable', False)
 
         self.vehicle_id = self.get_parameter('vehicle_id').value
         self.navigate_action = self.get_parameter('navigate_action').value
@@ -56,7 +60,9 @@ class UsvFleetAgent(Node):
             self, NavigateToPose, self.navigate_action
         )
         self.emergency_pub = self.create_publisher(
-            Twist, '/model/simple_boat/cmd_vel', 10
+            Twist,
+            self.get_parameter('emergency_cmd_topic').value,
+            10,
         )
         self.odom_uplink_pub = self.create_publisher(
             Odometry, prefix + '/odom', sensor_qos
@@ -172,6 +178,15 @@ class UsvFleetAgent(Node):
         )
 
         if msg.command_type == FleetCommand.COMMAND_NAVIGATE:
+            if bool(self.get_parameter('simulate_unreachable').value):
+                self.status_text = 'simulated navigation backend unreachable'
+                self._ack(
+                    msg.command_id,
+                    CommandAck.STATUS_FAILED,
+                    self.status_text,
+                )
+                self.active_command_id = ''
+                return
             goal = PoseStamped()
             goal.header = msg.header
             goal.header.frame_id = goal.header.frame_id or 'map'

@@ -48,6 +48,12 @@ install(PROGRAMS
   RENAME capture_visualizer
 )
 
+install(PROGRAMS
+  scripts/capture_target_motion.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME capture_target_motion
+)
+
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)

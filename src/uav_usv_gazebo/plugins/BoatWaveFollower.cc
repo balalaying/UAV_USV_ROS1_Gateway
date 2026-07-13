@@ -1,7 +1,11 @@
 #include <chrono>
+#include <atomic>
+#include <algorithm>
 #include <cmath>
 #include <memory>
+#include <string>
 
+#include <gz/msgs/twist.pb.h>
 #include <gz/math/Pose3.hh>
 #include <gz/plugin/Register.hh>
 #include <gz/sim/Entity.hh>
@@ -10,6 +14,8 @@
 #include <gz/sim/System.hh>
 #include <gz/sim/components/Pose.hh>
 #include <gz/sim/components/PoseCmd.hh>
+#include <gz/sim/components/Name.hh>
+#include <gz/transport/Node.hh>
 
 #include <sdf/Element.hh>
 
@@ -60,6 +66,22 @@ class BoatWaveFollower
       this->waveNumberX = _sdf->Get<double>("wave_number_x");
     if (_sdf->HasElement("wave_number_y"))
       this->waveNumberY = _sdf->Get<double>("wave_number_y");
+    if (_sdf->HasElement("velocity_topic"))
+      this->velocityTopic = _sdf->Get<std::string>("velocity_topic");
+
+    if (!this->velocityTopic.empty())
+    {
+      if (this->velocityTopic.front() != '/')
+      {
+        if (auto name = _ecm.Component<components::Name>(this->entity))
+        {
+          this->velocityTopic =
+              "/model/" + name->Data() + "/" + this->velocityTopic;
+        }
+      }
+      this->node.Subscribe(
+          this->velocityTopic, &BoatWaveFollower::OnVelocity, this);
+    }
   }
 
   public: void PreUpdate(const UpdateInfo &_info,
@@ -73,6 +95,18 @@ class BoatWaveFollower
       return;
 
     auto pose = poseComp->Data();
+    if (!this->velocityTopic.empty())
+    {
+      const double dt = std::clamp(
+          std::chrono::duration<double>(_info.dt).count(), 0.0, 0.1);
+      const double yaw = pose.Rot().Yaw();
+      const double linear = this->linearVelocity.load();
+      pose.Pos().X(pose.Pos().X() + std::cos(yaw) * linear * dt);
+      pose.Pos().Y(pose.Pos().Y() + std::sin(yaw) * linear * dt);
+      pose.Rot() = math::Quaterniond(
+          pose.Rot().Roll(), pose.Rot().Pitch(),
+          yaw + this->angularVelocity.load() * dt);
+    }
     const double t =
         std::chrono::duration<double>(_info.simTime).count();
     const double x = pose.Pos().X();
@@ -110,6 +144,12 @@ class BoatWaveFollower
     }
   }
 
+  private: void OnVelocity(const gz::msgs::Twist &_msg)
+  {
+    this->linearVelocity.store(_msg.linear().x());
+    this->angularVelocity.store(_msg.angular().z());
+  }
+
   private: Entity entity{kNullEntity};
   private: math::Pose3d basePose{0, 0, 0, 0, 0, 0};
   private: double meanZ{0.42};
@@ -120,6 +160,10 @@ class BoatWaveFollower
   private: double secondaryFrequency{1.7};
   private: double waveNumberX{0.35};
   private: double waveNumberY{0.22};
+  private: std::string velocityTopic;
+  private: gz::transport::Node node;
+  private: std::atomic<double> linearVelocity{0.0};
+  private: std::atomic<double> angularVelocity{0.0};
 };
 }
 }

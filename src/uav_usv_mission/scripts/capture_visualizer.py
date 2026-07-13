@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Render capture topics as RViz markers without making task decisions."""
 
-import json
 import math
 
 from geometry_msgs.msg import Point
@@ -12,6 +11,9 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import String
+from uav_usv_interfaces.msg import CaptureAssignmentArray
+from uav_usv_interfaces.msg import CaptureState
+from uav_usv_interfaces.msg import CaptureTargetStatus
 from uav_usv_interfaces.msg import TrackedObjectArray
 from uav_usv_interfaces.msg import VehicleState
 from visualization_msgs.msg import Marker
@@ -24,6 +26,8 @@ class CaptureVisualizer(Node):
         (0.10, 0.70, 1.00),
         (0.10, 0.45, 1.00),
         (1.00, 0.72, 0.10),
+        (0.90, 0.25, 0.70),
+        (0.10, 0.75, 0.70),
     )
 
     def __init__(self):
@@ -37,7 +41,8 @@ class CaptureVisualizer(Node):
         self.capture_radius = 18.0
         self.capture_state = 'SEARCH'
         self.status = 'starting'
-        self.target_status = {}
+        self.target_status = None
+        self.capture_state_msg = None
         self.publisher = self.create_publisher(
             MarkerArray, '/capture/markers', 10
         )
@@ -66,13 +71,10 @@ class CaptureVisualizer(Node):
             10,
         )
         self.create_subscription(
-            String, '/capture/roles', self._on_roles, 10
+            CaptureAssignmentArray, '/capture/roles', self._on_roles, 10
         )
         self.create_subscription(
-            String,
-            '/capture/state',
-            lambda msg: setattr(self, 'capture_state', msg.data),
-            10,
+            CaptureState, '/capture/state', self._on_capture_state, 10
         )
         self.create_subscription(
             String,
@@ -81,7 +83,7 @@ class CaptureVisualizer(Node):
             10,
         )
         self.create_subscription(
-            String,
+            CaptureTargetStatus,
             '/capture/target_status',
             self._on_target_status,
             10,
@@ -96,28 +98,32 @@ class CaptureVisualizer(Node):
             self.states[msg.vehicle_id] = msg
 
     def _on_roles(self, msg):
-        try:
-            payload = json.loads(msg.data)
-        except (TypeError, ValueError):
-            return
-        self.capture_state = str(payload.get('state', self.capture_state))
-        self.capture_radius = float(
-            payload.get('capture_radius', self.capture_radius)
+        self.capture_radius = float(msg.capture_radius)
+        self.capture_center = (
+            float(msg.capture_center.x), float(msg.capture_center.y)
         )
-        center = payload.get('center', self.capture_center)
-        if isinstance(center, list) and len(center) >= 2:
-            self.capture_center = (float(center[0]), float(center[1]))
-        self.assignment_metadata = {
-            str(item.get('vehicle_id')): item
-            for item in payload.get('assignments', [])
-            if item.get('vehicle_id')
-        }
+        active_index = 0
+        metadata = {}
+        for item in msg.assignments:
+            index = active_index if item.active else -1
+            if item.active:
+                active_index += 1
+            metadata[item.vehicle_id] = {
+                'index': index,
+                'role': item.role_name,
+                'active': bool(item.active),
+                'status': item.status,
+                'cost': float(item.assignment_cost),
+                'generation': int(msg.generation),
+            }
+        self.assignment_metadata = metadata
+
+    def _on_capture_state(self, msg):
+        self.capture_state_msg = msg
+        self.capture_state = msg.state_name
 
     def _on_target_status(self, msg):
-        try:
-            self.target_status = json.loads(msg.data)
-        except (TypeError, ValueError):
-            self.target_status = {}
+        self.target_status = msg
 
     @staticmethod
     def _marker(marker_id, marker_type, namespace, stamp):
@@ -153,12 +159,19 @@ class CaptureVisualizer(Node):
         label.pose.position.z += 5.0
         label.scale.z = 2.2
         self._set_color(label, (0.12, 0.12, 0.12))
-        speed = float(self.target_status.get('speed', 0.0))
-        tracking_text = (
-            'TRACKED' if self.target_status.get('tracked', False) else 'STALE'
+        speed = (
+            float(self.target_status.speed_mps)
+            if self.target_status is not None else 0.0
         )
-        label.text = '%s\n%s | %.1f m/s' % (
-            self.target.track_id, tracking_text, speed
+        turn_rate = (
+            float(self.target_status.turn_rate_rps)
+            if self.target_status is not None else 0.0
+        )
+        tracking_text = 'TRACKED' if (
+            self.target_status is not None and self.target_status.tracked
+        ) else 'STALE'
+        label.text = '%s\n%s | %.1f m/s | turn %.2f rad/s' % (
+            self.target.track_id, tracking_text, speed, turn_rate
         )
         result.markers.append(label)
 
@@ -229,7 +242,11 @@ class CaptureVisualizer(Node):
             label.pose.position.z += 3.0
             label.scale.z = 1.6
             self._set_color(label, (0.08, 0.08, 0.08))
-            label.text = '%s\n%s' % (vehicle_id, metadata.get('role', ''))
+            label.text = '%s\n%s | cost %.1f' % (
+                vehicle_id,
+                metadata.get('role', ''),
+                metadata.get('cost', 0.0),
+            )
             result.markers.append(label)
 
             state = self.states.get(vehicle_id)
@@ -264,9 +281,10 @@ class CaptureVisualizer(Node):
             self._set_color(marker, color)
             result.markers.append(marker)
 
-            role = self.assignment_metadata.get(vehicle_id, {}).get(
-                'role', 'unassigned'
-            )
+            metadata = self.assignment_metadata.get(vehicle_id, {})
+            role = metadata.get('role', 'unassigned')
+            if not metadata.get('active', False):
+                role += ' | ' + metadata.get('status', 'inactive')
             label = self._marker(
                 101 + index * 2,
                 Marker.TEXT_VIEW_FACING,
@@ -287,7 +305,19 @@ class CaptureVisualizer(Node):
         status.pose.position.z = 8.0
         status.scale.z = 2.0
         self._set_color(status, (0.08, 0.08, 0.08))
-        status.text = '%s\n%s' % (self.capture_state, self.status)
+        fleet_text = ''
+        if self.capture_state_msg is not None:
+            fleet_text = ' | UAV %d/%d USV %d/%d | generation %d%s' % (
+                self.capture_state_msg.active_uavs,
+                self.capture_state_msg.configured_uavs,
+                self.capture_state_msg.active_usvs,
+                self.capture_state_msg.configured_usvs,
+                self.capture_state_msg.allocation_generation,
+                ' DEGRADED' if self.capture_state_msg.degraded else '',
+            )
+        status.text = '%s%s\n%s' % (
+            self.capture_state, fleet_text, self.status
+        )
         result.markers.append(status)
 
     def _publish(self):

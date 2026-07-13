@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""State machine and task dispatcher for scalable dynamic capture."""
+"""State machine and dynamic dispatcher for scalable fleet capture."""
 
 import json
 import math
@@ -10,17 +10,23 @@ from geometry_msgs.msg import PoseArray
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
 import rclpy
+from rcl_interfaces.msg import SetParametersResult
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import String
+from uav_usv_interfaces.msg import CaptureAssignment as CaptureAssignmentMsg
+from uav_usv_interfaces.msg import CaptureAssignmentArray
+from uav_usv_interfaces.msg import CaptureState
+from uav_usv_interfaces.msg import CaptureTargetStatus
 from uav_usv_interfaces.msg import CommandAck
 from uav_usv_interfaces.msg import ControlLease
 from uav_usv_interfaces.msg import FleetCommand
 from uav_usv_interfaces.msg import TrackedObjectArray
 from uav_usv_interfaces.msg import VehicleState
 from uav_usv_mission.capture_planner import CapturePlanner
+from uav_usv_mission.capture_planner import VehicleKinematics
 from uav_usv_mission.target_predictor import TargetPredictor
 from uav_usv_mission.target_predictor import TargetState
 
@@ -33,6 +39,16 @@ class CaptureManager(Node):
     HOLDING = 'HOLDING'
     SUCCESS = 'SUCCESS'
     FAILED = 'FAILED'
+
+    STATE_CODES = {
+        SEARCH: CaptureState.STATE_SEARCH,
+        TRACKING: CaptureState.STATE_TRACKING,
+        APPROACHING: CaptureState.STATE_APPROACHING,
+        ENCIRCLING: CaptureState.STATE_ENCIRCLING,
+        HOLDING: CaptureState.STATE_HOLDING,
+        SUCCESS: CaptureState.STATE_SUCCESS,
+        FAILED: CaptureState.STATE_FAILED,
+    }
 
     def __init__(self):
         super().__init__('capture_manager')
@@ -52,69 +68,77 @@ class CaptureManager(Node):
         self.declare_parameter('command_period', 5.0)
         self.declare_parameter('command_move_threshold', 3.0)
         self.declare_parameter('target_timeout', 2.0)
+        self.declare_parameter('vehicle_state_timeout', 2.0)
+        self.declare_parameter('fleet_ready_timeout', 35.0)
         self.declare_parameter('tracking_confirmations', 3)
         self.declare_parameter('encircle_tolerance', 28.0)
         self.declare_parameter('holding_tolerance', 16.0)
         self.declare_parameter('success_duration', 5.0)
         self.declare_parameter('max_takeoff_attempts', 3)
+        self.declare_parameter('command_failure_threshold', 3)
+        self.declare_parameter('minimum_uavs', 1)
+        self.declare_parameter('minimum_usvs', 1)
+        self.declare_parameter('excluded_vehicle_ids', [''])
 
         legacy_uav = str(self.get_parameter('uav_id').value)
-        configured_uavs = [
-            str(value) for value in self.get_parameter('uav_ids').value
-            if str(value)
-        ]
+        configured_uavs = self._string_list('uav_ids')
         legacy_usv = str(self.get_parameter('usv_id').value)
-        configured_usvs = [
-            str(value) for value in self.get_parameter('usv_ids').value
-            if str(value)
-        ]
+        configured_usvs = self._string_list('usv_ids')
         self.uav_ids = configured_uavs or [legacy_uav]
         self.usv_ids = configured_usvs or [legacy_usv]
         self.vehicle_ids = self.uav_ids + self.usv_ids
+        if len(set(self.vehicle_ids)) != len(self.vehicle_ids):
+            raise ValueError('configured vehicle IDs must be unique')
+
         self.target_id = str(self.get_parameter('target_id').value)
-        self.takeoff_altitude = float(
-            self.get_parameter('takeoff_altitude').value
+        self.takeoff_altitude = self._float_parameter('takeoff_altitude')
+        self.uav_home_z = self._float_parameter('uav_home_z')
+        self.command_period = self._float_parameter('command_period')
+        self.command_move_threshold = self._float_parameter(
+            'command_move_threshold'
         )
-        self.uav_home_z = float(self.get_parameter('uav_home_z').value)
-        self.command_period = float(
-            self.get_parameter('command_period').value
+        self.target_timeout = self._float_parameter('target_timeout')
+        self.vehicle_state_timeout = self._float_parameter(
+            'vehicle_state_timeout'
         )
-        self.command_move_threshold = float(
-            self.get_parameter('command_move_threshold').value
-        )
-        self.target_timeout = float(
-            self.get_parameter('target_timeout').value
+        self.fleet_ready_timeout = self._float_parameter(
+            'fleet_ready_timeout'
         )
         self.tracking_confirmations = int(
             self.get_parameter('tracking_confirmations').value
         )
-        self.encircle_tolerance = float(
-            self.get_parameter('encircle_tolerance').value
+        self.encircle_tolerance = self._float_parameter(
+            'encircle_tolerance'
         )
-        self.holding_tolerance = float(
-            self.get_parameter('holding_tolerance').value
-        )
-        self.success_duration = float(
-            self.get_parameter('success_duration').value
-        )
+        self.holding_tolerance = self._float_parameter('holding_tolerance')
+        self.success_duration = self._float_parameter('success_duration')
         self.max_takeoff_attempts = int(
             self.get_parameter('max_takeoff_attempts').value
         )
+        self.command_failure_threshold = int(
+            self.get_parameter('command_failure_threshold').value
+        )
+        self.minimum_uavs = int(self.get_parameter('minimum_uavs').value)
+        self.minimum_usvs = int(self.get_parameter('minimum_usvs').value)
+        self.excluded_vehicle_ids = set(
+            self._string_list('excluded_vehicle_ids')
+        )
+        self.add_on_set_parameters_callback(self._on_parameters)
 
         self.predictor = TargetPredictor(
-            horizon=float(self.get_parameter('prediction_horizon').value),
-            step=float(self.get_parameter('prediction_step').value),
+            horizon=self._float_parameter('prediction_horizon'),
+            step=self._float_parameter('prediction_step'),
         )
         self.planner = CapturePlanner(
-            capture_radius=float(self.get_parameter('capture_radius').value),
-            observation_altitude=float(
-                self.get_parameter('observation_altitude').value
+            capture_radius=self._float_parameter('capture_radius'),
+            observation_altitude=self._float_parameter(
+                'observation_altitude'
             ),
-            uav_prediction_time=float(
-                self.get_parameter('uav_prediction_time').value
+            uav_prediction_time=self._float_parameter(
+                'uav_prediction_time'
             ),
-            usv_prediction_time=float(
-                self.get_parameter('usv_prediction_time').value
+            usv_prediction_time=self._float_parameter(
+                'usv_prediction_time'
             ),
         )
 
@@ -125,7 +149,7 @@ class CaptureManager(Node):
             ControlLease, '/fleet/control_lease', lease_qos
         )
         self.command_pub = self.create_publisher(
-            FleetCommand, '/fleet/command', 30
+            FleetCommand, '/fleet/command', 60
         )
         self.uav_point_pub = self.create_publisher(
             PoseStamped, '/capture/uav_observation_point', 10
@@ -140,13 +164,22 @@ class CaptureManager(Node):
             Path, '/capture/target_prediction', 10
         )
         self.roles_pub = self.create_publisher(
-            String, '/capture/roles', 10
+            CaptureAssignmentArray, '/capture/roles', 10
         )
         self.state_pub = self.create_publisher(
-            String, '/capture/state', 10
+            CaptureState, '/capture/state', 10
         )
         self.target_status_pub = self.create_publisher(
-            String, '/capture/target_status', 10
+            CaptureTargetStatus, '/capture/target_status', 10
+        )
+        self.roles_json_pub = self.create_publisher(
+            String, '/capture/roles_json', 10
+        )
+        self.state_text_pub = self.create_publisher(
+            String, '/capture/state_text', 10
+        )
+        self.target_json_pub = self.create_publisher(
+            String, '/capture/target_status_json', 10
         )
         self.status_pub = self.create_publisher(
             String, '/capture/status', 10
@@ -164,29 +197,42 @@ class CaptureManager(Node):
             qos_profile_sensor_data,
         )
         self.create_subscription(
-            CommandAck, '/fleet/command_ack', self._on_ack, 30
+            CommandAck, '/fleet/command_ack', self._on_ack, 60
         )
 
+        self.started_at = time.monotonic()
         self.lease_id = 'capture-' + uuid.uuid4().hex[:12]
         self.target = None
         self.last_target_rx = 0.0
         self.target_confirmations = 0
         self.vehicle_states = {}
+        self.last_vehicle_rx = {}
+        self.quarantined_vehicles = {}
         self.state = self.SEARCH
+        self.state_reason = 'waiting for target track'
         self.state_entered = time.monotonic()
         self.holding_since = None
+        self.mission_started = False
         self.takeoff_commands = {}
-        self.takeoff_attempts = {vehicle_id: 0 for vehicle_id in self.uav_ids}
+        self.takeoff_attempts = {
+            vehicle_id: 0 for vehicle_id in self.uav_ids
+        }
         self.last_takeoff_attempt = {
             vehicle_id: 0.0 for vehicle_id in self.uav_ids
         }
         self.airborne_uavs = set()
-        self.command_vehicle = {}
-        self.command_failures = {vehicle_id: 0 for vehicle_id in self.vehicle_ids}
+        self.command_failures = {
+            vehicle_id: 0 for vehicle_id in self.vehicle_ids
+        }
         self.last_command_time = 0.0
         self.last_points = {}
         self.current_prediction = []
         self.current_plan = None
+        self.previous_roles = {}
+        self.assignment_signature = ()
+        self.allocation_generation = 0
+        self.active_uav_ids = []
+        self.active_usv_ids = []
         self.create_timer(0.5, self._publish_lease)
         self.create_timer(0.2, self._update)
         self.get_logger().info(
@@ -194,7 +240,47 @@ class CaptureManager(Node):
             % (','.join(self.uav_ids), ','.join(self.usv_ids), self.target_id)
         )
 
+    def _string_list(self, name):
+        return [
+            str(value) for value in self.get_parameter(name).value
+            if str(value)
+        ]
+
+    def _float_parameter(self, name):
+        return float(self.get_parameter(name).value)
+
+    def _on_parameters(self, parameters):
+        for parameter in parameters:
+            if parameter.name == 'excluded_vehicle_ids':
+                requested = {str(value) for value in parameter.value if str(value)}
+                unknown = requested.difference(self.vehicle_ids)
+                if unknown:
+                    return SetParametersResult(
+                        successful=False,
+                        reason='unknown vehicle IDs: ' + ','.join(sorted(unknown)),
+                    )
+                self.excluded_vehicle_ids = requested
+                self.get_logger().warning(
+                    'Runtime vehicle exclusions: %s'
+                    % (','.join(sorted(requested)) or 'none')
+                )
+        return SetParametersResult(successful=True)
+
+    @staticmethod
+    def _yaw(orientation):
+        return math.atan2(
+            2.0 * (
+                orientation.w * orientation.z
+                + orientation.x * orientation.y
+            ),
+            1.0 - 2.0 * (
+                orientation.y * orientation.y
+                + orientation.z * orientation.z
+            ),
+        )
+
     def _set_state(self, new_state, reason):
+        self.state_reason = reason
         if self.state == new_state:
             return
         self.get_logger().info(
@@ -221,6 +307,7 @@ class CaptureManager(Node):
     def _on_vehicle_state(self, msg):
         if msg.vehicle_id in self.vehicle_ids:
             self.vehicle_states[msg.vehicle_id] = msg
+            self.last_vehicle_rx[msg.vehicle_id] = time.monotonic()
 
     def _on_ack(self, msg):
         if msg.vehicle_id not in self.vehicle_ids:
@@ -247,15 +334,18 @@ class CaptureManager(Node):
             CommandAck.STATUS_FAILED,
         ):
             self.command_failures[msg.vehicle_id] += 1
-            if self.command_failures[msg.vehicle_id] >= 5:
-                self._set_state(
-                    self.FAILED,
-                    '%s reported repeated command failures' % msg.vehicle_id,
+            if (
+                self.command_failures[msg.vehicle_id]
+                >= self.command_failure_threshold
+            ):
+                self.quarantined_vehicles[msg.vehicle_id] = (
+                    'repeated command failure: ' + msg.message
                 )
-        elif msg.status in (
-            CommandAck.STATUS_ACCEPTED,
-            CommandAck.STATUS_SUCCEEDED,
-        ):
+                self.get_logger().error(
+                    'Quarantined %s after command failures'
+                    % msg.vehicle_id
+                )
+        elif msg.status == CommandAck.STATUS_SUCCEEDED:
             self.command_failures[msg.vehicle_id] = 0
 
     def _publish_lease(self):
@@ -286,7 +376,6 @@ class CaptureManager(Node):
         )
         msg.expires_at = expires.to_msg()
         msg.target_pose.orientation.w = 1.0
-        self.command_vehicle[msg.command_id] = vehicle_id
         return msg
 
     def _send_takeoff(self, vehicle_id):
@@ -303,9 +392,32 @@ class CaptureManager(Node):
             % (msg.command_id, vehicle_id)
         )
 
+    def _vehicle_available(self, vehicle_id, now):
+        if vehicle_id in self.excluded_vehicle_ids:
+            return False
+        if vehicle_id in self.quarantined_vehicles:
+            return False
+        state = self.vehicle_states.get(vehicle_id)
+        received = self.last_vehicle_rx.get(vehicle_id, 0.0)
+        return (
+            state is not None
+            and state.online
+            and now - received <= self.vehicle_state_timeout
+        )
+
+    def _refresh_active_fleet(self, now):
+        self.active_uav_ids = [
+            vehicle_id for vehicle_id in self.uav_ids
+            if self._vehicle_available(vehicle_id, now)
+        ]
+        self.active_usv_ids = [
+            vehicle_id for vehicle_id in self.usv_ids
+            if self._vehicle_available(vehicle_id, now)
+        ]
+
     def _refresh_airborne_states(self):
         minimum_z = self.uav_home_z + self.takeoff_altitude - 1.0
-        for vehicle_id in self.uav_ids:
+        for vehicle_id in self.active_uav_ids:
             state = self.vehicle_states.get(vehicle_id)
             if (
                 state is not None
@@ -316,16 +428,34 @@ class CaptureManager(Node):
                 self.airborne_uavs.add(vehicle_id)
 
     def _target_state(self):
-        pose = self.target.pose.pose.position
-        velocity = self.target.twist.twist.linear
+        pose = self.target.pose.pose
+        twist = self.target.twist.twist
         return TargetState(
-            x=float(pose.x),
-            y=float(pose.y),
-            z=float(pose.z),
-            vx=float(velocity.x),
-            vy=float(velocity.y),
-            vz=float(velocity.z),
+            x=float(pose.position.x),
+            y=float(pose.position.y),
+            z=float(pose.position.z),
+            vx=float(twist.linear.x),
+            vy=float(twist.linear.y),
+            vz=float(twist.linear.z),
+            yaw=self._yaw(pose.orientation),
+            yaw_rate=float(twist.angular.z),
         )
+
+    def _planner_vehicles(self):
+        result = []
+        for vehicle_id in self.active_uav_ids + self.active_usv_ids:
+            state = self.vehicle_states[vehicle_id]
+            result.append(VehicleKinematics(
+                vehicle_id=vehicle_id,
+                vehicle_type=int(state.vehicle_type),
+                x=float(state.pose.position.x),
+                y=float(state.pose.position.y),
+                z=float(state.pose.position.z),
+                vx=float(state.twist.linear.x),
+                vy=float(state.twist.linear.y),
+                yaw=self._yaw(state.pose.orientation),
+            ))
+        return result
 
     def _assignment_pose(self, assignment):
         pose = PoseStamped()
@@ -337,10 +467,52 @@ class CaptureManager(Node):
         pose.pose.orientation.w = 1.0
         return pose
 
+    def _inactive_reason(self, vehicle_id, now):
+        if vehicle_id in self.excluded_vehicle_ids:
+            return 'excluded by runtime parameter'
+        if vehicle_id in self.quarantined_vehicles:
+            return self.quarantined_vehicles[vehicle_id]
+        if vehicle_id not in self.vehicle_states:
+            return 'no VehicleState received'
+        if now - self.last_vehicle_rx.get(vehicle_id, 0.0) > self.vehicle_state_timeout:
+            return 'VehicleState timeout'
+        if not self.vehicle_states[vehicle_id].online:
+            return 'vehicle reports offline'
+        return 'not assigned'
+
+    def _update_allocation_generation(self):
+        signature = tuple(sorted(
+            (vehicle_id, assignment.role)
+            for vehicle_id, assignment in self.current_plan.assignments.items()
+        ))
+        if signature != self.assignment_signature:
+            self.assignment_signature = signature
+            self.allocation_generation += 1
+            self.previous_roles = {
+                vehicle_id: assignment.role
+                for vehicle_id, assignment in self.current_plan.assignments.items()
+            }
+            self.last_points = {
+                key: value for key, value in self.last_points.items()
+                if key in self.current_plan.assignments
+            }
+            if self.mission_started:
+                self._set_state(
+                    self.APPROACHING,
+                    'fleet availability changed; assignments regenerated',
+                )
+            self.get_logger().warning(
+                'Allocation generation %d: %s'
+                % (
+                    self.allocation_generation,
+                    ', '.join('%s=%s' % pair for pair in signature),
+                )
+            )
+
     def _publish_plan(self, target_state):
-        now = self.get_clock().now().to_msg()
+        now_msg = self.get_clock().now().to_msg()
         prediction = Path()
-        prediction.header.stamp = now
+        prediction.header.stamp = now_msg
         prediction.header.frame_id = 'map'
         for point in self.current_prediction:
             pose = PoseStamped()
@@ -348,53 +520,109 @@ class CaptureManager(Node):
             pose.pose.position.x = point.x
             pose.pose.position.y = point.y
             pose.pose.position.z = point.z + 0.8
-            pose.pose.orientation.w = 1.0
+            pose.pose.orientation.z = math.sin(point.yaw * 0.5)
+            pose.pose.orientation.w = math.cos(point.yaw * 0.5)
             prediction.poses.append(pose)
         self.prediction_pub.publish(prediction)
 
-        assignments = PoseArray()
-        assignments.header = prediction.header
-        metadata = []
-        for index, vehicle_id in enumerate(self.vehicle_ids):
+        pose_array = PoseArray()
+        pose_array.header = prediction.header
+        roles = CaptureAssignmentArray()
+        roles.header = prediction.header
+        roles.target_id = self.target_id
+        roles.capture_center.x = self.current_plan.center_x
+        roles.capture_center.y = self.current_plan.center_y
+        roles.capture_center.z = target_state.z
+        roles.capture_radius = float(self.current_plan.capture_radius)
+        roles.generation = self.allocation_generation
+
+        first_uav = True
+        first_usv = True
+        active_metadata = []
+        for vehicle_id in self.vehicle_ids:
             assignment = self.current_plan.assignments.get(vehicle_id)
+            item = CaptureAssignmentMsg()
+            item.vehicle_id = vehicle_id
             if assignment is None:
+                state = self.vehicle_states.get(vehicle_id)
+                item.vehicle_type = (
+                    int(state.vehicle_type) if state is not None
+                    else (
+                        VehicleState.TYPE_UAV
+                        if vehicle_id in self.uav_ids
+                        else VehicleState.TYPE_USV
+                    )
+                )
+                item.role_type = CaptureAssignmentMsg.ROLE_UNASSIGNED
+                item.role_name = 'unassigned'
+                item.active = False
+                item.status = self._inactive_reason(vehicle_id, time.monotonic())
+                roles.assignments.append(item)
                 continue
+
             point = self._assignment_pose(assignment)
-            assignments.poses.append(point.pose)
-            metadata.append({
-                'index': len(assignments.poses) - 1,
+            pose_array.poses.append(point.pose)
+            item.vehicle_type = assignment.vehicle_type
+            item.role_type = assignment.role_type
+            item.role_name = assignment.role
+            item.target_pose = point.pose
+            item.assignment_cost = float(assignment.cost)
+            item.active = True
+            item.status = 'assigned'
+            roles.assignments.append(item)
+            active_metadata.append({
+                'index': len(pose_array.poses) - 1,
                 'vehicle_id': vehicle_id,
                 'role': assignment.role,
+                'cost': round(assignment.cost, 3),
             })
-            if vehicle_id == self.uav_ids[0]:
+            if assignment.vehicle_type == VehicleState.TYPE_UAV and first_uav:
                 self.uav_point_pub.publish(point)
-            if vehicle_id == self.usv_ids[0]:
+                first_uav = False
+            if assignment.vehicle_type == VehicleState.TYPE_USV and first_usv:
                 self.usv_point_pub.publish(point)
-        self.assignments_pub.publish(assignments)
+                first_usv = False
+        self.assignments_pub.publish(pose_array)
+        self.roles_pub.publish(roles)
 
-        roles = String()
-        roles.data = json.dumps({
+        roles_json = String()
+        roles_json.data = json.dumps({
             'state': self.state,
             'target_id': self.target_id,
             'capture_radius': self.current_plan.capture_radius,
-            'center': [
-                self.current_plan.center_x,
-                self.current_plan.center_y,
-            ],
-            'assignments': metadata,
+            'center': [self.current_plan.center_x, self.current_plan.center_y],
+            'generation': self.allocation_generation,
+            'assignments': active_metadata,
         }, separators=(',', ':'))
-        self.roles_pub.publish(roles)
+        self.roles_json_pub.publish(roles_json)
 
-        target_status = String()
-        target_status.data = json.dumps({
+        target_status = CaptureTargetStatus()
+        target_status.header = prediction.header
+        target_status.track_id = self.target_id
+        target_status.tracked = True
+        target_status.confirmations = self.target_confirmations
+        target_status.pose = self.target.pose.pose
+        target_status.twist = self.target.twist.twist
+        target_status.speed_mps = float(target_state.speed)
+        target_status.turn_rate_rps = float(target_state.yaw_rate)
+        target_status.track_age_s = float(
+            max(0.0, time.monotonic() - self.last_target_rx)
+        )
+        target_status.prediction_model = TargetPredictor.MODEL_NAME
+        self.target_status_pub.publish(target_status)
+
+        target_json = String()
+        target_json.data = json.dumps({
             'track_id': self.target_id,
             'tracked': True,
             'confirmations': self.target_confirmations,
             'position': [target_state.x, target_state.y, target_state.z],
             'velocity': [target_state.vx, target_state.vy, target_state.vz],
-            'speed': math.hypot(target_state.vx, target_state.vy),
+            'speed': target_state.speed,
+            'turn_rate': target_state.yaw_rate,
+            'prediction_model': TargetPredictor.MODEL_NAME,
         }, separators=(',', ':'))
-        self.target_status_pub.publish(target_status)
+        self.target_json_pub.publish(target_json)
 
     def _point_moved(self, vehicle_id, assignment):
         previous = self.last_points.get(vehicle_id)
@@ -438,10 +666,14 @@ class CaptureManager(Node):
         now = time.monotonic()
         if self.state == self.APPROACHING:
             if maximum_error <= self.encircle_tolerance:
-                self._set_state(self.ENCIRCLING, 'all vehicles entered capture area')
+                self._set_state(
+                    self.ENCIRCLING, 'all active vehicles entered capture area'
+                )
         if self.state == self.ENCIRCLING:
             if maximum_error <= self.holding_tolerance:
-                self._set_state(self.HOLDING, 'all roles reached assigned sectors')
+                self._set_state(
+                    self.HOLDING, 'all active roles reached assigned sectors'
+                )
                 self.holding_since = now
         elif self.state == self.HOLDING:
             if maximum_error > self.encircle_tolerance:
@@ -449,59 +681,48 @@ class CaptureManager(Node):
             elif self.holding_since is None:
                 self.holding_since = now
             elif now - self.holding_since >= self.success_duration:
-                self._set_state(self.SUCCESS, 'capture geometry held continuously')
+                self._set_state(
+                    self.SUCCESS, 'capture geometry held continuously'
+                )
 
-    def _publish_status(self, text):
-        state = String()
-        state.data = self.state
-        self.state_pub.publish(state)
+    def _publish_state(self, status_text):
+        msg = CaptureState()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'map'
+        msg.state = self.STATE_CODES[self.state]
+        msg.state_name = self.state
+        msg.target_id = self.target_id
+        msg.reason = self.state_reason
+        msg.configured_uavs = len(self.uav_ids)
+        msg.configured_usvs = len(self.usv_ids)
+        msg.active_uavs = len(self.active_uav_ids)
+        msg.active_usvs = len(self.active_usv_ids)
+        msg.allocation_generation = self.allocation_generation
+        msg.degraded = (
+            len(self.active_uav_ids) < len(self.uav_ids)
+            or len(self.active_usv_ids) < len(self.usv_ids)
+        )
+        self.state_pub.publish(msg)
+
+        state_text = String()
+        state_text.data = self.state
+        self.state_text_pub.publish(state_text)
         status = String()
-        status.data = self.state + ': ' + text
+        status.data = self.state + ': ' + status_text
         self.status_pub.publish(status)
 
-    def _update(self):
-        now = time.monotonic()
-        target_fresh = (
-            self.target is not None
-            and now - self.last_target_rx <= self.target_timeout
-        )
-        if not target_fresh:
-            if self.state != self.FAILED:
-                self._set_state(self.SEARCH, 'waiting for a fresh target track')
-            self._publish_status('searching for target')
-            return
-
-        if self.state == self.FAILED:
-            self._publish_status('manual reset required after repeated failures')
-            return
-
-        links_ready = all(
-            vehicle_id in self.vehicle_states
-            and self.vehicle_states[vehicle_id].online
-            for vehicle_id in self.vehicle_ids
-        )
-        if (
-            self.target_confirmations < self.tracking_confirmations
-            or not links_ready
-        ):
-            self._set_state(self.TRACKING, 'validating target and vehicle links')
-            self._publish_status('tracking target and waiting for all agents')
-            return
-
+    def _manage_takeoff(self, now):
         self._refresh_airborne_states()
-        for vehicle_id in self.uav_ids:
+        for vehicle_id in self.active_uav_ids:
             if vehicle_id in self.airborne_uavs:
                 continue
             if self.takeoff_attempts[vehicle_id] >= self.max_takeoff_attempts:
-                self._set_state(
-                    self.FAILED, '%s exceeded takeoff retries' % vehicle_id
+                self.quarantined_vehicles[vehicle_id] = (
+                    'PX4 takeoff retries exceeded'
                 )
-                self._publish_status('PX4 takeoff failed')
-                return
+                continue
             command_pending = vehicle_id in self.takeoff_commands
-            timed_out = (
-                now - self.last_takeoff_attempt[vehicle_id] > 22.0
-            )
+            timed_out = now - self.last_takeoff_attempt[vehicle_id] > 22.0
             if command_pending and not timed_out:
                 continue
             if command_pending:
@@ -509,30 +730,96 @@ class CaptureManager(Node):
             if now - self.last_takeoff_attempt[vehicle_id] >= 2.0:
                 self._send_takeoff(vehicle_id)
 
-        if len(self.airborne_uavs) != len(self.uav_ids):
-            self._set_state(self.TRACKING, 'PX4 takeoff in progress')
-            self._publish_status(
-                'airborne UAVs %d/%d'
-                % (len(self.airborne_uavs), len(self.uav_ids))
-            )
+    def _fleet_has_minimum(self):
+        airborne_active = [
+            item for item in self.active_uav_ids
+            if item in self.airborne_uavs
+        ]
+        return (
+            len(airborne_active) >= self.minimum_uavs
+            and len(self.active_usv_ids) >= self.minimum_usvs
+        )
+
+    def _fleet_ready_to_start(self, now):
+        all_uavs = (
+            len(self.active_uav_ids) == len(self.uav_ids)
+            and all(item in self.airborne_uavs for item in self.uav_ids)
+        )
+        all_usvs = len(self.active_usv_ids) == len(self.usv_ids)
+        if all_uavs and all_usvs:
+            return True
+        return (
+            now - self.started_at >= self.fleet_ready_timeout
+            and self._fleet_has_minimum()
+        )
+
+    def _update(self):
+        now = time.monotonic()
+        self._refresh_active_fleet(now)
+        target_fresh = (
+            self.target is not None
+            and now - self.last_target_rx <= self.target_timeout
+        )
+        if not target_fresh:
+            self._set_state(self.SEARCH, 'waiting for a fresh target track')
+            self._publish_state('waiting for target track')
             return
 
+        if self.target_confirmations < self.tracking_confirmations:
+            self._set_state(self.TRACKING, 'confirming target track')
+            self._publish_state('confirming target track')
+            return
+
+        self._manage_takeoff(now)
+        self._refresh_active_fleet(now)
+        self._refresh_airborne_states()
+        if not self.mission_started:
+            if not self._fleet_ready_to_start(now):
+                self._set_state(self.TRACKING, 'waiting for configured fleet')
+                self._publish_state(
+                    'airborne UAVs %d/%d, online USVs %d/%d'
+                    % (
+                        len(self.airborne_uavs.intersection(self.active_uav_ids)),
+                        len(self.uav_ids),
+                        len(self.active_usv_ids),
+                        len(self.usv_ids),
+                    )
+                )
+                return
+            self.mission_started = True
+
+        if not self._fleet_has_minimum():
+            self._set_state(
+                self.TRACKING, 'insufficient active vehicles for capture'
+            )
+            self._publish_state('waiting for replacement vehicles')
+            return
+
+        active_airborne = [
+            item for item in self.active_uav_ids
+            if item in self.airborne_uavs
+        ]
+        self.active_uav_ids = active_airborne
         target_state = self._target_state()
         self.current_prediction = self.predictor.predict(target_state)
         self.current_plan = self.planner.plan(
             target_state,
             self.current_prediction,
-            self.uav_ids,
-            self.usv_ids,
+            self._planner_vehicles(),
+            self.previous_roles,
         )
+        self._update_allocation_generation()
         if self.state in (self.SEARCH, self.TRACKING):
-            self._set_state(self.APPROACHING, 'all agents ready; plan dispatched')
+            self._set_state(
+                self.APPROACHING, 'active fleet ready; plan dispatched'
+            )
         self._publish_plan(target_state)
         self._dispatch_plan()
         maximum_error = self._maximum_assignment_error()
         self._update_capture_state(maximum_error)
-        self._publish_status(
-            'target tracked; max assignment error %.1f m' % maximum_error
+        self._publish_state(
+            'CTRV target tracked; max assignment error %.1f m'
+            % maximum_error
         )
 
 

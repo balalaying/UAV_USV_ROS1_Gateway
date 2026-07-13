@@ -1,0 +1,19 @@
+uint8 STATE_SEARCH=0
+uint8 STATE_TRACKING=1
+uint8 STATE_APPROACHING=2
+uint8 STATE_ENCIRCLING=3
+uint8 STATE_HOLDING=4
+uint8 STATE_SUCCESS=5
+uint8 STATE_FAILED=6
+
+std_msgs/Header header
+uint8 state
+string state_name
+string target_id
+string reason
+uint32 configured_uavs
+uint32 configured_usvs
+uint32 active_uavs
+uint32 active_usvs
+uint32 allocation_generation
+bool degraded

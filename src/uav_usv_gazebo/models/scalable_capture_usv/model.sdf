@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <model name="scalable_capture_usv">
+    <pose>0 0 0.5 0 0 0</pose>
+    <link name="hull">
+      <gravity>false</gravity>
+      <inertial>
+        <mass>260</mass>
+        <inertia>
+          <ixx>180</ixx><iyy>920</iyy><izz>1050</izz>
+        </inertia>
+      </inertial>
+      <collision name="hull_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry><box><size>9 3.4 1.2</size></box></geometry>
+      </collision>
+      <visual name="lower_hull">
+        <pose>-0.2 0 -0.15 0 0 0</pose>
+        <geometry><box><size>8.8 3.2 0.8</size></box></geometry>
+        <material>
+          <ambient>0.03 0.12 0.2 1</ambient>
+          <diffuse>0.04 0.28 0.48 1</diffuse>
+          <specular>0.3 0.4 0.5 1</specular>
+        </material>
+      </visual>
+      <visual name="deck">
+        <pose>-0.5 0 0.45 0 0 0</pose>
+        <geometry><box><size>7.4 3.0 0.25</size></box></geometry>
+        <material><ambient>0.75 0.78 0.8 1</ambient><diffuse>0.9 0.92 0.94 1</diffuse></material>
+      </visual>
+      <visual name="cabin">
+        <pose>-1.5 0 1.25 0 0 0</pose>
+        <geometry><box><size>2.4 2.2 1.5</size></box></geometry>
+        <material><ambient>0.15 0.18 0.2 1</ambient><diffuse>0.28 0.32 0.35 1</diffuse></material>
+      </visual>
+      <visual name="bow_left">
+        <pose>4.3 0.8 0 0 0 0.42</pose>
+        <geometry><box><size>1.8 0.3 1.0</size></box></geometry>
+        <material><ambient>0.03 0.12 0.2 1</ambient><diffuse>0.04 0.28 0.48 1</diffuse></material>
+      </visual>
+      <visual name="bow_right">
+        <pose>4.3 -0.8 0 0 0 -0.42</pose>
+        <geometry><box><size>1.8 0.3 1.0</size></box></geometry>
+        <material><ambient>0.03 0.12 0.2 1</ambient><diffuse>0.04 0.28 0.48 1</diffuse></material>
+      </visual>
+    </link>
+    <plugin filename="libBoatWaveFollower.so" name="gz::sim::systems::BoatWaveFollower">
+      <mean_z>0.68</mean_z>
+      <heave_amplitude>0.06</heave_amplitude>
+      <roll_amplitude>0.025</roll_amplitude>
+      <pitch_amplitude>0.02</pitch_amplitude>
+      <primary_frequency>0.9</primary_frequency>
+      <secondary_frequency>1.35</secondary_frequency>
+      <wave_number_x>0.24</wave_number_x>
+      <wave_number_y>0.17</wave_number_y>
+      <velocity_topic>cmd_vel</velocity_topic>
+    </plugin>
+  </model>
+</sdf>

@@ -21,6 +21,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/FleetCommand.msg"
   "msg/CommandAck.msg"
   "msg/SensorStatus.msg"
+  "msg/CaptureState.msg"
+  "msg/CaptureAssignment.msg"
+  "msg/CaptureAssignmentArray.msg"
+  "msg/CaptureTargetStatus.msg"
   DEPENDENCIES
     builtin_interfaces
     geographic_msgs

@@ -1,0 +1,10 @@
+std_msgs/Header header
+string track_id
+bool tracked
+uint32 confirmations
+geometry_msgs/Pose pose
+geometry_msgs/Twist twist
+float32 speed_mps
+float32 turn_rate_rps
+float32 track_age_s
+string prediction_model

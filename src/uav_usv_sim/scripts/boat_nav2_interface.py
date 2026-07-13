@@ -96,6 +96,8 @@ class BoatNav2Interface(Node):
         self.declare_parameter('model_pose_topic', '/boat/pose')
         self.declare_parameter('boat_cmd_topic', '/model/simple_boat/cmd_vel')
         self.declare_parameter('cmd_vel_topic', '/cmd_vel')
+        self.declare_parameter('odom_topic', '/odom')
+        self.declare_parameter('map_topic', '/map')
         self.declare_parameter('scan_topic', '/boat/scan_raw')
         self.declare_parameter('filtered_scan_topic', '/boat/scan')
         self.declare_parameter('scan_range_topic', '/boat/scan_range')
@@ -150,6 +152,8 @@ class BoatNav2Interface(Node):
         self.model_pose_topic = self.get_parameter('model_pose_topic').value
         self.boat_cmd_topic = self.get_parameter('boat_cmd_topic').value
         self.cmd_vel_topic = self.get_parameter('cmd_vel_topic').value
+        self.odom_topic = self.get_parameter('odom_topic').value
+        self.map_topic = self.get_parameter('map_topic').value
         self.scan_topic = self.get_parameter('scan_topic').value
         self.filtered_scan_topic = self.get_parameter(
             'filtered_scan_topic'
@@ -296,10 +300,12 @@ class BoatNav2Interface(Node):
         if self.publish_empty_map:
             self.map_pub = self.create_publisher(
                 OccupancyGrid,
-                '/map',
+                self.map_topic,
                 transient_qos,
             )
-        self.odom_pub = self.create_publisher(Odometry, '/odom', 20)
+        self.odom_pub = self.create_publisher(
+            Odometry, self.odom_topic, 20
+        )
         self.scan_pub = self.create_publisher(
             LaserScan,
             self.filtered_scan_topic,
@@ -366,11 +372,12 @@ class BoatNav2Interface(Node):
         if self.publish_empty_map:
             self.publish_map()
         self.get_logger().info(
-            'Nav2 interface ready: %s -> PID -> %s, odom=/odom, '
+            'Nav2 interface ready: %s -> PID -> %s, odom=%s, '
             'empty_map=%s, scan=%s -> %s, pose=%s, velocity_pid=%s.'
             % (
                 self.cmd_vel_topic,
                 self.boat_cmd_topic,
+                self.odom_topic,
                 self.publish_empty_map,
                 self.scan_topic,
                 self.filtered_scan_topic,
