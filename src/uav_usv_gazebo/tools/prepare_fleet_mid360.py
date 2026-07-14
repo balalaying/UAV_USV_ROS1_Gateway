@@ -2,8 +2,8 @@
 """Materialize a fleet world with an RGL Mid-360 on one existing USV.
 
 The generated model keeps the source USV dynamics and control plugins intact.
-Only an SDF frame, a visual, and a custom RGL sensor are appended to its
-existing link.
+Only semantic frames, visual geometry, and a custom RGL sensor are appended to
+its existing link. No collision, inertia, joint, or control plugin is added.
 """
 
 import argparse
@@ -55,6 +55,7 @@ def _append_mid360(
     update_rate,
     min_range,
     max_range,
+    visual_scale,
 ):
     link = model.find("link[@name='%s']" % link_name)
     if link is None:
@@ -71,16 +72,56 @@ def _append_mid360(
     })
     _element(frame, 'pose', mount_pose)
 
-    visual = _element(link, 'visual', attributes={'name': 'mid360_visual'})
-    _element(visual, 'pose', mount_pose)
-    geometry = _element(visual, 'geometry')
-    cylinder = _element(geometry, 'cylinder')
-    _element(cylinder, 'radius', '0.16')
-    _element(cylinder, 'length', '0.16')
-    material = _element(visual, 'material')
-    _element(material, 'ambient', '0.03 0.25 0.28 1')
-    _element(material, 'diffuse', '0.05 0.68 0.72 1')
-    _element(material, 'specular', '0.8 0.9 0.95 1')
+    visual_frame = _element(model, 'frame', attributes={
+        'name': 'mid360_visual_link',
+        'attached_to': link_name,
+    })
+    _element(visual_frame, 'pose', mount_pose)
+
+    def add_visual(name, z, geometry_type, dimensions, color):
+        visual = _element(link, 'visual', attributes={
+            'name': 'mid360_visual_' + name,
+        })
+        pose = _element(visual, 'pose', attributes={
+            'relative_to': 'mid360_visual_link',
+        })
+        pose.text = '0 0 %.6f 0 0 0' % (z * visual_scale)
+        geometry = _element(visual, 'geometry')
+        shape = _element(geometry, geometry_type)
+        if geometry_type == 'box':
+            _element(
+                shape,
+                'size',
+                ' '.join('%.6f' % (value * visual_scale)
+                         for value in dimensions),
+            )
+        else:
+            _element(shape, 'radius', '%.6f' % (
+                dimensions[0] * visual_scale
+            ))
+            _element(shape, 'length', '%.6f' % (
+                dimensions[1] * visual_scale
+            ))
+        material = _element(visual, 'material')
+        color_text = ' '.join('%.3f' % value for value in color)
+        _element(material, 'ambient', color_text)
+        _element(material, 'diffuse', color_text)
+        _element(material, 'specular', '0.65 0.70 0.75 1')
+
+    # A compact CAD-style Mid-360 shell. These are visuals on the existing
+    # hull link, positioned through a semantic frame, so dynamics are untouched.
+    add_visual('mount', -0.025, 'box', (0.34, 0.34, 0.05),
+               (0.055, 0.060, 0.065, 1.0))
+    add_visual('lower_body', 0.075, 'cylinder', (0.145, 0.15),
+               (0.075, 0.080, 0.085, 1.0))
+    add_visual('shoulder', 0.175, 'cylinder', (0.132, 0.055),
+               (0.12, 0.13, 0.14, 1.0))
+    add_visual('scan_window', 0.245, 'cylinder', (0.125, 0.085),
+               (0.025, 0.12, 0.16, 0.92))
+    add_visual('top_cap', 0.310, 'cylinder', (0.108, 0.045),
+               (0.045, 0.050, 0.055, 1.0))
+    add_visual('status_bar', 0.105, 'box', (0.012, 0.30, 0.035),
+               (0.15, 0.80, 0.90, 1.0))
 
     sensor = _element(link, 'sensor', attributes={
         'name': 'mid360_rgl',
@@ -131,6 +172,7 @@ def prepare(args):
         update_rate=args.update_rate,
         min_range=args.min_range,
         max_range=args.max_range,
+        visual_scale=args.visual_scale,
     )
 
     runtime_model_name = model_name + '_mid360_runtime'
@@ -170,12 +212,15 @@ def main():
     parser.add_argument('--update-rate', type=float, default=10.0)
     parser.add_argument('--min-range', type=float, default=0.1)
     parser.add_argument('--max-range', type=float, default=70.0)
+    parser.add_argument('--visual-scale', type=float, default=1.0)
     args = parser.parse_args()
 
     if args.update_rate <= 0.0:
         parser.error('--update-rate must be positive')
     if args.min_range < 0.0 or args.max_range <= args.min_range:
         parser.error('invalid Mid-360 range')
+    if args.visual_scale <= 0.0:
+        parser.error('--visual-scale must be positive')
     prepare(args)
 
 

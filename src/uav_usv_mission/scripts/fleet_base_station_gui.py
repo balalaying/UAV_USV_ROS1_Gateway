@@ -324,6 +324,8 @@ class BaseStationGuiNode(Node):
                 msg.dropped_messages,
                 msg.healthy,
                 msg.timed_out,
+                msg.tf_target_frame,
+                msg.tf_available,
                 msg.last_message_time.sec,
                 msg.last_message_time.nanosec,
             )
@@ -1356,11 +1358,11 @@ class BaseStationWindow(QMainWindow):
 
         sensor_group = QGroupBox('传感器上行状态')
         sensor_layout = QVBoxLayout(sensor_group)
-        self.sensor_table = QTableWidget(0, 10)
+        self.sensor_table = QTableWidget(0, 11)
         self.sensor_table.setHorizontalHeaderLabels(
             [
                 '载具', '传感器', 'Frame', '频率', '延迟',
-                '点数', '丢帧', '处理', '数据量', '状态',
+                '点数', '丢帧', '处理', '数据量', 'TF', '状态',
             ]
         )
         self._configure_table(self.sensor_table)
@@ -1846,6 +1848,8 @@ class BaseStationWindow(QMainWindow):
             dropped,
             healthy,
             timed_out,
+            tf_target_frame,
+            tf_available,
             last_sec,
             last_nanosec,
         ) = data
@@ -1860,19 +1864,20 @@ class BaseStationWindow(QMainWindow):
             str(dropped),
             '%.2f ms' % processing_ms if processing_ms else '-',
             '%.1f MB' % (total_bytes / 1048576.0),
+            '正常' if tf_available else '缺失',
         ]
         for column, value in enumerate(values):
             self.sensor_table.setItem(row, column, self._item(value))
         self.sensor_table.setItem(
             row,
-            9,
+            10,
             self._item(
                 '正常' if healthy else ('超时' if timed_out else '等待'),
                 '#16834a' if healthy else '#b63737',
             ),
         )
         self.sensor_table.setToolTip(
-            '%s/%s  最近消息=%d.%09d  age=%.3fs  messages=%d'
+            '%s/%s  最近消息=%d.%09d  age=%.3fs  messages=%d  TF=%s->%s'
             % (
                 vehicle,
                 sensor,
@@ -1880,6 +1885,8 @@ class BaseStationWindow(QMainWindow):
                 last_nanosec,
                 age,
                 messages,
+                tf_target_frame or '-',
+                frame_id or '-',
             )
         )
 

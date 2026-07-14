@@ -484,6 +484,8 @@ class FleetBaseStation(Node):
             status.dropped_messages = 0
             status.healthy = age < 2.0 and tracker.rate_hz > 0.2
             status.timed_out = age >= 2.0
+            status.tf_target_frame = ''
+            status.tf_available = True
             self.sensor_status_pub.publish(status)
             summary.append(
                 '%s/%s=%s %.1fHz'

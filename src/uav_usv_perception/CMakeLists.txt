@@ -5,6 +5,7 @@ find_package(ament_cmake REQUIRED)
 
 install(PROGRAMS
   scripts/gz_pointcloud_bridge.py
+  scripts/fleet_gazebo_labels.py
   scripts/mid360_demo_motion.py
   scripts/mid360_preprocessor.py
   scripts/tf_topic_relay.py

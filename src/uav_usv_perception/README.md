@@ -8,7 +8,9 @@ The main fleet launch can attach the verified RGL Mid-360 sensor to the
 existing `usv_01` model at runtime. The source world and USV model are not
 rewritten: a generated model under `/var/tmp/UAV_USV_fleet_mid360` keeps the
 original mass, collision geometry, wave follower, Nav2 interface, and velocity
-controller, then adds only a visual, an SDF frame, and the RGL custom sensor.
+controller, then adds only semantic frames, visual geometry, and the RGL custom
+sensor. The CAD-style shell is built from SDF primitives and is not an official
+Livox mesh.
 
 ```text
 map -> odom -> usv_01/base_link -> usv_01/mid360_link
@@ -48,7 +50,10 @@ Main launch parameters:
 | `mid360_min_range` | `0.5` | Minimum simulated and preprocessing range in metres. |
 | `mid360_range` | `70.0` | Maximum simulated and preprocessing range in metres. |
 | `mid360_voxel_size` | `0.12` | Filtered-cloud voxel size in metres; `0` disables voxel filtering. |
-| `nav2_start_delay` | `7.0` | Waits for Gazebo/RGL odometry before starting the first USV Nav2 lifecycle; the second USV starts 3 s later. |
+| `mid360_visual_scale` | `1.0` | Scales only the CAD-style sensor visuals; physics and scan geometry are unchanged. |
+| `perception_source` | `ground_truth` | Reserved selector (`ground_truth`, `mid360`, `hybrid`); capture remains on ground truth in this stage. |
+| `nav2_start_delay` | `20.0` | Starts the first Nav2 stack after the Gazebo, RGL, and PX4 startup peak. |
+| `nav2_start_stagger` | `10.0` | Separates the two Nav2 lifecycle bringups to avoid service timeouts under load. |
 | `rgl_install` | `/var/tmp/RGLGazeboPlugin/install` | RGL installation prefix. |
 | `rgl_patterns` | `/var/tmp/RGLGazeboPlugin/lidar_patterns` | RGL scan-pattern directory. |
 
@@ -64,7 +69,7 @@ option is advertised.
 | Interface | Type | Frame / purpose |
 | --- | --- | --- |
 | `/fleet/uplink/usv_01/mid360/points` | `sensor_msgs/msg/PointCloud2` | Raw RGL returns in `usv_01/mid360_link`. |
-| `/perception/usv_01/mid360/points_filtered` | `sensor_msgs/msg/PointCloud2` | NaN/Inf removal, range crop, own-ship crop, voxel filtering. |
+| `/perception/usv_01/points_filtered` | `sensor_msgs/msg/PointCloud2` | NaN/Inf removal, range crop, own-ship crop, voxel filtering. |
 | `/perception/usv_01/mid360/preview` | `sensor_msgs/msg/PointCloud2` | At most 2 Hz and 5000 points for RViz/GUI display. |
 | `/fleet/sensor_status` | `uav_usv_interfaces/msg/SensorStatus` | Rate, age, latency, point count, drops, processing time, and health. |
 | `/perception/usv_01/mid360/set_visualization` | `std_srvs/srv/SetBool` | Enables/disables only the preview; filtered data remains available. |
@@ -86,10 +91,10 @@ ros2 service call /perception/usv_01/mid360/set_visualization \
   std_srvs/srv/SetBool "{data: false}"
 ```
 
-The Qt console subscribes only to `SensorStatus`. It displays the frame, rate,
-latency, filtered point count, drop count, and processing time, and calls the
-preview service from its display toggle. It never decodes the full-rate cloud
-on the Qt thread.
+The Qt console subscribes only to `SensorStatus`. It displays the frame, TF
+availability, rate, latency, filtered point count, drop count, and processing
+time, and calls the preview service from its display toggle. It never decodes
+the full-rate cloud on the Qt thread.
 
 ### Full-fleet measurement (2026-07-14)
 
@@ -114,10 +119,12 @@ figures are recorded rather than interpreted as sensor overhead. For repeatable
 profiling, use a fixed camera pose and sample over a longer interval.
 
 The complete capture regression reached `SUCCESS`: all four UAVs armed,
-entered Offboard, took off, and accepted assignments; both USVs accepted Nav2
-goals. During the run `usv_01/mid360_link` moved from approximately
-`(-15, 2, 2.1)` to `(-69, 6, 2.1)` in `map`, while both raw and filtered clouds
-continued publishing with the sensor frame.
+entered Offboard, took off, and accepted assignments; both USVs executed Nav2
+goals. In the final cold-start regression, `usv_01` moved from approximately
+`(-16, 2)` to `(-10.4, 30.1)` in `map`, while the raw cloud remained near
+9.7 Hz and the filtered cloud near 9.3 Hz. A separate simultaneous two-USV
+motion test moved `usv_01` about 14.4 m and `usv_02` about 14.4 m without
+interrupting the Mid-360 stream.
 
 ## Standalone Harmonic sensor demo
 

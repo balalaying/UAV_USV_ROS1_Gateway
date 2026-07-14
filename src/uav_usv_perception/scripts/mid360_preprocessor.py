@@ -10,8 +10,10 @@ import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
+from rclpy.time import Time
 from sensor_msgs.msg import PointCloud2, PointField
 from std_srvs.srv import SetBool
+from tf2_ros import Buffer, TransformListener
 from uav_usv_interfaces.msg import SensorStatus
 
 
@@ -22,7 +24,7 @@ class Mid360Preprocessor(Node):
             'input_topic', '/fleet/uplink/usv_01/mid360/points'
         )
         self.declare_parameter(
-            'output_topic', '/perception/usv_01/mid360/points_filtered'
+            'output_topic', '/perception/usv_01/points_filtered'
         )
         self.declare_parameter(
             'preview_topic', '/perception/usv_01/mid360/preview'
@@ -31,6 +33,7 @@ class Mid360Preprocessor(Node):
         self.declare_parameter('vehicle_id', 'usv_01')
         self.declare_parameter('sensor_id', 'mid360')
         self.declare_parameter('frame_id', 'usv_01/mid360_link')
+        self.declare_parameter('tf_target_frame', 'map')
         self.declare_parameter('expected_rate_hz', 10.0)
         self.declare_parameter('timeout_seconds', 1.0)
         self.declare_parameter('min_range', 0.5)
@@ -53,6 +56,9 @@ class Mid360Preprocessor(Node):
         self.vehicle_id = str(self.get_parameter('vehicle_id').value)
         self.sensor_id = str(self.get_parameter('sensor_id').value)
         self.frame_id = str(self.get_parameter('frame_id').value)
+        self.tf_target_frame = str(
+            self.get_parameter('tf_target_frame').value
+        )
         self.expected_rate = max(
             0.1, float(self.get_parameter('expected_rate_hz').value)
         )
@@ -111,6 +117,8 @@ class Mid360Preprocessor(Node):
             qos_profile_sensor_data,
         )
         self.create_timer(1.0, self._publish_status)
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.arrival_times = deque(maxlen=100)
         self.last_arrival = 0.0
@@ -124,6 +132,8 @@ class Mid360Preprocessor(Node):
         self.dropped_messages = 0
         self.last_preview_time = 0.0
         self.warned_layout = False
+        self.last_cloud_frame = self.frame_id
+        self.tf_available = False
 
         self.get_logger().info(
             'Mid-360 preprocessing: %s -> %s, preview=%s'
@@ -252,6 +262,7 @@ class Mid360Preprocessor(Node):
         self.last_arrival = now_monotonic
         self.arrival_times.append(now_monotonic)
         self.last_message_time = msg.header.stamp
+        self.last_cloud_frame = msg.header.frame_id or self.frame_id
         now_ns = self.get_clock().now().nanoseconds
         stamp_ns = (
             int(msg.header.stamp.sec) * 1000000000
@@ -281,13 +292,21 @@ class Mid360Preprocessor(Node):
         )
         rate = self._measured_rate()
         timed_out = age >= self.timeout
+        try:
+            self.tf_available = bool(self.tf_buffer.can_transform(
+                self.tf_target_frame,
+                self.last_cloud_frame,
+                Time(),
+            ))
+        except Exception:
+            self.tf_available = False
         status = SensorStatus()
         status.header.stamp = self.get_clock().now().to_msg()
         status.vehicle_id = self.vehicle_id
         status.sensor_id = self.sensor_id
         status.uplink_topic = self.input_topic
         status.message_type = 'sensor_msgs/msg/PointCloud2'
-        status.frame_id = self.frame_id
+        status.frame_id = self.last_cloud_frame
         status.last_message_time = self.last_message_time
         status.measured_rate_hz = float(rate)
         status.age_seconds = float(min(age, 9999.0))
@@ -298,8 +317,12 @@ class Mid360Preprocessor(Node):
         status.total_bytes = int(self.total_bytes)
         status.dropped_messages = int(self.dropped_messages)
         status.timed_out = timed_out
+        status.tf_target_frame = self.tf_target_frame
+        status.tf_available = self.tf_available
         status.healthy = (
-            not timed_out and rate >= max(0.2, 0.5 * self.expected_rate)
+            not timed_out
+            and rate >= max(0.2, 0.5 * self.expected_rate)
+            and self.tf_available
         )
         self.status_pub.publish(status)
 

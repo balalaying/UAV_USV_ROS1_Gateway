@@ -73,12 +73,22 @@ def _fleet_runtime_actions(
     voxel_size = float(
         LaunchConfiguration('mid360_voxel_size').perform(context)
     )
+    visual_scale = float(
+        LaunchConfiguration('mid360_visual_scale').perform(context)
+    )
+    perception_source = LaunchConfiguration(
+        'perception_source'
+    ).perform(context).strip().lower()
+    if perception_source not in ('ground_truth', 'mid360', 'hybrid'):
+        raise RuntimeError(
+            'perception_source must be ground_truth, mid360, or hybrid'
+        )
     rgl_root = LaunchConfiguration('rgl_install').perform(context)
     rgl_patterns = LaunchConfiguration('rgl_patterns').perform(context)
     rgl_plugin_dir = os.path.join(rgl_root, 'RGLServerPlugin')
     frame_id = vehicle_id + '/mid360_link'
     raw_topic = '/fleet/uplink/%s/mid360/rgl_points' % vehicle_id
-    filtered_topic = '/perception/%s/mid360/points_filtered' % vehicle_id
+    filtered_topic = '/perception/%s/points_filtered' % vehicle_id
     preview_topic = '/perception/%s/mid360/preview' % vehicle_id
 
     px4_models = os.path.join(px4_dir, 'Tools', 'simulation', 'gz', 'models')
@@ -137,7 +147,8 @@ def _fleet_runtime_actions(
             prepare_sensor = (
                 '%s --world %s --models-dir %s --output-root %s '
                 '--vehicle-id %s --raw-topic %s --frame-id %s '
-                '--update-rate %.6f --min-range %.6f --max-range %.6f'
+                '--update-rate %.6f --min-range %.6f --max-range %.6f '
+                '--visual-scale %.6f'
                 % (
                     shlex.quote(prepare_mid360),
                     shlex.quote(world),
@@ -149,6 +160,7 @@ def _fleet_runtime_actions(
                     update_rate,
                     min_range,
                     max_range,
+                    visual_scale,
                 )
             )
             command = (
@@ -188,6 +200,17 @@ def _fleet_runtime_actions(
             output='screen',
             additional_env=environment,
         ))
+        actions.append(Node(
+            package='uav_usv_perception',
+            executable='fleet_gazebo_labels.py',
+            name='fleet_gazebo_labels',
+            output='screen',
+            parameters=[{
+                'pose_topic': '/world/%s/pose/info' % WORLD_NAME,
+                'mid360_vehicle_id': vehicle_id,
+                'show_mid360': enable_mid360,
+            }],
+        ))
 
     if enable_mid360:
         actions.extend([
@@ -215,6 +238,7 @@ def _fleet_runtime_actions(
                     'preview_topic': preview_topic,
                     'vehicle_id': vehicle_id,
                     'frame_id': frame_id,
+                    'tf_target_frame': 'map',
                     'expected_rate_hz': update_rate,
                     'min_range': min_range,
                     'max_range': max_range,
@@ -521,12 +545,29 @@ def generate_launch_description():
         DeclareLaunchArgument('mid360_min_range', default_value='0.5'),
         DeclareLaunchArgument('mid360_range', default_value='70.0'),
         DeclareLaunchArgument('mid360_voxel_size', default_value='0.12'),
+        DeclareLaunchArgument('mid360_visual_scale', default_value='1.0'),
+        DeclareLaunchArgument(
+            'perception_source',
+            default_value='ground_truth',
+            description=(
+                'Reserved perception source selector: ground_truth, mid360, '
+                'or hybrid. Capture input remains ground_truth in this stage.'
+            ),
+        ),
         DeclareLaunchArgument(
             'nav2_start_delay',
-            default_value='7.0',
+            default_value='20.0',
             description=(
                 'Delay Nav2 lifecycle startup until Gazebo/RGL odometry is '
                 'available.'
+            ),
+        ),
+        DeclareLaunchArgument(
+            'nav2_start_stagger',
+            default_value='10.0',
+            description=(
+                'Stagger consecutive Nav2 stacks to avoid lifecycle service '
+                'timeouts while Gazebo and RGL are under startup load.'
             ),
         ),
         DeclareLaunchArgument(
@@ -572,7 +613,9 @@ def generate_launch_description():
             period=PythonExpression([
                 LaunchConfiguration('nav2_start_delay'),
                 ' + ',
-                str(3.0 * usv_index),
+                LaunchConfiguration('nav2_start_stagger'),
+                ' * ',
+                str(usv_index),
             ]),
             actions=[GroupAction(actions=[
                 PushRosNamespace(vehicle_id),

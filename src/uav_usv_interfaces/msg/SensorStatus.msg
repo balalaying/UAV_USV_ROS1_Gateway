@@ -15,3 +15,5 @@ uint64 total_bytes
 uint64 dropped_messages
 bool healthy
 bool timed_out
+string tf_target_frame
+bool tf_available
