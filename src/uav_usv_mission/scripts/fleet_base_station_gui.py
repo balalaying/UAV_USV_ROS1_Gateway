@@ -1138,6 +1138,7 @@ class BaseStationWindow(QMainWindow):
     }
     SENSOR_NAMES = {
         'down_camera': '下视相机',
+        'uav_camera': '无人机相机',
         'front_camera': '船首相机',
         'front_lidar': '船载雷达',
         'mid360': 'Mid-360点云',
@@ -1745,6 +1746,7 @@ class BaseStationWindow(QMainWindow):
         sensor_order = {
             'front_camera': 0,
             'down_camera': 1,
+            'uav_camera': 1,
             'mid360': 2,
             'front_lidar': 3,
             'navigation': 4,

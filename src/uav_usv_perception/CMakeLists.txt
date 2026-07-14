@@ -9,6 +9,8 @@ install(PROGRAMS
   scripts/mid360_demo_motion.py
   scripts/mid360_preprocessor.py
   scripts/tf_topic_relay.py
+  scripts/uav_camera_adapter.py
+  scripts/uav_camera_tf.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

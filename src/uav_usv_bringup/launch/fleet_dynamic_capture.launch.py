@@ -406,7 +406,7 @@ def _usv_agent(
     )
 
 
-def _sensor_bridges():
+def _sensor_bridges(camera_rate):
     return [Node(
         package='uav_usv_mission',
         executable='gz_sensor_bridge',
@@ -420,8 +420,44 @@ def _sensor_bridges():
             'usv_source_names': [item[1] for item in USV_CONFIG],
             'bridge_usv_scans': True,
             'bridge_base_radar': False,
+            'camera_max_rate': ParameterValue(
+                camera_rate, value_type=float
+            ),
         }],
     )]
+
+
+def _uav_camera_nodes(enable_adapter, expected_rate):
+    vehicle_ids = [item[0] for item in UAV_CONFIG]
+    condition = IfCondition(enable_adapter)
+    return [
+        Node(
+            package='uav_usv_perception',
+            executable='uav_camera_tf.py',
+            name='fleet_uav_camera_tf',
+            output='screen',
+            condition=condition,
+            parameters=[{
+                'vehicle_ids': vehicle_ids,
+                'pose_topic': '/world/%s/pose/info' % WORLD_NAME,
+                'map_frame_id': 'map',
+            }],
+        ),
+        Node(
+            package='uav_usv_perception',
+            executable='uav_camera_adapter.py',
+            name='fleet_uav_camera_adapter',
+            output='screen',
+            condition=condition,
+            parameters=[{
+                'vehicle_ids': vehicle_ids,
+                'expected_rate_hz': ParameterValue(
+                    expected_rate, value_type=float
+                ),
+                'tf_target_frame': 'map',
+            }],
+        ),
+    ]
 
 
 def generate_launch_description():
@@ -444,6 +480,10 @@ def generate_launch_description():
         'simulate_usv_02_unreachable'
     )
     uav_model_scale = LaunchConfiguration('uav_model_scale')
+    enable_uav_camera_adapter = LaunchConfiguration(
+        'enable_uav_camera_adapter'
+    )
+    uav_camera_rate = LaunchConfiguration('uav_camera_rate')
 
     px4_dir_default = os.path.expanduser(
         os.environ.get('PX4_DIR', '~/PX4-Autopilot')
@@ -534,6 +574,14 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_sudden_turn', default_value='true'),
         DeclareLaunchArgument('sudden_turn_time', default_value='55.0'),
         DeclareLaunchArgument('uav_model_scale', default_value='6.0'),
+        DeclareLaunchArgument(
+            'enable_uav_camera_adapter',
+            default_value='true',
+            description=(
+                'Publish standardized UAV image_raw/camera_info and TF.'
+            ),
+        ),
+        DeclareLaunchArgument('uav_camera_rate', default_value='15.0'),
         DeclareLaunchArgument('enable_mid360', default_value='true'),
         DeclareLaunchArgument('mid360_vehicle_id', default_value='usv_01'),
         DeclareLaunchArgument(
@@ -602,7 +650,10 @@ def generate_launch_description():
         ),
     ]
 
-    actions.extend(_sensor_bridges())
+    actions.extend(_sensor_bridges(uav_camera_rate))
+    actions.extend(_uav_camera_nodes(
+        enable_uav_camera_adapter, uav_camera_rate
+    ))
 
     for usv_index, (vehicle_id, model_control_name) in enumerate(USV_CONFIG):
         actions.append(_boat_interface(

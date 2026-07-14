@@ -198,20 +198,26 @@ class FleetBaseStation(Node):
         )
 
         for uav_id in self.uav_ids:
+            camera_topic = self._topic(
+                '/fleet/uplink/%s/camera/image_raw' % uav_id
+            )
             self._add_image_sensor(
                 uav_id,
-                'down_camera',
-                self._topic('/fleet/uplink/%s/camera' % uav_id),
-                self._make_image_callback(uav_id),
+                'uav_camera',
+                camera_topic,
+                self._make_image_callback(uav_id, camera_topic),
                 sensor_qos,
                 self.image_callback_group,
             )
         for usv_id in self.usv_ids:
+            camera_topic = self._topic(
+                '/fleet/uplink/%s/camera' % usv_id
+            )
             self._add_image_sensor(
                 usv_id,
                 'front_camera',
-                self._topic('/fleet/uplink/%s/camera' % usv_id),
-                self._make_image_callback(usv_id),
+                camera_topic,
+                self._make_image_callback(usv_id, camera_topic),
                 sensor_qos,
                 self.image_callback_group,
             )
@@ -295,9 +301,8 @@ class FleetBaseStation(Node):
             Image, topic, callback, qos, callback_group=callback_group
         )
 
-    def _make_image_callback(self, vehicle_id):
+    def _make_image_callback(self, vehicle_id, topic):
         def callback(msg):
-            topic = self._topic('/fleet/uplink/%s/camera' % vehicle_id)
             self.trackers[topic].update(len(msg.data))
             with self.camera_lock:
                 self.images[vehicle_id] = msg
@@ -462,6 +467,10 @@ class FleetBaseStation(Node):
         now = time.monotonic()
         summary = []
         for tracker in self.trackers.values():
+            # UAV camera health is published by uav_camera_adapter with the
+            # source timestamp, frame, latency, and TF result.
+            if tracker.sensor_id == 'uav_camera':
+                continue
             age = (
                 now - tracker.last_received
                 if tracker.last_received > 0.0
@@ -583,7 +592,9 @@ class FleetBaseStation(Node):
                 )
             for uav_id in self.uav_ids:
                 tracker = self.trackers[
-                    self._topic('/fleet/uplink/%s/camera' % uav_id)
+                    self._topic(
+                        '/fleet/uplink/%s/camera/image_raw' % uav_id
+                    )
                 ]
                 title = '%s DOWN CAMERA' % uav_id.upper()
                 if uav_id == 'uav_01':

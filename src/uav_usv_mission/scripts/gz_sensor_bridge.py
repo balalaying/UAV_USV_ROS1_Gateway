@@ -5,6 +5,7 @@ import math
 import threading
 import time
 
+from gz.msgs10.camera_info_pb2 import CameraInfo as GzCameraInfo
 from gz.msgs10.image_pb2 import Image as GzImage
 from gz.msgs10.laserscan_pb2 import LaserScan as GzLaserScan
 from gz.transport13 import Node as GzNode
@@ -12,6 +13,7 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import LaserScan
 
@@ -71,17 +73,28 @@ class GzSensorBridge(Node):
                 '/world/%s/model/%s/link/camera_link/'
                 'sensor/camera/image' % (world_name, model_name),
                 '/fleet/uplink/%s/camera' % vehicle_id,
-                vehicle_id + '_down_camera',
+                vehicle_id + '/camera_link',
+                '/world/%s/model/%s/link/camera_link/'
+                'sensor/camera/camera_info' % (world_name, model_name),
+                '/fleet/uplink/%s/camera_info_raw' % vehicle_id,
             ))
         for vehicle_id, source_name in zip(usv_ids, usv_sources):
             camera_topics.append((
                 '/defense/%s/front_camera' % source_name,
                 '/fleet/uplink/%s/camera' % vehicle_id,
                 vehicle_id + '_front_camera',
+                '',
+                '',
             ))
 
         self.sensor_publishers = {}
-        for gz_topic, ros_topic, frame_id in camera_topics:
+        for (
+            gz_topic,
+            ros_topic,
+            frame_id,
+            gz_info_topic,
+            ros_info_topic,
+        ) in camera_topics:
             publisher = self.create_publisher(
                 Image, ros_topic, qos_profile_sensor_data
             )
@@ -91,6 +104,20 @@ class GzSensorBridge(Node):
             )
             if not self.gz_node.subscribe(GzImage, gz_topic, callback):
                 raise RuntimeError('Unable to subscribe to %s' % gz_topic)
+            if gz_info_topic:
+                info_publisher = self.create_publisher(
+                    CameraInfo, ros_info_topic, qos_profile_sensor_data
+                )
+                self.sensor_publishers[ros_info_topic] = info_publisher
+                info_callback = self._camera_info_callback(
+                    info_publisher, frame_id, ros_info_topic, 1.0
+                )
+                if not self.gz_node.subscribe(
+                    GzCameraInfo, gz_info_topic, info_callback
+                ):
+                    raise RuntimeError(
+                        'Unable to subscribe to %s' % gz_info_topic
+                    )
 
         if bool(self.get_parameter('bridge_usv_scans').value):
             for vehicle_id, source_name in zip(usv_ids, usv_sources):
@@ -187,6 +214,46 @@ class GzSensorBridge(Node):
                     raise
             self._count(topic)
         return callback
+
+    def _camera_info_callback(self, publisher, frame_id, topic, min_period):
+        distortion_models = {
+            0: 'plumb_bob',
+            1: 'rational_polynomial',
+            2: 'equidistant',
+        }
+
+        last_publish = 0.0
+
+        def callback(source):
+            nonlocal last_publish
+            if self.shutting_down:
+                return
+            now = time.monotonic()
+            if now - last_publish < min_period:
+                return
+            last_publish = now
+            msg = CameraInfo()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.header.frame_id = frame_id
+            msg.width = int(source.width)
+            msg.height = int(source.height)
+            msg.distortion_model = distortion_models.get(
+                int(source.distortion.model), 'plumb_bob'
+            )
+            msg.d = [float(value) for value in source.distortion.k]
+            msg.k = self._fixed_array(source.intrinsics.k, 9)
+            msg.r = self._fixed_array(source.rectification_matrix, 9)
+            msg.p = self._fixed_array(source.projection.p, 12)
+            publisher.publish(msg)
+            self._count(topic)
+
+        return callback
+
+    @staticmethod
+    def _fixed_array(values, length):
+        output = [float(value) for value in values[:length]]
+        output.extend([0.0] * (length - len(output)))
+        return output
 
     def _scan_callback(self, publisher, topic, frame_id):
         def callback(source):
