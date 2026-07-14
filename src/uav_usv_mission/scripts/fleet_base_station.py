@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import math
+import threading
 import time
 import uuid
 
@@ -9,6 +10,7 @@ from nav_msgs.msg import Odometry
 import numpy as np
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
 from rclpy.executors import MultiThreadedExecutor
@@ -57,12 +59,14 @@ class FleetBaseStation(Node):
 
     def __init__(self):
         super().__init__('fleet_base_station')
+        self.declare_parameter('topic_namespace', '')
         self.declare_parameter('owner_id', 'shore_base_station')
         self.declare_parameter('uav_id', 'uav_01')
         self.declare_parameter('usv_id', 'usv_01')
         self.declare_parameter('uav_ids', 'uav_01,uav_02,uav_03')
         self.declare_parameter('usv_ids', 'usv_01,usv_02,usv_03')
         self.declare_parameter('auto_demo', True)
+        self.declare_parameter('monitor_only', False)
         self.declare_parameter('target_x', 24.0)
         self.declare_parameter('target_y', 8.0)
         self.declare_parameter('uav_altitude', 16.0)
@@ -82,6 +86,7 @@ class FleetBaseStation(Node):
         if self.usv_id not in self.usv_ids:
             self.usv_ids.insert(0, self.usv_id)
         self.auto_demo = bool(self.get_parameter('auto_demo').value)
+        self.monitor_only = bool(self.get_parameter('monitor_only').value)
         self.target_x = float(self.get_parameter('target_x').value)
         self.target_y = float(self.get_parameter('target_y').value)
         self.uav_altitude = float(
@@ -91,6 +96,17 @@ class FleetBaseStation(Node):
             self.get_parameter('lease_duration').value
         )
         self.lease_id = uuid.uuid4().hex
+
+        self.topic_namespace = str(
+            self.get_parameter('topic_namespace').value
+        ).strip('/')
+
+        def topic(name):
+            if not self.topic_namespace:
+                return name
+            return '/%s%s' % (self.topic_namespace, name)
+
+        self._topic = topic
 
         sensor_qos = QoSProfile(depth=1)
         sensor_qos.reliability = ReliabilityPolicy.BEST_EFFORT
@@ -109,39 +125,42 @@ class FleetBaseStation(Node):
         mosaic_qos.durability = DurabilityPolicy.VOLATILE
 
         self.lease_pub = self.create_publisher(
-            ControlLease, '/fleet/control_lease', lease_qos
+            ControlLease, self._topic('/fleet/control_lease'), lease_qos
         )
         self.command_pub = self.create_publisher(
-            FleetCommand, '/fleet/command', 20
+            FleetCommand, self._topic('/fleet/command'), 20
         )
         self.sensor_status_pub = self.create_publisher(
-            SensorStatus, '/fleet/sensor_status', 20
+            SensorStatus, self._topic('/fleet/sensor_status'), 20
         )
         self.marker_pub = self.create_publisher(
-            MarkerArray, '/fleet/base/markers', marker_qos
+            MarkerArray, self._topic('/fleet/base/markers'), marker_qos
         )
         self.mosaic_pub = self.create_publisher(
-            Image, '/fleet/base/camera_mosaic', mosaic_qos
+            Image, self._topic('/fleet/base/camera_mosaic'), mosaic_qos
         )
         self.scan_pub = self.create_publisher(
-            LaserScan, '/fleet/base/usv_scan', base_sensor_qos
+            LaserScan, self._topic('/fleet/base/usv_scan'), base_sensor_qos
         )
 
         self.create_subscription(
-            VehicleState, '/fleet/state', self._on_state, sensor_qos
+            VehicleState,
+            self._topic('/fleet/state'),
+            self._on_state,
+            sensor_qos,
         )
         self.create_subscription(
-            CommandAck, '/fleet/command_ack', self._on_ack, 20
+            CommandAck, self._topic('/fleet/command_ack'), self._on_ack, 20
         )
         self.create_subscription(
             PoseStamped,
-            '/fleet/base/operator_goal',
+            self._topic('/fleet/base/operator_goal'),
             self._on_operator_goal,
             10,
         )
         self.create_subscription(
             String,
-            '/fleet/base/operator_action',
+            self._topic('/fleet/base/operator_action'),
             self._on_operator_action,
             10,
         )
@@ -149,8 +168,11 @@ class FleetBaseStation(Node):
         self.trackers = {}
         self.images = {}
         self.camera_frames = {}
-        self.camera_frame_times = {}
-        self.camera_decode_period = 1.0 / 20.0
+        self.camera_frame_versions = {}
+        self.decoded_camera_versions = {}
+        self.camera_frame_version = 0
+        self.last_mosaic_version = -1
+        self.camera_lock = threading.Lock()
         self.vehicle_states = {}
         self.command_status = {}
         self.command_counter = 0
@@ -159,13 +181,27 @@ class FleetBaseStation(Node):
         self.demo_stage = 'waiting'
         self.takeoff_command_id = ''
         self.image_callback_group = ReentrantCallbackGroup()
-        self.timer_callback_group = ReentrantCallbackGroup()
+        self.timer_callback_group = MutuallyExclusiveCallbackGroup()
+
+        radar_topic = self._topic('/fleet/base/radar/scan')
+        self.trackers[radar_topic] = SensorTracker(
+            self.owner_id,
+            'base_radar',
+            radar_topic,
+            'sensor_msgs/LaserScan',
+        )
+        self.create_subscription(
+            LaserScan,
+            radar_topic,
+            self._on_base_radar_scan,
+            sensor_qos,
+        )
 
         for uav_id in self.uav_ids:
             self._add_image_sensor(
                 uav_id,
                 'down_camera',
-                '/fleet/uplink/%s/camera' % uav_id,
+                self._topic('/fleet/uplink/%s/camera' % uav_id),
                 self._make_image_callback(uav_id),
                 sensor_qos,
                 self.image_callback_group,
@@ -174,12 +210,12 @@ class FleetBaseStation(Node):
             self._add_image_sensor(
                 usv_id,
                 'front_camera',
-                '/fleet/uplink/%s/camera' % usv_id,
+                self._topic('/fleet/uplink/%s/camera' % usv_id),
                 self._make_image_callback(usv_id),
                 sensor_qos,
                 self.image_callback_group,
             )
-            scan_topic = '/fleet/uplink/%s/scan' % usv_id
+            scan_topic = self._topic('/fleet/uplink/%s/scan' % usv_id)
             self.trackers[scan_topic] = SensorTracker(
                 usv_id,
                 'front_lidar',
@@ -192,7 +228,7 @@ class FleetBaseStation(Node):
                 self._make_scan_callback(usv_id),
                 sensor_qos,
             )
-            odom_topic = '/fleet/uplink/%s/odom' % usv_id
+            odom_topic = self._topic('/fleet/uplink/%s/odom' % usv_id)
             self.trackers[odom_topic] = SensorTracker(
                 usv_id, 'navigation', odom_topic, 'nav_msgs/Odometry'
             )
@@ -203,9 +239,12 @@ class FleetBaseStation(Node):
                 sensor_qos,
             )
 
-        self.create_timer(
-            1.0, self._publish_leases, callback_group=self.timer_callback_group
-        )
+        if not self.monitor_only:
+            self.create_timer(
+                1.0,
+                self._publish_leases,
+                callback_group=self.timer_callback_group,
+            )
         self.create_timer(
             1.0,
             self._publish_sensor_status,
@@ -215,13 +254,16 @@ class FleetBaseStation(Node):
             0.5, self._publish_markers, callback_group=self.timer_callback_group
         )
         self.create_timer(
-            1.0 / 30.0,
+            1.0 / 15.0,
             self._publish_camera_mosaic,
             callback_group=self.timer_callback_group,
         )
-        self.create_timer(
-            0.5, self._advance_demo, callback_group=self.timer_callback_group
-        )
+        if not self.monitor_only:
+            self.create_timer(
+                0.5,
+                self._advance_demo,
+                callback_group=self.timer_callback_group,
+            )
         self.get_logger().info(
             'Base station %s online; lease=%s, vehicles=%s/%s, target=(%.1f, %.1f)'
             % (
@@ -255,41 +297,60 @@ class FleetBaseStation(Node):
 
     def _make_image_callback(self, vehicle_id):
         def callback(msg):
-            topic = '/fleet/uplink/%s/camera' % vehicle_id
+            topic = self._topic('/fleet/uplink/%s/camera' % vehicle_id)
             self.trackers[topic].update(len(msg.data))
-            self.images[vehicle_id] = msg
-            now = time.monotonic()
-            last_decode = self.camera_frame_times.get(vehicle_id, 0.0)
-            if now - last_decode < self.camera_decode_period:
-                return
-            try:
-                self.camera_frames[vehicle_id] = cv2.resize(
-                    self._decode_image(msg),
-                    (240, 135),
-                    interpolation=cv2.INTER_AREA,
+            with self.camera_lock:
+                self.images[vehicle_id] = msg
+                self.camera_frame_versions[vehicle_id] = (
+                    self.camera_frame_versions.get(vehicle_id, 0) + 1
                 )
-                self.camera_frame_times[vehicle_id] = now
+                self.camera_frame_version += 1
+
+        return callback
+
+    def _decode_latest_camera_frames(self):
+        with self.camera_lock:
+            pending = [
+                (vehicle_id, msg, self.camera_frame_versions[vehicle_id])
+                for vehicle_id, msg in self.images.items()
+                if self.decoded_camera_versions.get(vehicle_id) !=
+                self.camera_frame_versions.get(vehicle_id)
+            ]
+        for vehicle_id, msg, version in pending:
+            try:
+                frame = self._decode_image(msg)
+                if frame.shape[:2] != (135, 240):
+                    frame = cv2.resize(
+                        frame,
+                        (240, 135),
+                        interpolation=cv2.INTER_AREA,
+                    )
             except Exception as exc:
                 self.get_logger().warn(
                     'Unable to decode camera frame for %s: %s'
                     % (vehicle_id, exc),
                     throttle_duration_sec=5.0,
                 )
-
-        return callback
+                continue
+            self.camera_frames[vehicle_id] = frame
+            self.decoded_camera_versions[vehicle_id] = version
 
     def _make_scan_callback(self, vehicle_id):
         def callback(msg):
-            topic = '/fleet/uplink/%s/scan' % vehicle_id
+            topic = self._topic('/fleet/uplink/%s/scan' % vehicle_id)
             self.trackers[topic].update(len(msg.ranges) * 4)
             if vehicle_id == self.usv_id:
                 self.scan_pub.publish(msg)
 
         return callback
 
+    def _on_base_radar_scan(self, msg):
+        topic = self._topic('/fleet/base/radar/scan')
+        self.trackers[topic].update(len(msg.ranges) * 4)
+
     def _make_odom_callback(self, vehicle_id):
         def callback(_msg):
-            topic = '/fleet/uplink/%s/odom' % vehicle_id
+            topic = self._topic('/fleet/uplink/%s/odom' % vehicle_id)
             self.trackers[topic].update(256)
 
         return callback
@@ -299,6 +360,8 @@ class FleetBaseStation(Node):
 
     def _on_ack(self, msg):
         self.command_status[msg.command_id] = msg
+        if self.monitor_only:
+            return
         self.get_logger().info(
             'ACK %s from %s: status=%d progress=%.0f%% %s'
             % (
@@ -311,6 +374,11 @@ class FleetBaseStation(Node):
         )
 
     def _on_operator_goal(self, msg):
+        if self.monitor_only:
+            self.get_logger().info(
+                'Monitor-only console observed operator goal; no command sent'
+            )
+            return
         self.target_x = float(msg.pose.position.x)
         self.target_y = float(msg.pose.position.y)
         altitude = float(msg.pose.position.z)
@@ -335,6 +403,12 @@ class FleetBaseStation(Node):
 
     def _on_operator_action(self, msg):
         action = msg.data.strip().upper()
+        if self.monitor_only:
+            self.get_logger().info(
+                'Monitor-only console routed operator action without taking '
+                'control lease: %s' % action
+            )
+            return
         if action == 'TAKEOFF':
             for uav_id in self.uav_ids:
                 state_entry = self.vehicle_states.get(uav_id)
@@ -357,6 +431,10 @@ class FleetBaseStation(Node):
                 self._send_command(
                     vehicle_id, FleetCommand.COMMAND_EMERGENCY_STOP
                 )
+        elif action.startswith('CAPTURE:') or action == 'CANCEL_CAPTURE':
+            self.get_logger().info(
+                'Capture action routed to cooperative mission: %s' % action
+            )
         else:
             self.get_logger().warn('Unknown operator action: %s' % action)
 
@@ -395,11 +473,17 @@ class FleetBaseStation(Node):
             status.sensor_id = tracker.sensor_id
             status.uplink_topic = tracker.topic
             status.message_type = tracker.message_type
+            status.frame_id = ''
             status.measured_rate_hz = float(tracker.rate_hz)
             status.age_seconds = float(min(age, 9999.0))
+            status.latency_seconds = 0.0
+            status.processing_time_ms = 0.0
+            status.point_count = 0
             status.total_messages = tracker.total_messages
             status.total_bytes = tracker.total_bytes
+            status.dropped_messages = 0
             status.healthy = age < 2.0 and tracker.rate_hz > 0.2
+            status.timed_out = age >= 2.0
             self.sensor_status_pub.publish(status)
             summary.append(
                 '%s/%s=%s %.1fHz'
@@ -467,16 +551,26 @@ class FleetBaseStation(Node):
             1,
             cv2.LINE_AA,
         )
+        if title.startswith('PRIMARY PERCEPTION'):
+            cv2.rectangle(
+                panel, (1, 1), (width - 2, height - 2),
+                (0, 210, 255), 3,
+            )
         return panel
 
     def _publish_camera_mosaic(self):
         if self.mosaic_pub.get_subscription_count() == 0:
             return
+        with self.camera_lock:
+            frame_version = self.camera_frame_version
+        if frame_version == self.last_mosaic_version:
+            return
+        self._decode_latest_camera_frames()
         panels = []
         try:
             for usv_id in self.usv_ids:
                 tracker = self.trackers[
-                    '/fleet/uplink/%s/camera' % usv_id
+                    self._topic('/fleet/uplink/%s/camera' % usv_id)
                 ]
                 panels.append(
                     self._camera_panel(
@@ -487,12 +581,15 @@ class FleetBaseStation(Node):
                 )
             for uav_id in self.uav_ids:
                 tracker = self.trackers[
-                    '/fleet/uplink/%s/camera' % uav_id
+                    self._topic('/fleet/uplink/%s/camera' % uav_id)
                 ]
+                title = '%s DOWN CAMERA' % uav_id.upper()
+                if uav_id == 'uav_01':
+                    title = 'PRIMARY PERCEPTION UAV / PX4'
                 panels.append(
                     self._camera_panel(
                         self.camera_frames.get(uav_id),
-                        '%s DOWN CAMERA' % uav_id.upper(),
+                        title,
                         tracker,
                     )
                 )
@@ -513,7 +610,13 @@ class FleetBaseStation(Node):
             )
             return
         msg = Image()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        with self.camera_lock:
+            primary_frame = self.images.get(self.uav_id)
+        msg.header.stamp = (
+            primary_frame.header.stamp
+            if primary_frame is not None
+            else self.get_clock().now().to_msg()
+        )
         msg.header.frame_id = 'map'
         msg.height = mosaic.shape[0]
         msg.width = mosaic.shape[1]
@@ -521,6 +624,7 @@ class FleetBaseStation(Node):
         msg.step = mosaic.shape[1] * 3
         msg.data = mosaic.tobytes()
         self.mosaic_pub.publish(msg)
+        self.last_mosaic_version = frame_version
 
     def _send_command(
         self, vehicle_id, command_type, target=None, parameters=None
@@ -734,15 +838,18 @@ class FleetBaseStation(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = FleetBaseStation()
-    executor = MultiThreadedExecutor(num_threads=10)
+    executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
     try:
         executor.spin()
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
-        executor.shutdown()
-        node.destroy_node()
+        try:
+            executor.shutdown(timeout_sec=1.0)
+            node.destroy_node()
+        except (KeyboardInterrupt, ExternalShutdownException):
+            pass
         if rclpy.ok():
             rclpy.shutdown()
 

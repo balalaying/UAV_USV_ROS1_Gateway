@@ -1,0 +1,151 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <world name="mid360_sensor_demo">
+    <plugin
+      filename="RGLServerPluginManager"
+      name="rgl::RGLServerPluginManager">
+      <do_ignore_entities_in_lidar_link>true</do_ignore_entities_in_lidar_link>
+    </plugin>
+
+    <gui fullscreen="0">
+      <plugin filename="MinimalScene" name="3D View">
+        <gz-gui>
+          <title>Mid-360 Sensor Demo</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="string" key="state">docked</property>
+        </gz-gui>
+        <engine>ogre2</engine>
+        <scene>scene</scene>
+        <ambient_light>0.72 0.76 0.82</ambient_light>
+        <background_color>0.78 0.88 0.96</background_color>
+        <camera_pose>-28 -32 25 0 0.55 0.78</camera_pose>
+        <camera_clip><near>0.1</near><far>800</far></camera_clip>
+      </plugin>
+      <plugin filename="GzSceneManager" name="Scene Manager"/>
+      <plugin filename="InteractiveViewControl" name="Interactive view control"/>
+      <plugin filename="CameraTracking" name="Camera Tracking"/>
+      <plugin filename="WorldControl" name="World control">
+        <play_pause>true</play_pause>
+        <step>true</step>
+        <start_paused>false</start_paused>
+      </plugin>
+    </gui>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+    <gravity>0 0 -9.8</gravity>
+    <scene>
+      <grid>false</grid>
+      <ambient>0.72 0.76 0.82 1</ambient>
+      <background>0.78 0.88 0.96 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <model name="ocean_plane">
+      <static>true</static>
+      <link name="ocean_link">
+        <visual name="ocean_visual">
+          <pose>0 0 -0.04 0 0 0</pose>
+          <geometry>
+            <plane><normal>0 0 1</normal><size>220 220</size></plane>
+          </geometry>
+          <material>
+            <ambient>0.01 0.12 0.2 0.88</ambient>
+            <diffuse>0.02 0.3 0.48 0.88</diffuse>
+            <specular>0.12 0.16 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <include>
+      <uri>model://waves</uri>
+      <name>waves</name>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>model://mid360_demo_usv</uri>
+      <name>usv_01</name>
+      <pose>-18 -10 0.72 0 0 0.2</pose>
+    </include>
+
+    <model name="navigation_pier">
+      <static>true</static>
+      <pose>20 3 1.5 0 0 0.35</pose>
+      <link name="pier_link">
+        <collision name="pier_collision">
+          <geometry><box><size>24 4 3</size></box></geometry>
+        </collision>
+        <visual name="pier_visual">
+          <geometry><box><size>24 4 3</size></box></geometry>
+          <material>
+            <ambient>0.25 0.27 0.3 1</ambient>
+            <diffuse>0.42 0.45 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="red_buoy">
+      <static>true</static>
+      <pose>-2 12 2.5 0 0 0</pose>
+      <link name="buoy_link">
+        <collision name="buoy_collision">
+          <geometry><cylinder><radius>1.0</radius><length>5</length></cylinder></geometry>
+        </collision>
+        <visual name="buoy_visual">
+          <geometry><cylinder><radius>1.0</radius><length>5</length></cylinder></geometry>
+          <material><ambient>0.55 0.02 0.02 1</ambient><diffuse>0.9 0.05 0.04 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="green_buoy">
+      <static>true</static>
+      <pose>8 -17 3.0 0 0 0</pose>
+      <link name="buoy_link">
+        <collision name="buoy_collision">
+          <geometry><cylinder><radius>1.2</radius><length>6</length></cylinder></geometry>
+        </collision>
+        <visual name="buoy_visual">
+          <geometry><cylinder><radius>1.2</radius><length>6</length></cylinder></geometry>
+          <material><ambient>0.02 0.35 0.12 1</ambient><diffuse>0.03 0.75 0.22 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="lighthouse">
+      <static>true</static>
+      <pose>35 -22 7 0 0 0</pose>
+      <link name="tower_link">
+        <collision name="tower_collision">
+          <geometry><cylinder><radius>2.2</radius><length>14</length></cylinder></geometry>
+        </collision>
+        <visual name="tower_visual">
+          <geometry><cylinder><radius>2.2</radius><length>14</length></cylinder></geometry>
+          <material><ambient>0.72 0.62 0.08 1</ambient><diffuse>0.95 0.82 0.12 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <light name="sun" type="directional">
+      <pose>0 0 80 0 0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>1.05</intensity>
+      <direction>-0.35 0.2 -0.92</direction>
+      <diffuse>0.9 0.9 0.86 1</diffuse>
+      <specular>0.25 0.25 0.25 1</specular>
+    </light>
+  </world>
+</sdf>

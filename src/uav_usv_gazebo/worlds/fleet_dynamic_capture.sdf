@@ -65,12 +65,12 @@
         <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
     </link></model>
 
-    <include><uri>model://x500</uri><name>uav_01</name><pose>-45 -34 1.35 0 0 0</pose></include>
-    <include><uri>model://x500</uri><name>uav_02</name><pose>-35 -34 1.35 0 0 0</pose></include>
-    <include><uri>model://x500</uri><name>uav_03</name><pose>-25 -34 1.35 0 0 0</pose></include>
-    <include><uri>model://x500</uri><name>uav_04</name><pose>-15 -34 1.35 0 0 0</pose></include>
-    <include><uri>model://scalable_capture_usv</uri><name>usv_01</name><pose>-16 2 0.68 0 0 0</pose></include>
-    <include><uri>model://scalable_capture_usv</uri><name>usv_02</name><pose>-16 14 0.68 0 0 0</pose></include>
+    <include><uri>model://x500_low_latency_cam_down</uri><name>uav_01</name><pose>-45 -34 1.35 0 0 0</pose></include>
+    <include><uri>model://x500_low_latency_cam_down</uri><name>uav_02</name><pose>-35 -34 1.35 0 0 0</pose></include>
+    <include><uri>model://x500_low_latency_cam_down</uri><name>uav_03</name><pose>-25 -34 1.35 0 0 0</pose></include>
+    <include><uri>model://x500_low_latency_cam_down</uri><name>uav_04</name><pose>-15 -34 1.35 0 0 0</pose></include>
+    <include><uri>model://defense_own_01_boat</uri><name>usv_01</name><pose>-16 2 0 0 0 0</pose></include>
+    <include><uri>model://defense_own_02_boat</uri><name>usv_02</name><pose>-16 14 0 0 0 0</pose></include>
     <include><uri>model://target_vessel</uri><name>enemy_target</name><pose>52 -20 0 0 0 0.25</pose></include>
 
     <light name="sun" type="directional"><pose>0 0 80 0 0 0</pose><cast_shadows>true</cast_shadows><intensity>1.1</intensity>

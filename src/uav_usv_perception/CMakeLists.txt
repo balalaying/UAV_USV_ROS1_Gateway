@@ -3,6 +3,15 @@ project(uav_usv_perception)
 
 find_package(ament_cmake REQUIRED)
 
+install(PROGRAMS
+  scripts/gz_pointcloud_bridge.py
+  scripts/mid360_demo_motion.py
+  scripts/mid360_preprocessor.py
+  scripts/tf_topic_relay.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY docs DESTINATION share/${PROJECT_NAME})
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 
 ament_package()

@@ -79,6 +79,7 @@ class CaptureManager(Node):
         self.declare_parameter('minimum_uavs', 1)
         self.declare_parameter('minimum_usvs', 1)
         self.declare_parameter('excluded_vehicle_ids', [''])
+        self.declare_parameter('auto_start', True)
 
         legacy_uav = str(self.get_parameter('uav_id').value)
         configured_uavs = self._string_list('uav_ids')
@@ -123,6 +124,7 @@ class CaptureManager(Node):
         self.excluded_vehicle_ids = set(
             self._string_list('excluded_vehicle_ids')
         )
+        self.auto_start = bool(self.get_parameter('auto_start').value)
         self.add_on_set_parameters_callback(self._on_parameters)
 
         self.predictor = TargetPredictor(
@@ -199,6 +201,12 @@ class CaptureManager(Node):
         self.create_subscription(
             CommandAck, '/fleet/command_ack', self._on_ack, 60
         )
+        self.create_subscription(
+            String,
+            '/fleet/base/operator_action',
+            self._on_operator_action,
+            10,
+        )
 
         self.started_at = time.monotonic()
         self.lease_id = 'capture-' + uuid.uuid4().hex[:12]
@@ -213,6 +221,8 @@ class CaptureManager(Node):
         self.state_entered = time.monotonic()
         self.holding_since = None
         self.mission_started = False
+        self.start_requested = self.auto_start
+        self.paused = False
         self.takeoff_commands = {}
         self.takeoff_attempts = {
             vehicle_id: 0 for vehicle_id in self.uav_ids
@@ -236,8 +246,11 @@ class CaptureManager(Node):
         self.create_timer(0.5, self._publish_lease)
         self.create_timer(0.2, self._update)
         self.get_logger().info(
-            'Capture manager ready: UAVs=%s USVs=%s target=%s'
-            % (','.join(self.uav_ids), ','.join(self.usv_ids), self.target_id)
+            'Capture manager ready: UAVs=%s USVs=%s target=%s auto_start=%s'
+            % (
+                ','.join(self.uav_ids), ','.join(self.usv_ids),
+                self.target_id, self.auto_start,
+            )
         )
 
     def _string_list(self, name):
@@ -347,6 +360,42 @@ class CaptureManager(Node):
                 )
         elif msg.status == CommandAck.STATUS_SUCCEEDED:
             self.command_failures[msg.vehicle_id] = 0
+
+    def _on_operator_action(self, msg):
+        action = msg.data.strip()
+        upper = action.upper()
+        if upper.startswith('CAPTURE:'):
+            requested_target = action.split(':', 1)[1].strip()
+            if requested_target and requested_target != self.target_id:
+                self.get_logger().warning(
+                    'Ignoring capture request for unknown target %s'
+                    % requested_target
+                )
+                return
+            self.start_requested = True
+            self.paused = False
+            self.started_at = time.monotonic()
+            self._set_state(self.TRACKING, 'operator approved capture')
+            self.get_logger().warning(
+                'Operator started capture; PX4 takeoff is now enabled'
+            )
+        elif upper == 'HOLD_ALL':
+            self.paused = True
+            self._hold_active_fleet()
+            self._set_state(self.TRACKING, 'capture paused by operator')
+        elif upper == 'CANCEL_CAPTURE':
+            self.start_requested = False
+            self.paused = False
+            self.mission_started = False
+            self._hold_active_fleet()
+            self.last_points.clear()
+            self._set_state(self.TRACKING, 'waiting for operator start')
+
+    def _hold_active_fleet(self):
+        for vehicle_id in self.active_uav_ids + self.active_usv_ids:
+            self.command_pub.publish(self._new_command(
+                vehicle_id, FleetCommand.COMMAND_HOLD
+            ))
 
     def _publish_lease(self):
         msg = ControlLease()
@@ -768,6 +817,18 @@ class CaptureManager(Node):
         if self.target_confirmations < self.tracking_confirmations:
             self._set_state(self.TRACKING, 'confirming target track')
             self._publish_state('confirming target track')
+            return
+
+        if not self.start_requested:
+            self._set_state(self.TRACKING, 'waiting for operator start')
+            self._publish_state(
+                'target confirmed; press Start Capture in the Qt console'
+            )
+            return
+
+        if self.paused:
+            self._set_state(self.TRACKING, 'capture paused by operator')
+            self._publish_state('fleet holding; press Continue in Qt')
             return
 
         self._manage_takeoff(now)

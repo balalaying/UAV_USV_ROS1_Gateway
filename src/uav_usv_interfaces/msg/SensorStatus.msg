@@ -3,8 +3,15 @@ string vehicle_id
 string sensor_id
 string uplink_topic
 string message_type
+string frame_id
+builtin_interfaces/Time last_message_time
 float32 measured_rate_hz
 float32 age_seconds
+float32 latency_seconds
+float32 processing_time_ms
+uint32 point_count
 uint64 total_messages
 uint64 total_bytes
+uint64 dropped_messages
 bool healthy
+bool timed_out

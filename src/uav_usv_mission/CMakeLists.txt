@@ -31,6 +31,24 @@ install(PROGRAMS
 )
 
 install(PROGRAMS
+  scripts/capture_mission.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME capture_mission
+)
+
+install(PROGRAMS
+  scripts/cooperative_response_mission.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME cooperative_response_mission
+)
+
+install(PROGRAMS
+  scripts/gz_sensor_bridge.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME gz_sensor_bridge
+)
+
+install(PROGRAMS
   scripts/target_tracker.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME target_tracker
