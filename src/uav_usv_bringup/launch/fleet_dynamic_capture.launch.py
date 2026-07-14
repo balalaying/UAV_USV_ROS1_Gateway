@@ -14,6 +14,7 @@ from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import EnvironmentVariable
 from launch.substitutions import LaunchConfiguration
+from launch.substitutions import PythonExpression
 from launch_ros.actions import Node
 from launch_ros.actions import PushRosNamespace
 from launch_ros.parameter_descriptions import ParameterValue
@@ -521,6 +522,14 @@ def generate_launch_description():
         DeclareLaunchArgument('mid360_range', default_value='70.0'),
         DeclareLaunchArgument('mid360_voxel_size', default_value='0.12'),
         DeclareLaunchArgument(
+            'nav2_start_delay',
+            default_value='7.0',
+            description=(
+                'Delay Nav2 lifecycle startup until Gazebo/RGL odometry is '
+                'available.'
+            ),
+        ),
+        DeclareLaunchArgument(
             'rgl_install',
             default_value='/var/tmp/RGLGazeboPlugin/install',
         ),
@@ -560,7 +569,11 @@ def generate_launch_description():
         ))
         configured_nav_params = _nav_params(nav_params, vehicle_id)
         actions.append(TimerAction(
-            period=2.0 + 3.0 * usv_index,
+            period=PythonExpression([
+                LaunchConfiguration('nav2_start_delay'),
+                ' + ',
+                str(3.0 * usv_index),
+            ]),
             actions=[GroupAction(actions=[
                 PushRosNamespace(vehicle_id),
                 IncludeLaunchDescription(

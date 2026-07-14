@@ -48,6 +48,7 @@ Main launch parameters:
 | `mid360_min_range` | `0.5` | Minimum simulated and preprocessing range in metres. |
 | `mid360_range` | `70.0` | Maximum simulated and preprocessing range in metres. |
 | `mid360_voxel_size` | `0.12` | Filtered-cloud voxel size in metres; `0` disables voxel filtering. |
+| `nav2_start_delay` | `7.0` | Waits for Gazebo/RGL odometry before starting the first USV Nav2 lifecycle; the second USV starts 3 s later. |
 | `rgl_install` | `/var/tmp/RGLGazeboPlugin/install` | RGL installation prefix. |
 | `rgl_patterns` | `/var/tmp/RGLGazeboPlugin/lidar_patterns` | RGL scan-pattern directory. |
 
