@@ -2,6 +2,10 @@
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Twist
+from lifecycle_msgs.msg import State
+from lifecycle_msgs.msg import Transition
+from lifecycle_msgs.srv import ChangeState
+from lifecycle_msgs.srv import GetState
 from nav_msgs.msg import Odometry
 from nav2_msgs.action import NavigateToPose
 import rclpy
@@ -35,6 +39,9 @@ class UsvFleetAgent(Node):
             'emergency_cmd_topic', '/model/simple_boat/cmd_vel'
         )
         self.declare_parameter('simulate_unreachable', False)
+        self.declare_parameter('manage_nav2_lifecycle', False)
+        self.declare_parameter('nav2_lifecycle_retry_period', 2.0)
+        self.declare_parameter('nav2_lifecycle_request_timeout', 15.0)
 
         self.vehicle_id = self.get_parameter('vehicle_id').value
         self.navigate_action = self.get_parameter('navigate_action').value
@@ -59,6 +66,43 @@ class UsvFleetAgent(Node):
         self.nav_client = ActionClient(
             self, NavigateToPose, self.navigate_action
         )
+        self.manage_nav2_lifecycle = bool(
+            self.get_parameter('manage_nav2_lifecycle').value
+        )
+        self.nav2_lifecycle_retry_period = max(
+            0.5,
+            float(
+                self.get_parameter('nav2_lifecycle_retry_period').value
+            ),
+        )
+        self.nav2_lifecycle_request_timeout = max(
+            2.0,
+            float(
+                self.get_parameter('nav2_lifecycle_request_timeout').value
+            ),
+        )
+        nav_namespace = self.navigate_action.rsplit('/', 1)[0]
+        self.nav2_lifecycle_nodes = (
+            'controller_server',
+            'smoother_server',
+            'planner_server',
+            'behavior_server',
+            'bt_navigator',
+            'waypoint_follower',
+            'velocity_smoother',
+        )
+        self.nav2_get_state_clients = {
+            name: self.create_client(
+                GetState, '%s/%s/get_state' % (nav_namespace, name)
+            )
+            for name in self.nav2_lifecycle_nodes
+        }
+        self.nav2_change_state_clients = {
+            name: self.create_client(
+                ChangeState, '%s/%s/change_state' % (nav_namespace, name)
+            )
+            for name in self.nav2_lifecycle_nodes
+        }
         self.emergency_pub = self.create_publisher(
             Twist,
             self.get_parameter('emergency_cmd_topic').value,
@@ -108,6 +152,15 @@ class UsvFleetAgent(Node):
         self.nav_goal_handle = None
         self.pending_nav_goal = None
         self.last_feedback_ack = 0.0
+        self.nav2_ready = False
+        self.nav2_stack_activated = False
+        self.nav2_lifecycle_index = 0
+        self.nav2_lifecycle_future = None
+        self.nav2_lifecycle_operation = ''
+        self.nav2_lifecycle_node = ''
+        self.nav2_lifecycle_request_started = 0.0
+        self.nav2_lifecycle_retry_after = 0.0
+        self.nav2_ready_logged = False
         self.create_timer(0.2, self._update)
         self.get_logger().info(
             'USV fleet agent %s ready; uplink=%s/*'
@@ -245,7 +298,7 @@ class UsvFleetAgent(Node):
     def _send_pending_nav_goal(self):
         if self.pending_nav_goal is None:
             return
-        if not self.nav_client.wait_for_server(timeout_sec=0.0):
+        if not self.nav2_ready:
             return
         pending_goal, command_id = self.pending_nav_goal
         goal_msg = NavigateToPose.Goal()
@@ -334,7 +387,129 @@ class UsvFleetAgent(Node):
         self.status_text = reason
         self._ack(command_id, CommandAck.STATUS_FAILED, reason)
 
+    def _start_lifecycle_request(self, node_name, operation, request):
+        if operation == 'get':
+            client = self.nav2_get_state_clients[node_name]
+        else:
+            client = self.nav2_change_state_clients[node_name]
+        if not client.service_is_ready():
+            return False
+        self.nav2_lifecycle_future = client.call_async(request)
+        self.nav2_lifecycle_operation = operation
+        self.nav2_lifecycle_node = node_name
+        self.nav2_lifecycle_request_started = time.monotonic()
+        return True
+
+    def _request_lifecycle_state(self, node_name):
+        return self._start_lifecycle_request(
+            node_name, 'get', GetState.Request()
+        )
+
+    def _request_lifecycle_transition(self, node_name, transition_id):
+        request = ChangeState.Request()
+        request.transition.id = transition_id
+        return self._start_lifecycle_request(node_name, 'change', request)
+
+    def _retry_nav2_lifecycle(self, reason):
+        self.get_logger().warning(
+            'Nav2 lifecycle recovery for %s will retry: %s'
+            % (self.vehicle_id, reason)
+        )
+        self.nav2_lifecycle_future = None
+        self.nav2_lifecycle_operation = ''
+        self.nav2_lifecycle_retry_after = (
+            time.monotonic() + self.nav2_lifecycle_retry_period
+        )
+
+    def _advance_nav2_lifecycle(self):
+        """Bring Nav2 nodes up sequentially without startup race conditions."""
+        action_ready = self.nav_client.server_is_ready()
+        self.nav2_ready = action_ready and (
+            self.nav2_stack_activated or not self.manage_nav2_lifecycle
+        )
+        if self.nav2_ready:
+            if not self.nav2_ready_logged:
+                self.get_logger().info(
+                    'Nav2 backend for %s is active and accepting goals'
+                    % self.vehicle_id
+                )
+                self.nav2_ready_logged = True
+            return
+
+        self.nav2_ready_logged = False
+        if not self.manage_nav2_lifecycle:
+            return
+
+        now = time.monotonic()
+        if now < self.nav2_lifecycle_retry_after:
+            return
+        if self.nav2_lifecycle_future is not None:
+            if not self.nav2_lifecycle_future.done():
+                if (
+                    now - self.nav2_lifecycle_request_started
+                    > self.nav2_lifecycle_request_timeout
+                ):
+                    self._retry_nav2_lifecycle(
+                        '%s request for %s timed out'
+                        % (
+                            self.nav2_lifecycle_operation,
+                            self.nav2_lifecycle_node,
+                        )
+                    )
+                return
+            try:
+                response = self.nav2_lifecycle_future.result()
+            except Exception as exc:
+                self._retry_nav2_lifecycle(str(exc))
+                return
+
+            node_name = self.nav2_lifecycle_node
+            operation = self.nav2_lifecycle_operation
+            self.nav2_lifecycle_future = None
+            self.nav2_lifecycle_operation = ''
+            if operation == 'change':
+                if not response.success:
+                    self._retry_nav2_lifecycle(
+                        'transition rejected by %s' % node_name
+                    )
+                    return
+                self.nav2_lifecycle_retry_after = now + 0.2
+                return
+
+            state_id = int(response.current_state.id)
+            if state_id == State.PRIMARY_STATE_ACTIVE:
+                self.nav2_lifecycle_index += 1
+            elif state_id == State.PRIMARY_STATE_UNCONFIGURED:
+                if self._request_lifecycle_transition(
+                    node_name, Transition.TRANSITION_CONFIGURE
+                ):
+                    self.status_text = 'configuring Nav2 %s' % node_name
+                return
+            elif state_id == State.PRIMARY_STATE_INACTIVE:
+                if self._request_lifecycle_transition(
+                    node_name, Transition.TRANSITION_ACTIVATE
+                ):
+                    self.status_text = 'activating Nav2 %s' % node_name
+                return
+            else:
+                self.nav2_lifecycle_retry_after = (
+                    now + self.nav2_lifecycle_retry_period
+                )
+                return
+
+        if self.nav2_lifecycle_index >= len(self.nav2_lifecycle_nodes):
+            # The NavigateToPose action appears shortly after BT activation.
+            self.nav2_stack_activated = True
+            self.nav2_ready = self.nav_client.server_is_ready()
+            self.nav2_lifecycle_retry_after = now + 0.5
+            return
+
+        node_name = self.nav2_lifecycle_nodes[self.nav2_lifecycle_index]
+        if self._request_lifecycle_state(node_name):
+            self.status_text = 'checking Nav2 %s' % node_name
+
     def _update(self):
+        self._advance_nav2_lifecycle()
         self._send_pending_nav_goal()
         if self.emergency_stop:
             self.emergency_pub.publish(Twist())
@@ -344,9 +519,15 @@ class UsvFleetAgent(Node):
         state.header.frame_id = 'map'
         state.vehicle_id = self.vehicle_id
         state.vehicle_type = VehicleState.TYPE_USV
-        state.online = self.odom is not None
+        simulated_failure = bool(
+            self.get_parameter('simulate_unreachable').value
+        )
+        state.online = (
+            self.odom is not None
+            and (self.nav2_ready or simulated_failure)
+        )
         state.armed = True
-        state.mode = 'NAV2'
+        state.mode = 'NAV2' if self.nav2_ready else 'WAITING_NAV2'
         if self.odom is not None:
             state.pose = self.odom.pose.pose
             state.twist = self.odom.twist.twist

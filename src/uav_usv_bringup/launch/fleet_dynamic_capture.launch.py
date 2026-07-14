@@ -392,6 +392,7 @@ def _usv_agent(
         'scan_topic': '/%s/scan' % vehicle_id,
         'navigate_action': '/%s/navigate_to_pose' % vehicle_id,
         'emergency_cmd_topic': '/model/%s/cmd_vel' % model_control_name,
+        'manage_nav2_lifecycle': True,
     }
     if unreachable is not False:
         parameters['simulate_unreachable'] = ParameterValue(
@@ -676,7 +677,10 @@ def generate_launch_description():
                         'namespace': vehicle_id,
                         'use_sim_time': use_sim_time,
                         'params_file': configured_nav_params,
-                        'autostart': 'true',
+                        # The USV agent activates lifecycle nodes sequentially.
+                        # Immediate Nav2 autostart is unreliable while Gazebo,
+                        # RGL and PX4 are all loading at the same time.
+                        'autostart': 'false',
                         'use_composition': 'False',
                         'log_level': 'warn',
                     }.items(),
