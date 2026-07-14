@@ -14,7 +14,32 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY docs DESTINATION share/${PROJECT_NAME})
+install(PROGRAMS
+  scripts/adapters/ground_truth_adapter.py
+  scripts/fusion/perception_fusion_node.py
+  scripts/fusion/perception_source_mux.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(FILES
+  scripts/tracking/track_association.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY docs launch
+  DESTINATION share/${PROJECT_NAME}
+  PATTERN "__pycache__" EXCLUDE
+)
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(
+    test_track_association
+    test/test_track_association.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/tracking
+  )
+endif()
 
 ament_package()

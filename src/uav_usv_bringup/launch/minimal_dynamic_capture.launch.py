@@ -21,6 +21,7 @@ def generate_launch_description():
     bringup_share = get_package_share_directory('uav_usv_bringup')
     gazebo_share = get_package_share_directory('uav_usv_gazebo')
     gazebo_prefix = get_package_prefix('uav_usv_gazebo')
+    perception_share = get_package_share_directory('uav_usv_perception')
     sim_share = get_package_share_directory('uav_usv_sim')
     nav2_share = get_package_share_directory('nav2_bringup')
     uav_prefix = get_package_prefix('uav_usv_uav_control')
@@ -32,6 +33,7 @@ def generate_launch_description():
     start_rviz = LaunchConfiguration('start_rviz')
     start_px4 = LaunchConfiguration('start_px4')
     start_dds_agent = LaunchConfiguration('start_dds_agent')
+    perception_source = LaunchConfiguration('perception_source')
 
     px4_dir_default = os.path.expanduser(
         os.environ.get('PX4_DIR', '~/PX4-Autopilot')
@@ -71,6 +73,9 @@ def generate_launch_description():
     )
     navigation_launch = os.path.join(
         nav2_share, 'launch', 'navigation_launch.py'
+    )
+    perception_launch = os.path.join(
+        perception_share, 'launch', 'perception_layer.launch.py'
     )
     uav_agent = os.path.join(
         uav_prefix,
@@ -165,6 +170,11 @@ def generate_launch_description():
         DeclareLaunchArgument('start_rviz', default_value='true'),
         DeclareLaunchArgument('start_px4', default_value='true'),
         DeclareLaunchArgument('start_dds_agent', default_value='true'),
+        DeclareLaunchArgument(
+            'perception_source',
+            default_value='ground_truth',
+            description='ground_truth, sensor, or hybrid',
+        ),
 
         ExecuteProcess(
             cmd=[run_world, world],
@@ -241,12 +251,16 @@ def generate_launch_description():
                 condition=IfCondition(start_px4),
             )],
         ),
-        Node(
-            package='uav_usv_mission',
-            executable='target_tracker',
-            name='target_tracker',
-            output='screen',
-            parameters=[{'use_sim_time': False}],
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(perception_launch),
+            launch_arguments={
+                'use_sim_time': use_sim_time,
+                'pose_topic': (
+                    '/world/minimal_dynamic_capture/pose/info'
+                ),
+                'target_entity': 'target_vessel',
+                'perception_source': perception_source,
+            }.items(),
         ),
         Node(
             package='uav_usv_mission',

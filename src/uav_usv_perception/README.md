@@ -2,6 +2,22 @@
 
 Ownership: perception and tracking team.
 
+## Multi-source perception layer
+
+The package now owns the ground-truth adapter, observation fusion, stable
+track association, and the source mux that publishes the frozen mission input
+`/fleet/perception/targets`. See
+[`docs/PERCEPTION_ARCHITECTURE.md`](docs/PERCEPTION_ARCHITECTURE.md) and
+[`docs/interfaces/TRACKED_OBJECT_CONTRACT.md`](docs/interfaces/TRACKED_OBJECT_CONTRACT.md).
+
+```bash
+ros2 launch uav_usv_perception perception_layer.launch.py \
+  perception_source:=ground_truth
+```
+
+LV-DOT is not part of this launch. A future backend only needs to publish
+`TrackedObjectArray` observations; it must not bypass fusion or the source mux.
+
 ## Mid-360 in the fleet capture system
 
 The main fleet launch can attach the verified RGL Mid-360 sensor to the
