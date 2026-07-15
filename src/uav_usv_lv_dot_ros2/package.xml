@@ -18,6 +18,7 @@
   <depend>tf2_ros</depend>
   <depend>uav_usv_interfaces</depend>
   <depend>uav_usv_lv_dot_core</depend>
+  <depend>visualization_msgs</depend>
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

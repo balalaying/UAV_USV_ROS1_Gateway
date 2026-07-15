@@ -6,22 +6,21 @@
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
 #include "uav_usv_lv_dot_core/types.hpp"
+#include "uav_usv_lv_dot_ros2/cluster_marker_conversion.hpp"
 #include "uav_usv_lv_dot_ros2/message_conversion.hpp"
 #include "uav_usv_lv_dot_ros2/pointcloud_conversion.hpp"
 
 namespace core = uav_usv_lv_dot_core;
 namespace wrapper = uav_usv_lv_dot_ros2;
 
-TEST(PointCloudConversion, ConvertsXyzAndIntensity)
-{
+TEST(PointCloudConversion, ConvertsXyzAndIntensity) {
   sensor_msgs::msg::PointCloud2 message;
   sensor_msgs::PointCloud2Modifier modifier(message);
   modifier.setPointCloud2Fields(
-    4,
-    "x", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "y", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "z", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "intensity", 1, sensor_msgs::msg::PointField::FLOAT32);
+      4, "x", 1, sensor_msgs::msg::PointField::FLOAT32, "y", 1,
+      sensor_msgs::msg::PointField::FLOAT32, "z", 1,
+      sensor_msgs::msg::PointField::FLOAT32, "intensity", 1,
+      sensor_msgs::msg::PointField::FLOAT32);
   modifier.resize(2);
 
   sensor_msgs::PointCloud2Iterator<float> x(message, "x");
@@ -44,22 +43,20 @@ TEST(PointCloudConversion, ConvertsXyzAndIntensity)
   EXPECT_FLOAT_EQ(frame.points[1].intensity, 5.0F);
 }
 
-TEST(PointCloudConversion, RejectsACloudWithoutZ)
-{
+TEST(PointCloudConversion, RejectsACloudWithoutZ) {
   sensor_msgs::msg::PointCloud2 message;
   sensor_msgs::PointCloud2Modifier modifier(message);
-  modifier.setPointCloud2Fields(
-    2,
-    "x", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "y", 1, sensor_msgs::msg::PointField::FLOAT32);
+  modifier.setPointCloud2Fields(2, "x", 1,
+                                sensor_msgs::msg::PointField::FLOAT32, "y", 1,
+                                sensor_msgs::msg::PointField::FLOAT32);
   modifier.resize(1);
 
   core::PointCloudFrame frame;
-  EXPECT_THROW(wrapper::convert_point_cloud(message, frame), std::runtime_error);
+  EXPECT_THROW(wrapper::convert_point_cloud(message, frame),
+               std::runtime_error);
 }
 
-TEST(MessageConversion, PreservesCompleteTrackFields)
-{
+TEST(MessageConversion, PreservesCompleteTrackFields) {
   core::DetectionResult result;
   result.stamp_nanoseconds = 2123456789LL;
   result.output_frame = "map";
@@ -83,4 +80,33 @@ TEST(MessageConversion, PreservesCompleteTrackFields)
   EXPECT_DOUBLE_EQ(message.objects[0].pose.pose.position.y, 2.0);
   EXPECT_DOUBLE_EQ(message.objects[0].twist.twist.linear.z, 6.0);
   EXPECT_FLOAT_EQ(message.objects[0].confidence, 0.75F);
+}
+
+TEST(ClusterMarkerConversion, PublishesDeleteAndTrueThreeDimensionalBoxes) {
+  core::DetectionResult result;
+  result.stamp_nanoseconds = 2123456789LL;
+  result.output_frame = "map";
+  core::LidarCluster cluster;
+  cluster.cluster_id = 7;
+  cluster.center = {1.0, 2.0, 3.0};
+  cluster.dimensions = {4.0, 6.0, 8.0};
+  cluster.point_count = 42;
+  result.lidar_clusters.push_back(cluster);
+
+  const auto markers = wrapper::to_lidar_bbox_markers(result);
+  ASSERT_EQ(markers.markers.size(), 2U);
+  EXPECT_EQ(markers.markers[0].action,
+            visualization_msgs::msg::Marker::DELETEALL);
+  const auto &box = markers.markers[1];
+  EXPECT_EQ(box.type, visualization_msgs::msg::Marker::LINE_LIST);
+  EXPECT_EQ(box.id, 7);
+  EXPECT_EQ(box.header.frame_id, "map");
+  EXPECT_EQ(box.header.stamp.sec, 2);
+  EXPECT_DOUBLE_EQ(box.pose.position.z, 3.0);
+  EXPECT_EQ(box.points.size(), 24U);
+  EXPECT_DOUBLE_EQ(box.points[0].x, -2.0);
+  EXPECT_DOUBLE_EQ(box.points[0].y, -3.0);
+  EXPECT_DOUBLE_EQ(box.points[0].z, -4.0);
+  EXPECT_NE(box.text.find("cluster_id=7;points=42;preprocess_ms="),
+            std::string::npos);
 }

@@ -6,6 +6,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
@@ -15,29 +16,28 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <uav_usv_interfaces/msg/tracked_object_array.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 
 #include "uav_usv_lv_dot_core/detector_core.hpp"
 
-namespace uav_usv_lv_dot_ros2
-{
+namespace uav_usv_lv_dot_ros2 {
 
-class DetectorNode : public rclcpp_lifecycle::LifecycleNode
-{
+class DetectorNode : public rclcpp_lifecycle::LifecycleNode {
 public:
   using CallbackReturn =
-    rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
+      rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
-  explicit DetectorNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+  explicit DetectorNode(
+      const rclcpp::NodeOptions &options = rclcpp::NodeOptions());
 
-  CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
-  CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
-  CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
-  CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
-  CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
+  CallbackReturn on_configure(const rclcpp_lifecycle::State &state) override;
+  CallbackReturn on_activate(const rclcpp_lifecycle::State &state) override;
+  CallbackReturn on_deactivate(const rclcpp_lifecycle::State &state) override;
+  CallbackReturn on_cleanup(const rclcpp_lifecycle::State &state) override;
+  CallbackReturn on_shutdown(const rclcpp_lifecycle::State &state) override;
 
 private:
-  struct RuntimeStatistics
-  {
+  struct RuntimeStatistics {
     std::uint64_t input_count{0};
     std::uint64_t accepted_count{0};
     std::uint64_t tf_success_count{0};
@@ -52,7 +52,17 @@ private:
     double sum_processing_time_ms{0.0};
     double last_input_latency_ms{0.0};
     double sum_input_latency_ms{0.0};
-    std::uint64_t last_point_count{0};
+    std::uint64_t last_input_point_count{0};
+    std::uint64_t last_finite_point_count{0};
+    std::uint64_t last_preprocessed_point_count{0};
+    std::uint64_t last_clustered_point_count{0};
+    std::uint64_t last_noise_point_count{0};
+    std::uint64_t last_cluster_count{0};
+    std::uint64_t sum_cluster_count{0};
+    double last_preprocessing_time_ms{0.0};
+    double sum_preprocessing_time_ms{0.0};
+    double last_clustering_time_ms{0.0};
+    double sum_clustering_time_ms{0.0};
   };
 
   void cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr message);
@@ -66,11 +76,15 @@ private:
 
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
-  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_subscription_;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr
+      cloud_subscription_;
   rclcpp_lifecycle::LifecyclePublisher<
-    uav_usv_interfaces::msg::TrackedObjectArray>::SharedPtr observations_publisher_;
+      uav_usv_interfaces::msg::TrackedObjectArray>::SharedPtr
+      observations_publisher_;
   rclcpp_lifecycle::LifecyclePublisher<
-    diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_publisher_;
+      diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_publisher_;
+  rclcpp_lifecycle::LifecyclePublisher<
+      visualization_msgs::msg::MarkerArray>::SharedPtr lidar_bboxes_publisher_;
   rclcpp::TimerBase::SharedPtr diagnostics_timer_;
 
   uav_usv_lv_dot_core::DetectorCore detector_core_;
@@ -78,6 +92,6 @@ private:
   std::mutex statistics_mutex_;
 };
 
-}  // namespace uav_usv_lv_dot_ros2
+} // namespace uav_usv_lv_dot_ros2
 
-#endif  // UAV_USV_LV_DOT_ROS2__DETECTOR_NODE_HPP_
+#endif // UAV_USV_LV_DOT_ROS2__DETECTOR_NODE_HPP_

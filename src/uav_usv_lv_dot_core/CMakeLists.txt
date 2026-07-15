@@ -9,7 +9,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(ament_cmake REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
+  src/dbscan.cpp
   src/detector_core.cpp
+  src/lidar_clusterer.cpp
 )
 target_include_directories(${PROJECT_NAME}
   PUBLIC
@@ -26,6 +28,7 @@ install(
   RUNTIME DESTINATION bin
 )
 install(DIRECTORY include/ DESTINATION include)
+install(FILES LICENSE.LV-DOT DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)

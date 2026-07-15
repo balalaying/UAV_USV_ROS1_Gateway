@@ -3,3 +3,22 @@
     output_frame: map
     tf_timeout_seconds: 0.1
     diagnostics_period_seconds: 1.0
+    input_min_range: 0.5
+    input_max_range: 20.0
+    input_min_z: -1.75
+    input_max_z: 4.0
+    input_voxel_size: 0.04
+    crop_self: true
+    self_bounds: [-4.3, 2.5, -1.8, 1.8, -2.4, 0.35]
+    local_range_x: 10.0
+    local_range_y: 10.0
+    ground_height: 0.22
+    roof_height: 6.0
+    downsample_threshold: 12000
+    adaptive_voxel_initial_size: 0.1
+    gaussian_downsample_sigma: 16.0
+    random_seed: 1
+    # Kept as the upstream squared-distance threshold, not a Euclidean radius.
+    lidar_dbscan_epsilon: 0.65
+    lidar_dbscan_min_points: 3
+    maximum_object_size: [30.0, 15.0, 12.0]

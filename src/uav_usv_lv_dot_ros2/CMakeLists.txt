@@ -16,8 +16,10 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(uav_usv_interfaces REQUIRED)
 find_package(uav_usv_lv_dot_core REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 add_library(${PROJECT_NAME}_node SHARED
+  src/cluster_marker_conversion.cpp
   src/detector_node.cpp
   src/message_conversion.cpp
   src/pointcloud_conversion.cpp
@@ -38,6 +40,7 @@ ament_target_dependencies(${PROJECT_NAME}_node
   tf2_ros
   uav_usv_interfaces
   uav_usv_lv_dot_core
+  visualization_msgs
 )
 target_link_libraries(
   ${PROJECT_NAME}_node
@@ -69,7 +72,8 @@ if(BUILD_TESTING)
     test/test_phase1_conversions.cpp
   )
   target_link_libraries(test_phase1_conversions ${PROJECT_NAME}_node)
-  ament_target_dependencies(test_phase1_conversions sensor_msgs uav_usv_interfaces)
+  ament_target_dependencies(
+    test_phase1_conversions sensor_msgs uav_usv_interfaces visualization_msgs)
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
@@ -82,5 +86,6 @@ ament_export_dependencies(
   tf2_ros
   uav_usv_interfaces
   uav_usv_lv_dot_core
+  visualization_msgs
 )
 ament_package()
