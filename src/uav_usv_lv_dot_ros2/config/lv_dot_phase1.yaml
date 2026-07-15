@@ -1,0 +1,5 @@
+/**:
+  ros__parameters:
+    output_frame: map
+    tf_timeout_seconds: 0.1
+    diagnostics_period_seconds: 1.0
