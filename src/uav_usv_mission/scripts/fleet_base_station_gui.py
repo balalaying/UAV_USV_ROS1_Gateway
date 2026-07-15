@@ -1685,6 +1685,11 @@ class BaseStationWindow(QMainWindow):
             ('Detection Rate', 'detection_rate'),
             ('Track Stability', 'track_stability'),
             ('Latency', 'latency_ms'),
+            ('Detected Targets', 'observation_count'),
+            ('Detection Frequency', 'detection_frequency_hz'),
+            ('LiDAR Clusters', 'lidar_bbox_count'),
+            ('Filtered Boxes', 'filtered_bbox_count'),
+            ('Tracked Boxes', 'tracked_bbox_count'),
             ('Window Samples', 'window_samples'),
         )
         for index, (title, key) in enumerate(fields):
@@ -2000,6 +2005,17 @@ class BaseStationWindow(QMainWindow):
                 )
             ),
             'latency_ms': number('latency_ms', 'ms'),
+            'observation_count': str(metrics.get('observation_count', 0)),
+            'detection_frequency_hz': number(
+                'detection_frequency_hz', 'Hz', 1
+            ),
+            'lidar_bbox_count': str(metrics.get('lidar_bbox_count', 0)),
+            'filtered_bbox_count': str(
+                metrics.get('filtered_bbox_count', 0)
+            ),
+            'tracked_bbox_count': str(
+                metrics.get('tracked_bbox_count', 0)
+            ),
             'window_samples': str(metrics.get('window_samples', 0)),
         }
         for key, value in values.items():

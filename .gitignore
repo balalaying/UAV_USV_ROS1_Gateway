@@ -18,6 +18,8 @@ Makefile
 
 # ROS runtime data
 .ros/
+bags/
+*.bag/
 *.db3
 *.mcap
 

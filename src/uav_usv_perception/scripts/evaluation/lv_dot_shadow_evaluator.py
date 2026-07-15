@@ -11,6 +11,8 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_msgs.msg import String
 from uav_usv_interfaces.msg import TrackedObjectArray
+from visualization_msgs.msg import Marker
+from visualization_msgs.msg import MarkerArray
 
 
 def _stamp_seconds(stamp):
@@ -48,6 +50,15 @@ class LvDotShadowEvaluator(Node):
         self.declare_parameter('online_timeout_seconds', 1.5)
         self.declare_parameter('window_size', 100)
         self.declare_parameter('evaluation_rate_hz', 10.0)
+        self.declare_parameter(
+            'lidar_bbox_topic', '/lv_dot/diagnostics/lidar_bboxes'
+        )
+        self.declare_parameter(
+            'filtered_bbox_topic', '/lv_dot/diagnostics/filtered_bboxes'
+        )
+        self.declare_parameter(
+            'tracked_bbox_topic', '/lv_dot/diagnostics/tracked_bboxes'
+        )
 
         ground_truth_topic = str(
             self.get_parameter('ground_truth_topic').value
@@ -83,6 +94,28 @@ class LvDotShadowEvaluator(Node):
             self._on_observations,
             10,
         )
+        diagnostic_topics = {
+            'lidar_bbox_count': str(
+                self.get_parameter('lidar_bbox_topic').value
+            ),
+            'filtered_bbox_count': str(
+                self.get_parameter('filtered_bbox_topic').value
+            ),
+            'tracked_bbox_count': str(
+                self.get_parameter('tracked_bbox_topic').value
+            ),
+        }
+        self.pipeline_counts = {key: 0 for key in diagnostic_topics}
+        self.pipeline_arrivals = {key: 0.0 for key in diagnostic_topics}
+        self.diagnostic_subscriptions = [
+            self.create_subscription(
+                MarkerArray,
+                topic,
+                self._diagnostic_callback(key),
+                10,
+            )
+            for key, topic in diagnostic_topics.items()
+        ]
         self.ground_truth = None
         self.observations = None
         self.ground_truth_arrival = 0.0
@@ -91,6 +124,7 @@ class LvDotShadowEvaluator(Node):
         self.position_errors = deque(maxlen=window_size)
         self.velocity_errors = deque(maxlen=window_size)
         self.latencies = deque(maxlen=window_size)
+        self.detection_arrivals = deque(maxlen=max(50, window_size * 2))
         self.last_track_id = ''
         self.id_switches = 0
         self.matched_samples = 0
@@ -107,6 +141,17 @@ class LvDotShadowEvaluator(Node):
     def _on_observations(self, message):
         self.observations = message
         self.observation_arrival = time.monotonic()
+        if message.objects:
+            self.detection_arrivals.append(self.observation_arrival)
+
+    def _diagnostic_callback(self, key):
+        def callback(message):
+            self.pipeline_counts[key] = sum(
+                marker.action in (Marker.ADD, Marker.MODIFY)
+                for marker in message.markers
+            )
+            self.pipeline_arrivals[key] = time.monotonic()
+        return callback
 
     def _ground_truth_target(self):
         if self.ground_truth is None:
@@ -120,6 +165,14 @@ class LvDotShadowEvaluator(Node):
         if self.observations is None:
             return None
         truth_position = _position(truth)
+        if self.last_track_id:
+            for tracked in self.observations.objects:
+                if (
+                    tracked.track_id == self.last_track_id
+                    and _distance(truth_position, _position(tracked))
+                    <= self.association_distance
+                ):
+                    return tracked
         selected = None
         selected_distance = self.association_distance
         for tracked in self.observations.objects:
@@ -135,6 +188,11 @@ class LvDotShadowEvaluator(Node):
 
     def _evaluate(self):
         now_monotonic = time.monotonic()
+        while (
+            self.detection_arrivals
+            and now_monotonic - self.detection_arrivals[0] > 5.0
+        ):
+            self.detection_arrivals.popleft()
         now_seconds = self.get_clock().now().nanoseconds * 1e-9
         truth_online = (
             self.ground_truth is not None
@@ -195,7 +253,23 @@ class LvDotShadowEvaluator(Node):
                 len(self.observations.objects)
                 if self.observations is not None and lv_dot_online else 0
             ),
+            'detection_frequency_hz': (
+                (len(self.detection_arrivals) - 1)
+                / max(
+                    1e-6,
+                    self.detection_arrivals[-1]
+                    - self.detection_arrivals[0],
+                )
+                if len(self.detection_arrivals) >= 2 else 0.0
+            ),
         }
+        for key, count in self.pipeline_counts.items():
+            online = (
+                now_monotonic - self.pipeline_arrivals[key]
+                <= self.online_timeout
+            ) if self.pipeline_arrivals[key] > 0.0 else False
+            metrics[key] = count if online else 0
+            metrics[key.replace('_count', '_online')] = online
         message = String()
         message.data = json.dumps(metrics, ensure_ascii=True, sort_keys=True)
         self.publisher.publish(message)

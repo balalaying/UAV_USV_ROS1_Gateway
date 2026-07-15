@@ -8,6 +8,7 @@ install(PROGRAMS
   scripts/fleet_gazebo_labels.py
   scripts/mid360_demo_motion.py
   scripts/mid360_preprocessor.py
+  scripts/lv_dot_target_motion.py
   scripts/tf_topic_relay.py
   scripts/uav_camera_adapter.py
   scripts/uav_camera_tf.py
@@ -32,7 +33,7 @@ install(FILES
 )
 
 install(
-  DIRECTORY docs launch
+  DIRECTORY docs launch rviz
   DESTINATION share/${PROJECT_NAME}
   PATTERN "__pycache__" EXCLUDE
 )
@@ -44,6 +45,11 @@ if(BUILD_TESTING)
     test_track_association
     test/test_track_association.py
     APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/tracking
+  )
+  ament_add_pytest_test(
+    test_lv_dot_tuning_helpers
+    test/test_lv_dot_tuning_helpers.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts
   )
 endif()
 

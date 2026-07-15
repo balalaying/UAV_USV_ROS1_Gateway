@@ -38,6 +38,8 @@ class Mid360Preprocessor(Node):
         self.declare_parameter('timeout_seconds', 1.0)
         self.declare_parameter('min_range', 0.5)
         self.declare_parameter('max_range', 70.0)
+        self.declare_parameter('min_z', -1000.0)
+        self.declare_parameter('max_z', 1000.0)
         self.declare_parameter('voxel_size', 0.12)
         self.declare_parameter('crop_self', True)
         self.declare_parameter('self_min_x', -4.3)
@@ -72,6 +74,10 @@ class Mid360Preprocessor(Node):
             self.min_range,
             float(self.get_parameter('max_range').value),
         )
+        self.min_z = float(self.get_parameter('min_z').value)
+        self.max_z = float(self.get_parameter('max_z').value)
+        if self.max_z < self.min_z:
+            raise ValueError('max_z must be greater than or equal to min_z')
         self.voxel_size = max(
             0.0, float(self.get_parameter('voxel_size').value)
         )
@@ -175,6 +181,8 @@ class Mid360Preprocessor(Node):
         squared_range = np.einsum('ij,ij->i', xyz, xyz)
         mask &= squared_range >= self.min_range * self.min_range
         mask &= squared_range <= self.max_range * self.max_range
+        mask &= xyz[:, 2] >= self.min_z
+        mask &= xyz[:, 2] <= self.max_z
 
         if self.crop_self:
             min_x, max_x, min_y, max_y, min_z, max_z = self.self_bounds

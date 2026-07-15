@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <world name="lv_dot_tuning">
+    <gui fullscreen="0">
+      <plugin filename="MinimalScene" name="3D View">
+        <gz-gui>
+          <title>3D View</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="string" key="state">docked</property>
+        </gz-gui>
+        <engine>ogre2</engine>
+        <scene>scene</scene>
+        <ambient_light>0.78 0.80 0.84</ambient_light>
+        <background_color>0.86 0.92 0.97</background_color>
+        <camera_pose>-23 -27 25 0 0.62 0.73</camera_pose>
+      </plugin>
+      <plugin filename="GzSceneManager" name="Scene Manager"/>
+      <plugin filename="InteractiveViewControl" name="Interactive view control"/>
+      <plugin filename="CameraTracking" name="Camera Tracking"/>
+      <plugin filename="MarkerManager" name="Marker manager"/>
+      <plugin filename="WorldControl" name="World control">
+        <play_pause>true</play_pause>
+        <step>true</step>
+        <start_paused>false</start_paused>
+      </plugin>
+    </gui>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+    <gravity>0 0 -9.8</gravity>
+    <scene>
+      <grid>true</grid>
+      <ambient>0.78 0.80 0.84 1</ambient>
+      <background>0.86 0.92 0.97 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <model name="ocean_plane">
+      <static>true</static>
+      <link name="ocean_link">
+        <visual name="ocean_visual">
+          <pose>0 0 -0.02 0 0 0</pose>
+          <geometry>
+            <plane><normal>0 0 1</normal><size>120 120</size></plane>
+          </geometry>
+          <material>
+            <ambient>0.02 0.12 0.22 0.75</ambient>
+            <diffuse>0.02 0.30 0.46 0.75</diffuse>
+            <specular>0.20 0.28 0.34 1</specular>
+          </material>
+        </visual>
+        <collision name="ocean_collision">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>120 120</size></plane>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <include>
+      <uri>model://waves</uri>
+      <name>waves</name>
+      <pose>0 0 0.015 0 0 0</pose>
+    </include>
+
+    <!-- The UAV is a fixed observation platform in this perception-only test. -->
+    <include>
+      <uri>model://x500_mono_cam_down</uri>
+      <name>uav_01</name>
+      <pose>0 -10 14 0 0 0</pose>
+      <static>true</static>
+    </include>
+
+    <!-- The USV remains stationary so target motion is unambiguous to LV-DOT. -->
+    <include>
+      <uri>model://simple_boat</uri>
+      <name>usv_01</name>
+      <pose>0 0 0.35 0 0 0</pose>
+    </include>
+
+    <!-- Starts inside LV-DOT's native hard-coded +/-10 m LiDAR window. -->
+    <include>
+      <uri>model://target_vessel</uri>
+      <name>target_vessel</name>
+      <pose>6 -5 0 0 0 1.5707963</pose>
+    </include>
+
+    <light name="sun" type="directional">
+      <pose>0 0 80 0 0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>1.1</intensity>
+      <direction>-0.35 0.2 -0.92</direction>
+      <diffuse>0.92 0.92 0.88 1</diffuse>
+      <specular>0.25 0.25 0.25 1</specular>
+    </light>
+  </world>
+</sdf>

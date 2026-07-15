@@ -43,6 +43,11 @@ def _marker_dimensions(marker):
     )
 
 
+def _marker_volume(marker):
+    dimensions = _marker_dimensions(marker)
+    return dimensions[0] * dimensions[1] * dimensions[2]
+
+
 @dataclass
 class AdapterTrack:
     track_id: str
@@ -79,6 +84,7 @@ class LvDotAdapter(Node):
         self.declare_parameter('association_distance_m', 4.0)
         self.declare_parameter('track_timeout_seconds', 1.5)
         self.declare_parameter('velocity_match_distance_m', 2.0)
+        self.declare_parameter('deduplication_distance_m', 1.0)
         self.declare_parameter('velocity_smoothing_alpha', 0.65)
         self.declare_parameter('default_confidence', 0.70)
         self.declare_parameter(
@@ -102,6 +108,10 @@ class LvDotAdapter(Node):
         self.velocity_match_distance = max(
             0.05,
             float(self.get_parameter('velocity_match_distance_m').value),
+        )
+        self.deduplication_distance = max(
+            0.0,
+            float(self.get_parameter('deduplication_distance_m').value),
         )
         self.velocity_alpha = min(
             1.0,
@@ -203,6 +213,32 @@ class LvDotAdapter(Node):
         self.tracks[track_id] = track
         return track
 
+    def _deduplicated_markers(self, markers):
+        """Keep the largest box from each cluster of overlapping detections."""
+        active = [
+            marker for marker in markers
+            if marker.action in (Marker.ADD, Marker.MODIFY)
+        ]
+        if self.deduplication_distance <= 0.0:
+            return active
+
+        selected = []
+        for marker in sorted(active, key=_marker_volume, reverse=True):
+            position = (
+                float(marker.pose.position.x),
+                float(marker.pose.position.y),
+            )
+            if any(
+                _distance(position, (
+                    float(other.pose.position.x),
+                    float(other.pose.position.y),
+                )) <= self.deduplication_distance
+                for other in selected
+            ):
+                continue
+            selected.append(marker)
+        return selected
+
     def _tracked_object(self, marker, track):
         output = TrackedObject()
         output.uuid.uuid = list(
@@ -236,9 +272,7 @@ class LvDotAdapter(Node):
         output.header.frame_id = self.target_frame
         assigned = set()
 
-        for marker in message.markers:
-            if marker.action not in (Marker.ADD, Marker.MODIFY):
-                continue
+        for marker in self._deduplicated_markers(message.markers):
             source_frame = marker.header.frame_id or self.target_frame
             if source_frame != self.target_frame:
                 if arrival - self.last_frame_warning > 5.0:

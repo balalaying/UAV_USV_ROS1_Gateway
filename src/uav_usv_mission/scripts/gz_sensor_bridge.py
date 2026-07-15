@@ -163,7 +163,7 @@ class GzSensorBridge(Node):
 
         def callback(source):
             nonlocal last_publish
-            if self.shutting_down:
+            if self.shutting_down or not rclpy.ok():
                 return
             now = time.monotonic()
             if min_period > 0.0 and now - last_publish < min_period:
@@ -210,7 +210,7 @@ class GzSensorBridge(Node):
             try:
                 publisher.publish(msg)
             except Exception:
-                if not self.shutting_down:
+                if not self.shutting_down and rclpy.ok():
                     raise
             self._count(topic)
         return callback
@@ -226,7 +226,7 @@ class GzSensorBridge(Node):
 
         def callback(source):
             nonlocal last_publish
-            if self.shutting_down:
+            if self.shutting_down or not rclpy.ok():
                 return
             now = time.monotonic()
             if now - last_publish < min_period:
@@ -244,7 +244,11 @@ class GzSensorBridge(Node):
             msg.k = self._fixed_array(source.intrinsics.k, 9)
             msg.r = self._fixed_array(source.rectification_matrix, 9)
             msg.p = self._fixed_array(source.projection.p, 12)
-            publisher.publish(msg)
+            try:
+                publisher.publish(msg)
+            except Exception:
+                if not self.shutting_down and rclpy.ok():
+                    raise
             self._count(topic)
 
         return callback
@@ -257,7 +261,7 @@ class GzSensorBridge(Node):
 
     def _scan_callback(self, publisher, topic, frame_id):
         def callback(source):
-            if self.shutting_down:
+            if self.shutting_down or not rclpy.ok():
                 return
             msg = LaserScan()
             msg.header.stamp = self.get_clock().now().to_msg()
@@ -277,7 +281,7 @@ class GzSensorBridge(Node):
             try:
                 publisher.publish(msg)
             except Exception:
-                if not self.shutting_down:
+                if not self.shutting_down and rclpy.ok():
                     raise
             self._count(topic)
         return callback

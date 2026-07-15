@@ -261,3 +261,6 @@ changing the capture mission input. See
 [`docs/LV_DOT_SHADOW_MODE.md`](docs/LV_DOT_SHADOW_MODE.md).
 The latest measured validation is recorded in
 [`docs/LV_DOT_SHADOW_TEST_2026-07-15.md`](docs/LV_DOT_SHADOW_TEST_2026-07-15.md).
+The real-target tuning workflow, stage diagnostics, and current validation
+status are recorded in
+[`../../docs/LV_DOT_TUNING_REPORT.md`](../../docs/LV_DOT_TUNING_REPORT.md).

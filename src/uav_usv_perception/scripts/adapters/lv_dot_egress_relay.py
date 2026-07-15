@@ -30,7 +30,7 @@ def _read_exact(connection, size):
 
 
 class LvDotEgressRelay(Node):
-    """Publish only native dynamic-box and velocity MarkerArray outputs."""
+    """Publish whitelisted native LV-DOT visualization diagnostics."""
 
     def __init__(self):
         super().__init__('lv_dot_egress_relay')
@@ -43,6 +43,11 @@ class LvDotEgressRelay(Node):
             'velocity_topic',
             '/lv_dot/onboard_detector/velocity_visualizaton',
         )
+        diagnostic_topics = {
+            'lidar_bboxes': '/lv_dot/diagnostics/lidar_bboxes',
+            'filtered_bboxes': '/lv_dot/diagnostics/filtered_bboxes',
+            'tracked_bboxes': '/lv_dot/diagnostics/tracked_bboxes',
+        }
         self.output_publishers = {
             'dynamic_bboxes': self.create_publisher(
                 MarkerArray,
@@ -55,8 +60,14 @@ class LvDotEgressRelay(Node):
                 10,
             ),
         }
+        for kind, topic in diagnostic_topics.items():
+            self.output_publishers[kind] = self.create_publisher(
+                MarkerArray, topic, 10
+            )
         self.stop_event = threading.Event()
-        self.counts = {'dynamic_bboxes': 0, 'velocity_markers': 0}
+        self.counts = {
+            kind: 0 for kind in self.output_publishers
+        }
         address = str(self.get_parameter('listen_address').value)
         port = int(self.get_parameter('port').value)
         self.worker = threading.Thread(
@@ -88,6 +99,18 @@ class LvDotEgressRelay(Node):
         marker.pose.orientation.y = float(orientation[1])
         marker.pose.orientation.z = float(orientation[2])
         marker.pose.orientation.w = float(orientation[3])
+        scale = data.get('scale', [1.0, 1.0, 1.0])
+        color = data.get('color', [1.0, 1.0, 1.0, 1.0])
+        marker.scale.x = float(scale[0])
+        marker.scale.y = float(scale[1])
+        marker.scale.z = float(scale[2])
+        marker.color.r = float(color[0])
+        marker.color.g = float(color[1])
+        marker.color.b = float(color[2])
+        marker.color.a = float(color[3])
+        lifetime = data.get('lifetime', [0, 0])
+        marker.lifetime.sec = int(lifetime[0])
+        marker.lifetime.nanosec = int(lifetime[1])
         marker.text = data.get('text', '')
         for coordinates in data.get('points', []):
             point = Point()
@@ -134,8 +157,14 @@ class LvDotEgressRelay(Node):
                             self._marker(marker)
                             for marker in data.get('markers', [])
                         ]
-                        publisher.publish(output)
-                        self.counts[kind] += 1
+                        if self.stop_event.is_set() or not rclpy.ok():
+                            break
+                        try:
+                            publisher.publish(output)
+                            self.counts[kind] += 1
+                        except Exception:
+                            if not self.stop_event.is_set() and rclpy.ok():
+                                raise
                 except (ConnectionError, OSError, ValueError, json.JSONDecodeError):
                     pass
                 finally:
@@ -145,11 +174,15 @@ class LvDotEgressRelay(Node):
 
     def _report(self):
         self.get_logger().info(
-            'LV-DOT egress received boxes=%d velocities=%d'
-            % (
-                self.counts['dynamic_bboxes'],
-                self.counts['velocity_markers'],
-            )
+            'LV-DOT egress received dynamic=%d tracked=%d filtered=%d '
+            'lidar=%d velocities=%d'
+            % tuple(self.counts[key] for key in (
+                'dynamic_bboxes',
+                'tracked_bboxes',
+                'filtered_bboxes',
+                'lidar_bboxes',
+                'velocity_markers',
+            ))
         )
 
     def destroy_node(self):
@@ -165,6 +198,12 @@ def main(args=None):
         rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except Exception:
+        # A process-group SIGINT can invalidate the context between the
+        # executor's context check and wait-set construction. Preserve real
+        # runtime failures, but treat that shutdown-only race as a clean exit.
+        if rclpy.ok():
+            raise
     finally:
         node.destroy_node()
         if rclpy.ok():

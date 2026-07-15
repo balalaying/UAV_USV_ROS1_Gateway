@@ -22,7 +22,7 @@ ROS 1 Noetic container
   /lv_dot/input/uav_01/camera/camera_info
   pinned LV-DOT detector (449bf2c)
                 |
-                | MarkerArray dynamic boxes and velocity labels
+                | MarkerArray dynamic boxes, velocity labels and diagnostics
                 | whitelisted latest-message TCP egress (port 19091)
                 v
 ROS 2 Humble host
@@ -38,8 +38,8 @@ ROS 2 Humble host
 
 The two narrow TCP relays avoid mixing the ROS 1 and ROS 2 discovery graphs.
 Ingress transports only `PointCloud2`, `PoseStamped`, `Image`, and
-`CameraInfo`; egress transports only dynamic-box and velocity `MarkerArray`
-data. Neither relay
+`CameraInfo`; egress transports only dynamic-box, velocity, and read-only
+pipeline diagnostic `MarkerArray` data. Neither relay
 exposes commands, services, custom fleet messages, or control topics.
 Container-side inputs use the private `/lv_dot/input/...` prefix, so an input
 cannot feed back into its host sensor topic.
@@ -106,6 +106,18 @@ In a third terminal start the isolated ROS 1 detector:
 tools/lv_dot/run_isolated.sh
 ```
 
+For the repeatable one-UAV, one-USV tuning scene use:
+
+```bash
+ros2 launch uav_usv_perception lv_dot_tuning.launch.py \
+  target_profile:=constant start_rviz:=true
+tools/lv_dot/run_isolated.sh
+tools/lv_dot/record_tuning_bag.sh bags/lv_dot_constant
+```
+
+`target_profile` accepts `constant`, `turn`, and `acceleration`. The tuning
+launch always leaves `perception_source` on `ground_truth`.
+
 Set the same non-default ingress and egress ports on both sides when needed:
 
 ```bash
@@ -168,6 +180,8 @@ of production perception quality.
 - ID-switch-based track stability;
 - message latency;
 - observation and sample counts.
+- LiDAR, filtered, and tracked box counts for pipeline diagnosis;
+- non-empty observation frequency.
 
 The Qt `Perception Monitor` page subscribes only to this lightweight JSON. It
 does not decode images or point clouds in the GUI thread.

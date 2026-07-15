@@ -22,18 +22,24 @@ class EgressSender:
         self.pending = {}
         self.lock = threading.Lock()
         self.event = threading.Event()
-        rospy.Subscriber(
-            '/lv_dot/onboard_detector/dynamic_bboxes',
-            MarkerArray,
-            lambda message: self.queue('dynamic_bboxes', message),
-            queue_size=2,
-        )
-        rospy.Subscriber(
-            '/lv_dot/onboard_detector/velocity_visualizaton',
-            MarkerArray,
-            lambda message: self.queue('velocity_markers', message),
-            queue_size=2,
-        )
+        topics = {
+            'dynamic_bboxes': '/lv_dot/onboard_detector/dynamic_bboxes',
+            'velocity_markers': (
+                '/lv_dot/onboard_detector/velocity_visualizaton'
+            ),
+            'lidar_bboxes': '/onboard_detector/lidar_bboxes',
+            'filtered_bboxes': '/onboard_detector/filtered_bboxes',
+            'tracked_bboxes': '/onboard_detector/tracked_bboxes',
+        }
+        self.subscribers = [
+            rospy.Subscriber(
+                topic,
+                MarkerArray,
+                lambda message, key=kind: self.queue(key, message),
+                queue_size=2,
+            )
+            for kind, topic in topics.items()
+        ]
 
     @staticmethod
     def marker(marker):
@@ -58,6 +64,14 @@ class EgressSender:
                 marker.pose.orientation.z,
                 marker.pose.orientation.w,
             ],
+            'scale': [marker.scale.x, marker.scale.y, marker.scale.z],
+            'color': [
+                marker.color.r,
+                marker.color.g,
+                marker.color.b,
+                marker.color.a,
+            ],
+            'lifetime': [marker.lifetime.secs, marker.lifetime.nsecs],
             'text': marker.text,
             'points': [[point.x, point.y, point.z] for point in marker.points],
         }
