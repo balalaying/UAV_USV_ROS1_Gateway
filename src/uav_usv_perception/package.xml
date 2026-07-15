@@ -22,6 +22,7 @@
   <exec_depend>uav_usv_interfaces</exec_depend>
   <exec_depend>unique_identifier_msgs</exec_depend>
   <exec_depend>vision_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
   <test_depend>ament_cmake_pytest</test_depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>

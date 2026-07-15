@@ -16,6 +16,11 @@ install(PROGRAMS
 
 install(PROGRAMS
   scripts/adapters/ground_truth_adapter.py
+  scripts/adapters/lv_dot_adapter.py
+  scripts/adapters/lv_dot_egress_relay.py
+  scripts/adapters/lv_dot_ingress_relay.py
+  scripts/adapters/lv_dot_pose_adapter.py
+  scripts/evaluation/lv_dot_shadow_evaluator.py
   scripts/fusion/perception_fusion_node.py
   scripts/fusion/perception_source_mux.py
   DESTINATION lib/${PROJECT_NAME}

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import math
 import signal
 import sys
@@ -70,6 +71,7 @@ class GuiSignals(QObject):
     capture_roles = pyqtSignal(object)
     capture_target = pyqtSignal(object)
     capture_markers = pyqtSignal(object)
+    perception_metrics = pyqtSignal(object)
     log = pyqtSignal(str)
 
 
@@ -226,6 +228,15 @@ class BaseStationGuiNode(Node):
             MarkerArray,
             self._topic(self.capture_namespace, '/capture/markers'),
             self._on_capture_markers,
+            10,
+        )
+        self.create_subscription(
+            String,
+            self._topic(
+                self.capture_namespace,
+                '/perception/lv_dot/shadow_metrics',
+            ),
+            self._on_perception_metrics,
             10,
         )
         self.create_subscription(
@@ -483,6 +494,15 @@ class BaseStationGuiNode(Node):
                 ]
                 break
         self.signals.capture_markers.emit({'prediction': prediction})
+
+    def _on_perception_metrics(self, msg):
+        try:
+            metrics = json.loads(msg.data)
+        except (TypeError, ValueError):
+            self.get_logger().warning('Invalid LV-DOT shadow metrics JSON')
+            return
+        if isinstance(metrics, dict):
+            self.signals.perception_metrics.emit(metrics)
 
     def _on_defense_status(self, msg):
         fields = {}
@@ -1201,6 +1221,7 @@ class BaseStationWindow(QMainWindow):
         signals.capture_roles.connect(self._update_capture_roles)
         signals.capture_target.connect(self._update_capture_target)
         signals.capture_markers.connect(self._update_capture_markers)
+        signals.perception_metrics.connect(self._update_perception_metrics)
         signals.log.connect(self._append_log)
 
     def _build_ui(self):
@@ -1254,6 +1275,12 @@ class BaseStationWindow(QMainWindow):
         perception_layout.setContentsMargins(0, 0, 0, 0)
         perception_layout.setSpacing(10)
         tabs.addTab(perception_tab, '实时感知')
+
+        monitor_tab = QWidget()
+        monitor_layout = QVBoxLayout(monitor_tab)
+        monitor_layout.setContentsMargins(0, 0, 0, 0)
+        monitor_layout.setSpacing(10)
+        tabs.addTab(monitor_tab, 'Perception Monitor')
 
         control_tab = QWidget()
         control_layout = QVBoxLayout(control_tab)
@@ -1381,6 +1408,8 @@ class BaseStationWindow(QMainWindow):
         status_splitter.addWidget(vehicle_group)
         status_splitter.setSizes([760, 620])
         perception_layout.addWidget(status_splitter, 1)
+
+        self._build_perception_monitor(monitor_layout)
 
         control_group = QGroupBox('基站控制')
         controls = QGridLayout(control_group)
@@ -1642,6 +1671,44 @@ class BaseStationWindow(QMainWindow):
         command_layout.addWidget(cancel_button, 1, 3)
         layout.addWidget(command_group)
 
+    def _build_perception_monitor(self, layout):
+        status_group = QGroupBox('LV-DOT Shadow Mode')
+        status_layout = QGridLayout(status_group)
+        self.perception_metric_labels = {}
+        fields = (
+            ('Ground Truth', 'ground_truth_online'),
+            ('LV-DOT', 'lv_dot_online'),
+            ('Target', 'target_id'),
+            ('Matched Track', 'matched_track_id'),
+            ('Position Error', 'position_error_m'),
+            ('Velocity Error', 'velocity_error_mps'),
+            ('Detection Rate', 'detection_rate'),
+            ('Track Stability', 'track_stability'),
+            ('Latency', 'latency_ms'),
+            ('Window Samples', 'window_samples'),
+        )
+        for index, (title, key) in enumerate(fields):
+            row = index // 2
+            column = (index % 2) * 2
+            status_layout.addWidget(QLabel(title), row, column)
+            value = QLabel('等待数据')
+            value.setObjectName('captureValue')
+            status_layout.addWidget(value, row, column + 1)
+            self.perception_metric_labels[key] = value
+        layout.addWidget(status_group)
+
+        flow_group = QGroupBox('Shadow Mode 数据流')
+        flow_layout = QVBoxLayout(flow_group)
+        flow = QLabel(
+            'UAV Camera + USV Mid-360 -> isolated LV-DOT -> '
+            'TrackedObjectArray -> shadow evaluator\n'
+            '围捕输入仍保持 ground_truth；此页面只显示旁路对比结果。'
+        )
+        flow.setWordWrap(True)
+        flow_layout.addWidget(flow)
+        layout.addWidget(flow_group)
+        layout.addStretch()
+
     @staticmethod
     def _status_card(title, value):
         label = QLabel('%s\n%s' % (title, value))
@@ -1897,6 +1964,55 @@ class BaseStationWindow(QMainWindow):
             'RViz点云预览：%s' % ('开启' if enabled else '关闭')
         )
         self.node.set_mid360_preview(enabled)
+
+    def _update_perception_metrics(self, metrics):
+        self._touch_ros()
+
+        def number(key, unit, digits=2):
+            value = metrics.get(key)
+            if value is None:
+                return '-'
+            return ('%%.%df %%s' % digits) % (float(value), unit)
+
+        values = {
+            'ground_truth_online': (
+                'ONLINE' if metrics.get('ground_truth_online') else 'OFFLINE'
+            ),
+            'lv_dot_online': (
+                'ONLINE' if metrics.get('lv_dot_online') else 'OFFLINE'
+            ),
+            'target_id': metrics.get('target_id') or '-',
+            'matched_track_id': metrics.get('matched_track_id') or '-',
+            'position_error_m': number('position_error_m', 'm'),
+            'velocity_error_mps': number('velocity_error_mps', 'm/s'),
+            'detection_rate': (
+                number('detection_rate', '%', 1)
+                if metrics.get('detection_rate') is None
+                else '%.1f %%' % (
+                    100.0 * float(metrics['detection_rate'])
+                )
+            ),
+            'track_stability': (
+                '-'
+                if metrics.get('track_stability') is None
+                else '%.1f %%' % (
+                    100.0 * float(metrics['track_stability'])
+                )
+            ),
+            'latency_ms': number('latency_ms', 'ms'),
+            'window_samples': str(metrics.get('window_samples', 0)),
+        }
+        for key, value in values.items():
+            label = self.perception_metric_labels.get(key)
+            if label is None:
+                continue
+            label.setText(value)
+            if key in ('ground_truth_online', 'lv_dot_online'):
+                online = value == 'ONLINE'
+                label.setStyleSheet(
+                    'color: %s; font-weight: 700;'
+                    % ('#16834a' if online else '#b63737')
+                )
 
     def _update_vehicle(self, data):
         self._touch_ros()

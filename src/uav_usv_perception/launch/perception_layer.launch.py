@@ -14,6 +14,7 @@ def generate_launch_description():
     source = LaunchConfiguration('perception_source')
     uav_topic = LaunchConfiguration('uav_observation_topic')
     usv_topic = LaunchConfiguration('usv_observation_topic')
+    lv_dot_topic = LaunchConfiguration('lv_dot_observation_topic')
 
     ground_truth_topic = '/perception/ground_truth/tracks'
     sensor_topic = '/perception/fused/tracks'
@@ -40,6 +41,10 @@ def generate_launch_description():
             'usv_observation_topic',
             default_value='/perception/usv_01/observations',
         ),
+        DeclareLaunchArgument(
+            'lv_dot_observation_topic',
+            default_value='/perception/lv_dot/observations',
+        ),
 
         Node(
             package='uav_usv_perception',
@@ -65,7 +70,9 @@ def generate_launch_description():
                 'use_sim_time': ParameterValue(
                     use_sim_time, value_type=bool
                 ),
-                'input_topics_csv': [uav_topic, ',', usv_topic],
+                'input_topics_csv': [
+                    uav_topic, ',', usv_topic, ',', lv_dot_topic
+                ],
                 'output_topic': sensor_topic,
                 'target_frame': 'map',
             }],
@@ -80,7 +87,8 @@ def generate_launch_description():
                     use_sim_time, value_type=bool
                 ),
                 'input_topics_csv': [
-                    uav_topic, ',', usv_topic, ',', ground_truth_topic
+                    uav_topic, ',', usv_topic, ',', lv_dot_topic, ',',
+                    ground_truth_topic
                 ],
                 'output_topic': hybrid_topic,
                 'target_frame': 'map',

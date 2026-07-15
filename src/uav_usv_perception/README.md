@@ -252,3 +252,12 @@ Expected outputs:
 - `/maritime/tracks/fused`
 
 All outputs use `uav_usv_interfaces/TrackedObjectArray`. The current AIS simulator remains in `uav_usv_sim` until migration.
+
+## LV-DOT Shadow Mode
+
+The ROS 1 LV-DOT backend is kept in an isolated container. Its output is
+adapted to `TrackedObjectArray` and compared with Gazebo ground truth without
+changing the capture mission input. See
+[`docs/LV_DOT_SHADOW_MODE.md`](docs/LV_DOT_SHADOW_MODE.md).
+The latest measured validation is recorded in
+[`docs/LV_DOT_SHADOW_TEST_2026-07-15.md`](docs/LV_DOT_SHADOW_TEST_2026-07-15.md).

@@ -1,0 +1,25 @@
+<launch>
+  <arg name="enable_yolo" default="false"/>
+  <rosparam
+    command="load"
+    file="/opt/uav_usv/lv_dot/detector_param.yaml"
+    ns="/onboard_detector"/>
+  <node
+    pkg="onboard_detector"
+    type="detector_node"
+    name="detector_node"
+    output="screen">
+    <remap
+      from="/onboard_detector/dynamic_bboxes"
+      to="/lv_dot/onboard_detector/dynamic_bboxes"/>
+    <remap
+      from="/onboard_detector/velocity_visualizaton"
+      to="/lv_dot/onboard_detector/velocity_visualizaton"/>
+  </node>
+  <node
+    if="$(arg enable_yolo)"
+    pkg="onboard_detector"
+    type="yolov11_detector_node.py"
+    name="yolov11_detector_node"
+    output="screen"/>
+</launch>
