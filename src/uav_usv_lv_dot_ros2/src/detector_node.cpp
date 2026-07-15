@@ -65,6 +65,20 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions &options)
   declare_parameter<std::int64_t>("lidar_dbscan_min_points", 3);
   declare_parameter<std::vector<double>>("maximum_object_size",
                                          std::vector<double>{30.0, 15.0, 12.0});
+  declare_parameter<double>("tracking_max_match_range", 2.0);
+  declare_parameter<double>("tracking_max_size_difference", 8.0);
+  declare_parameter<std::vector<double>>(
+      "tracking_feature_weights",
+      std::vector<double>{3.0, 3.0, 0.1, 0.5, 0.5, 0.05, 0.0, 0.0, 0.0});
+  declare_parameter<std::int64_t>("tracking_history_size", 100);
+  declare_parameter<std::int64_t>("tracking_fix_size_history_threshold", 10);
+  declare_parameter<double>("tracking_fix_size_dimension_threshold", 0.4);
+  declare_parameter<std::int64_t>("tracking_kalman_averaging_frames", 3);
+  declare_parameter<std::int64_t>("tracking_confirmation_hits", 3);
+  declare_parameter<std::int64_t>("tracking_maximum_missed_frames", 5);
+  declare_parameter<std::vector<double>>(
+      "kalman_filter_parameters",
+      std::vector<double>{0.25, 0.01, 0.05, 0.05, 0.04, 0.3, 0.6});
 }
 
 DetectorNode::CallbackReturn
@@ -84,10 +98,17 @@ DetectorNode::on_configure(const rclcpp_lifecycle::State &) {
   const auto self_bounds = get_parameter("self_bounds").as_double_array();
   const auto maximum_object_size =
       get_parameter("maximum_object_size").as_double_array();
-  if (self_bounds.size() != 6 || maximum_object_size.size() != 3) {
+  const auto tracking_feature_weights =
+      get_parameter("tracking_feature_weights").as_double_array();
+  const auto kalman_filter_parameters =
+      get_parameter("kalman_filter_parameters").as_double_array();
+  if (self_bounds.size() != 6 || maximum_object_size.size() != 3 ||
+      tracking_feature_weights.size() != 9 ||
+      kalman_filter_parameters.size() != 7) {
     RCLCPP_ERROR(
         get_logger(),
-        "self_bounds requires 6 values and maximum_object_size requires 3");
+        "Expected self_bounds=6, maximum_object_size=3, "
+        "tracking_feature_weights=9 and kalman_filter_parameters=7 values");
     return CallbackReturn::FAILURE;
   }
   uav_usv_lv_dot_core::CoreConfiguration core_configuration;
@@ -122,10 +143,40 @@ DetectorNode::on_configure(const rclcpp_lifecycle::State &) {
           1, get_parameter("lidar_dbscan_min_points").as_int()));
   std::copy(maximum_object_size.begin(), maximum_object_size.end(),
             core_configuration.maximum_object_size.begin());
+  auto &tracking = core_configuration.tracking;
+  tracking.max_match_range =
+      get_parameter("tracking_max_match_range").as_double();
+  tracking.max_size_difference =
+      get_parameter("tracking_max_size_difference").as_double();
+  std::copy(tracking_feature_weights.begin(), tracking_feature_weights.end(),
+            tracking.feature_weights.begin());
+  tracking.history_size = static_cast<std::uint32_t>(std::max<std::int64_t>(
+      1, get_parameter("tracking_history_size").as_int()));
+  tracking.fix_size_history_threshold =
+      static_cast<std::uint32_t>(std::max<std::int64_t>(
+          1, get_parameter("tracking_fix_size_history_threshold").as_int()));
+  tracking.fix_size_dimension_threshold =
+      get_parameter("tracking_fix_size_dimension_threshold").as_double();
+  tracking.kalman_averaging_frames =
+      static_cast<std::uint32_t>(std::max<std::int64_t>(
+          1, get_parameter("tracking_kalman_averaging_frames").as_int()));
+  tracking.confirmation_hits = static_cast<std::uint32_t>(
+      std::max<std::int64_t>(
+          1, get_parameter("tracking_confirmation_hits").as_int()));
+  tracking.maximum_missed_frames =
+      static_cast<std::uint32_t>(std::max<std::int64_t>(
+          1, get_parameter("tracking_maximum_missed_frames").as_int()));
+  tracking.kalman_noise.initial_covariance = kalman_filter_parameters[0];
+  tracking.kalman_noise.process_position = kalman_filter_parameters[1];
+  tracking.kalman_noise.process_velocity = kalman_filter_parameters[2];
+  tracking.kalman_noise.process_acceleration = kalman_filter_parameters[3];
+  tracking.kalman_noise.measurement_position = kalman_filter_parameters[4];
+  tracking.kalman_noise.measurement_velocity = kalman_filter_parameters[5];
+  tracking.kalman_noise.measurement_acceleration = kalman_filter_parameters[6];
   try {
     detector_core_.configure(core_configuration);
   } catch (const std::exception &error) {
-    RCLCPP_ERROR(get_logger(), "Invalid Phase 2 core parameters: %s",
+    RCLCPP_ERROR(get_logger(), "Invalid Phase 3 core parameters: %s",
                  error.what());
     return CallbackReturn::FAILURE;
   }
@@ -135,6 +186,9 @@ DetectorNode::on_configure(const rclcpp_lifecycle::State &) {
   observations_publisher_ =
       create_publisher<uav_usv_interfaces::msg::TrackedObjectArray>(
           "observations", rclcpp::QoS(10).reliable());
+  tracks_publisher_ =
+      create_publisher<uav_usv_interfaces::msg::TrackedObjectArray>(
+          "tracks", rclcpp::QoS(10).reliable());
   diagnostics_publisher_ =
       create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
           "diagnostics", rclcpp::QoS(10).reliable());
@@ -148,7 +202,7 @@ DetectorNode::on_configure(const rclcpp_lifecycle::State &) {
 
   RCLCPP_INFO(
       get_logger(),
-      "Configured Phase 2 LiDAR clusterer for vehicle '%s', output frame '%s'",
+      "Configured Phase 3 LiDAR tracker for vehicle '%s', output frame '%s'",
       vehicle_id_.c_str(), output_frame_.c_str());
   return CallbackReturn::SUCCESS;
 }
@@ -184,6 +238,7 @@ DetectorNode::on_cleanup(const rclcpp_lifecycle::State &) {
   cloud_subscription_.reset();
   diagnostics_timer_.reset();
   observations_publisher_.reset();
+  tracks_publisher_.reset();
   diagnostics_publisher_.reset();
   lidar_bboxes_publisher_.reset();
   tf_listener_.reset();
@@ -297,12 +352,18 @@ void DetectorNode::cloud_callback(
 
   auto result = detector_core_.process(frame);
   auto markers = to_lidar_bbox_markers(result);
-  auto observations = to_ros_message(result);
+  auto tracks = to_ros_message(result);
+  auto observation_result = result;
+  observation_result.tracks.clear();
+  auto observations = to_ros_message(observation_result);
   if (lidar_bboxes_publisher_->is_activated()) {
     lidar_bboxes_publisher_->publish(std::move(markers));
   }
   if (observations_publisher_->is_activated()) {
     observations_publisher_->publish(std::move(observations));
+  }
+  if (tracks_publisher_->is_activated()) {
+    tracks_publisher_->publish(std::move(tracks));
   }
 
   const auto processing_end = std::chrono::steady_clock::now();
@@ -331,6 +392,43 @@ void DetectorNode::cloud_callback(
         result.clustering_statistics.clustering_time_ms;
     statistics_.sum_clustering_time_ms +=
         result.clustering_statistics.clustering_time_ms;
+    statistics_.last_detection_count =
+        result.tracking_statistics.detection_count;
+    statistics_.last_matched_count =
+        result.tracking_statistics.matched_count;
+    statistics_.last_created_track_count =
+        result.tracking_statistics.created_track_count;
+    statistics_.last_removed_track_count =
+        result.tracking_statistics.removed_track_count;
+    statistics_.last_active_track_count =
+        result.tracking_statistics.active_track_count;
+    statistics_.last_confirmed_track_count =
+        result.tracking_statistics.confirmed_track_count;
+    statistics_.last_lost_track_count =
+        result.tracking_statistics.lost_track_count;
+    statistics_.total_detection_count +=
+        result.tracking_statistics.detection_count;
+    statistics_.total_matched_count +=
+        result.tracking_statistics.matched_count;
+    statistics_.total_created_track_count +=
+        result.tracking_statistics.created_track_count;
+    statistics_.total_removed_track_count +=
+        result.tracking_statistics.removed_track_count;
+    statistics_.total_id_switch_count +=
+        result.tracking_statistics.id_switch_count;
+    statistics_.total_match_distance +=
+        result.tracking_statistics.average_match_distance *
+        static_cast<double>(result.tracking_statistics.matched_count);
+    statistics_.last_match_success_rate =
+        result.tracking_statistics.match_success_rate;
+    statistics_.last_average_match_distance =
+        result.tracking_statistics.average_match_distance;
+    statistics_.last_average_velocity =
+        result.tracking_statistics.average_velocity;
+    statistics_.last_kalman_update_time_ms =
+        result.tracking_statistics.kalman_update_time_ms;
+    statistics_.sum_kalman_update_time_ms +=
+        result.tracking_statistics.kalman_update_time_ms;
   }
 }
 
@@ -382,12 +480,27 @@ void DetectorNode::publish_diagnostics() {
           ? 0.0
           : statistics.sum_clustering_time_ms /
                 static_cast<double>(statistics.accepted_count);
+  const double average_kalman_update =
+      statistics.accepted_count == 0
+          ? 0.0
+          : statistics.sum_kalman_update_time_ms /
+                static_cast<double>(statistics.accepted_count);
+  const double cumulative_match_success =
+      statistics.total_detection_count == 0
+          ? 1.0
+          : static_cast<double>(statistics.total_matched_count) /
+                static_cast<double>(statistics.total_detection_count);
+  const double cumulative_match_distance =
+      statistics.total_matched_count == 0
+          ? 0.0
+          : statistics.total_match_distance /
+                static_cast<double>(statistics.total_matched_count);
 
   diagnostic_msgs::msg::DiagnosticArray array;
   array.header.stamp = now();
   diagnostic_msgs::msg::DiagnosticStatus status;
   status.name = get_node_base_interface()->get_fully_qualified_name() +
-                std::string(": phase2_lidar");
+                std::string(": phase3_tracking");
   status.hardware_id = vehicle_id_.empty() ? "unassigned_vehicle" : vehicle_id_;
   if (statistics.input_count == 0) {
     status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
@@ -397,7 +510,7 @@ void DetectorNode::publish_diagnostics() {
     status.message = "ACTIVE: timestamped TF failures detected";
   } else {
     status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
-    status.message = "ACTIVE: Phase 2 LiDAR clustering healthy";
+    status.message = "ACTIVE: Phase 3 LiDAR tracking healthy";
   }
 
   status.values.push_back(
@@ -461,6 +574,62 @@ void DetectorNode::publish_diagnostics() {
       "last_clustering_time_ms", fixed(statistics.last_clustering_time_ms)));
   status.values.push_back(diagnostic_value("average_clustering_time_ms",
                                            fixed(average_clustering)));
+  status.values.push_back(diagnostic_value(
+      "tracking_detection_count",
+      std::to_string(statistics.last_detection_count)));
+  status.values.push_back(diagnostic_value(
+      "tracking_matched_count", std::to_string(statistics.last_matched_count)));
+  status.values.push_back(diagnostic_value(
+      "tracking_created_count",
+      std::to_string(statistics.last_created_track_count)));
+  status.values.push_back(diagnostic_value(
+      "tracking_removed_count",
+      std::to_string(statistics.last_removed_track_count)));
+  status.values.push_back(diagnostic_value(
+      "tracking_active_count",
+      std::to_string(statistics.last_active_track_count)));
+  status.values.push_back(diagnostic_value(
+      "tracking_confirmed_count",
+      std::to_string(statistics.last_confirmed_track_count)));
+  status.values.push_back(diagnostic_value(
+      "tracking_lost_count",
+      std::to_string(statistics.last_lost_track_count)));
+  status.values.push_back(diagnostic_value(
+      "tracking_id_switch_count",
+      std::to_string(statistics.total_id_switch_count)));
+  status.values.push_back(diagnostic_value(
+      "tracking_detection_count_total",
+      std::to_string(statistics.total_detection_count)));
+  status.values.push_back(diagnostic_value(
+      "tracking_matched_count_total",
+      std::to_string(statistics.total_matched_count)));
+  status.values.push_back(diagnostic_value(
+      "tracking_created_count_total",
+      std::to_string(statistics.total_created_track_count)));
+  status.values.push_back(diagnostic_value(
+      "tracking_removed_count_total",
+      std::to_string(statistics.total_removed_track_count)));
+  status.values.push_back(diagnostic_value(
+      "tracking_match_success_rate_total",
+      fixed(cumulative_match_success, 6)));
+  status.values.push_back(diagnostic_value(
+      "tracking_average_match_distance_total_m",
+      fixed(cumulative_match_distance)));
+  status.values.push_back(diagnostic_value(
+      "tracking_match_success_rate",
+      fixed(statistics.last_match_success_rate, 6)));
+  status.values.push_back(diagnostic_value(
+      "tracking_average_match_distance_m",
+      fixed(statistics.last_average_match_distance)));
+  status.values.push_back(diagnostic_value(
+      "tracking_average_velocity_mps",
+      fixed(statistics.last_average_velocity)));
+  status.values.push_back(diagnostic_value(
+      "tracking_last_kalman_update_time_ms",
+      fixed(statistics.last_kalman_update_time_ms)));
+  status.values.push_back(diagnostic_value(
+      "tracking_average_kalman_update_time_ms",
+      fixed(average_kalman_update)));
   array.status.push_back(std::move(status));
   diagnostics_publisher_->publish(std::move(array));
 }

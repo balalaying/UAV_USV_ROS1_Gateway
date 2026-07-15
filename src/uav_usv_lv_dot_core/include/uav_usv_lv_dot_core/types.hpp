@@ -24,6 +24,13 @@ enum class ObjectClass : std::uint8_t {
   kLandmark = 4,
 };
 
+enum class TrackLifecycle : std::uint8_t {
+  kNew = 0,
+  kConfirmed = 1,
+  kLost = 2,
+  kRemoved = 3,
+};
+
 struct PointXYZI {
   float x{0.0F};
   float y{0.0F};
@@ -65,8 +72,12 @@ struct TrackEstimate {
   std::array<double, 3> angular_velocity{{0.0, 0.0, 0.0}};
   std::array<double, 36> twist_covariance{};
   std::array<double, 3> dimensions{{0.0, 0.0, 0.0}};
+  std::array<double, 3> linear_acceleration{{0.0, 0.0, 0.0}};
   float confidence{0.0F};
   std::uint32_t mmsi{0};
+  TrackLifecycle lifecycle{TrackLifecycle::kNew};
+  std::uint64_t age{0};
+  std::uint32_t missed_count{0};
 };
 
 struct LidarCluster {
@@ -87,12 +98,28 @@ struct ClusteringStatistics {
   double clustering_time_ms{0.0};
 };
 
+struct TrackingStatistics {
+  std::uint64_t detection_count{0};
+  std::uint64_t matched_count{0};
+  std::uint64_t created_track_count{0};
+  std::uint64_t removed_track_count{0};
+  std::uint64_t active_track_count{0};
+  std::uint64_t confirmed_track_count{0};
+  std::uint64_t lost_track_count{0};
+  std::uint64_t id_switch_count{0};
+  double match_success_rate{0.0};
+  double average_match_distance{0.0};
+  double average_velocity{0.0};
+  double kalman_update_time_ms{0.0};
+};
+
 struct DetectionResult {
   std::int64_t stamp_nanoseconds{0};
   std::string output_frame;
   std::vector<LidarCluster> lidar_clusters;
   ClusteringStatistics clustering_statistics;
   std::vector<TrackEstimate> tracks;
+  TrackingStatistics tracking_statistics;
 };
 
 } // namespace uav_usv_lv_dot_core

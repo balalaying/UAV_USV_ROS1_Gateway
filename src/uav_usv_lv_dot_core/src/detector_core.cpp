@@ -124,12 +124,14 @@ void validate_configuration(const CoreConfiguration &configuration) {
 
 void DetectorCore::configure(const CoreConfiguration &configuration) {
   validate_configuration(configuration);
+  tracker_.configure(configuration.tracking);
   configuration_ = configuration;
   configured_ = true;
   processed_frames_ = 0;
 }
 
 void DetectorCore::reset() {
+  tracker_.reset();
   configured_ = false;
   processed_frames_ = 0;
 }
@@ -246,6 +248,12 @@ DetectionResult DetectorCore::process(const PointCloudFrame &frame) {
       std::chrono::duration<double, std::milli>(clustering_end -
                                                 clustering_start)
           .count();
+
+  auto tracking_result = tracker_.update(
+      result.lidar_clusters, frame.context.stamp_nanoseconds,
+      frame.context.sensor_to_output.translation);
+  result.tracks = std::move(tracking_result.tracks);
+  result.tracking_statistics = tracking_result.statistics;
 
   ++processed_frames_;
   return result;

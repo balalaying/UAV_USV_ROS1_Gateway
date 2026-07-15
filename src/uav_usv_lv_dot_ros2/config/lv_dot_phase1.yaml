@@ -22,3 +22,14 @@
     lidar_dbscan_epsilon: 0.65
     lidar_dbscan_min_points: 3
     maximum_object_size: [30.0, 15.0, 12.0]
+    # Accepted LV-DOT tracking parameters from LV_DOT_TUNING_REPORT.md.
+    tracking_max_match_range: 2.0
+    tracking_max_size_difference: 8.0
+    tracking_feature_weights: [3.0, 3.0, 0.1, 0.5, 0.5, 0.05, 0.0, 0.0, 0.0]
+    tracking_history_size: 100
+    tracking_fix_size_history_threshold: 10
+    tracking_fix_size_dimension_threshold: 0.4
+    tracking_kalman_averaging_frames: 3
+    tracking_confirmation_hits: 3
+    tracking_maximum_missed_frames: 5
+    kalman_filter_parameters: [0.25, 0.01, 0.05, 0.05, 0.04, 0.3, 0.6]

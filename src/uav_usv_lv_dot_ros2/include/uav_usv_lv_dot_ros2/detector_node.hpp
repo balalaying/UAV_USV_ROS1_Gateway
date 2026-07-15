@@ -63,6 +63,24 @@ private:
     double sum_preprocessing_time_ms{0.0};
     double last_clustering_time_ms{0.0};
     double sum_clustering_time_ms{0.0};
+    std::uint64_t last_detection_count{0};
+    std::uint64_t last_matched_count{0};
+    std::uint64_t last_created_track_count{0};
+    std::uint64_t last_removed_track_count{0};
+    std::uint64_t last_active_track_count{0};
+    std::uint64_t last_confirmed_track_count{0};
+    std::uint64_t last_lost_track_count{0};
+    std::uint64_t total_detection_count{0};
+    std::uint64_t total_matched_count{0};
+    std::uint64_t total_created_track_count{0};
+    std::uint64_t total_removed_track_count{0};
+    std::uint64_t total_id_switch_count{0};
+    double total_match_distance{0.0};
+    double last_match_success_rate{0.0};
+    double last_average_match_distance{0.0};
+    double last_average_velocity{0.0};
+    double last_kalman_update_time_ms{0.0};
+    double sum_kalman_update_time_ms{0.0};
   };
 
   void cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr message);
@@ -81,6 +99,9 @@ private:
   rclcpp_lifecycle::LifecyclePublisher<
       uav_usv_interfaces::msg::TrackedObjectArray>::SharedPtr
       observations_publisher_;
+  rclcpp_lifecycle::LifecyclePublisher<
+      uav_usv_interfaces::msg::TrackedObjectArray>::SharedPtr
+      tracks_publisher_;
   rclcpp_lifecycle::LifecyclePublisher<
       diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_publisher_;
   rclcpp_lifecycle::LifecyclePublisher<

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "uav_usv_lv_dot_core/types.hpp"
+#include "uav_usv_lv_dot_core/multi_object_tracker.hpp"
 
 namespace uav_usv_lv_dot_core {
 
@@ -35,6 +36,8 @@ struct CoreConfiguration {
   double dbscan_epsilon_squared{0.65};
   std::uint32_t dbscan_min_points{3};
   std::array<double, 3> maximum_object_size{{30.0, 15.0, 12.0}};
+
+  TrackingConfiguration tracking;
 };
 
 class DetectorCore {
@@ -52,6 +55,7 @@ private:
   std::vector<PointXYZI> preprocess(const PointCloudFrame &frame) const;
 
   CoreConfiguration configuration_;
+  MultiObjectTracker tracker_;
   bool configured_{false};
   std::uint64_t processed_frames_{0};
 };
