@@ -20,7 +20,9 @@ install(PROGRAMS
   scripts/adapters/lv_dot_adapter.py
   scripts/adapters/lv_dot_egress_relay.py
   scripts/adapters/lv_dot_ingress_relay.py
+  scripts/adapters/lv_dot_observation_adapter.py
   scripts/adapters/lv_dot_pose_adapter.py
+  scripts/evaluation/lv_dot_fusion_evaluator.py
   scripts/evaluation/lv_dot_shadow_evaluator.py
   scripts/fusion/perception_fusion_node.py
   scripts/fusion/perception_source_mux.py
@@ -50,6 +52,11 @@ if(BUILD_TESTING)
     test_lv_dot_tuning_helpers
     test/test_lv_dot_tuning_helpers.py
     APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts
+  )
+  ament_add_pytest_test(
+    test_lv_dot_phase5_adapter
+    test/test_lv_dot_phase5_adapter.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/adapters
   )
 endif()
 

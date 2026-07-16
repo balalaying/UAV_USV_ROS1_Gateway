@@ -72,6 +72,7 @@ class GuiSignals(QObject):
     capture_target = pyqtSignal(object)
     capture_markers = pyqtSignal(object)
     perception_metrics = pyqtSignal(object)
+    perception_fusion_metrics = pyqtSignal(object)
     log = pyqtSignal(str)
 
 
@@ -237,6 +238,15 @@ class BaseStationGuiNode(Node):
                 '/perception/lv_dot/shadow_metrics',
             ),
             self._on_perception_metrics,
+            10,
+        )
+        self.create_subscription(
+            String,
+            self._topic(
+                self.capture_namespace,
+                '/perception/lv_dot/fusion_metrics',
+            ),
+            self._on_perception_fusion_metrics,
             10,
         )
         self.create_subscription(
@@ -503,6 +513,15 @@ class BaseStationGuiNode(Node):
             return
         if isinstance(metrics, dict):
             self.signals.perception_metrics.emit(metrics)
+
+    def _on_perception_fusion_metrics(self, msg):
+        try:
+            metrics = json.loads(msg.data)
+        except (TypeError, ValueError):
+            self.get_logger().warning('Invalid LV-DOT fusion metrics JSON')
+            return
+        if isinstance(metrics, dict):
+            self.signals.perception_fusion_metrics.emit(metrics)
 
     def _on_defense_status(self, msg):
         fields = {}
@@ -1222,6 +1241,9 @@ class BaseStationWindow(QMainWindow):
         signals.capture_target.connect(self._update_capture_target)
         signals.capture_markers.connect(self._update_capture_markers)
         signals.perception_metrics.connect(self._update_perception_metrics)
+        signals.perception_fusion_metrics.connect(
+            self._update_perception_fusion_metrics
+        )
         signals.log.connect(self._append_log)
 
     def _build_ui(self):
@@ -1702,6 +1724,32 @@ class BaseStationWindow(QMainWindow):
             self.perception_metric_labels[key] = value
         layout.addWidget(status_group)
 
+        comparison_group = QGroupBox('Ground Truth / LV-DOT / Fusion')
+        comparison_layout = QVBoxLayout(comparison_group)
+        self.perception_comparison_table = QTableWidget(3, 10)
+        self.perception_comparison_table.setHorizontalHeaderLabels([
+            'Source', 'Track ID', 'Position / m', 'Velocity / m/s',
+            'Sensor Source', 'Confidence', 'Position Error',
+            'Velocity Error', 'Latency', 'Status',
+        ])
+        self._configure_table(self.perception_comparison_table)
+        self.perception_comparison_table.setVerticalHeaderLabels([
+            'Ground Truth', 'LV-DOT', 'Fusion'
+        ])
+        for row, source in enumerate(
+            ('Ground Truth', 'LV-DOT', 'Fusion')
+        ):
+            self.perception_comparison_table.setItem(
+                row, 0, self._item(source)
+            )
+        comparison_layout.addWidget(self.perception_comparison_table)
+        self.perception_fusion_summary = QLabel(
+            '等待 /perception/lv_dot/fusion_metrics'
+        )
+        self.perception_fusion_summary.setObjectName('vehicleDetail')
+        comparison_layout.addWidget(self.perception_fusion_summary)
+        layout.addWidget(comparison_group)
+
         flow_group = QGroupBox('Shadow Mode 数据流')
         flow_layout = QVBoxLayout(flow_group)
         flow = QLabel(
@@ -2029,6 +2077,67 @@ class BaseStationWindow(QMainWindow):
                     'color: %s; font-weight: 700;'
                     % ('#16834a' if online else '#b63737')
                 )
+
+    def _update_perception_fusion_metrics(self, metrics):
+        self._touch_ros()
+        sources = metrics.get('sources', {})
+        source_order = ('ground_truth', 'lv_dot', 'fusion')
+
+        def vector_text(value, unit=''):
+            if not isinstance(value, (list, tuple)) or len(value) < 2:
+                return '-'
+            suffix = (' ' + unit) if unit else ''
+            return '(%.2f, %.2f, %.2f)%s' % (
+                float(value[0]),
+                float(value[1]),
+                float(value[2]) if len(value) > 2 else 0.0,
+                suffix,
+            )
+
+        def number(value, unit='', digits=2):
+            if value is None:
+                return '-'
+            suffix = (' ' + unit) if unit else ''
+            return ('%%.%df%%s' % digits) % (float(value), suffix)
+
+        for row, source_name in enumerate(source_order):
+            source = sources.get(source_name, {})
+            online = bool(source.get('online'))
+            values = (
+                source_name.replace('_', ' ').title(),
+                source.get('track_id') or '-',
+                vector_text(source.get('position')),
+                vector_text(source.get('velocity')),
+                source.get('source') or 'UNKNOWN',
+                number(source.get('confidence'), '', 2),
+                number(source.get('position_error_m'), 'm', 2),
+                number(source.get('velocity_error_mps'), 'm/s', 2),
+                number(source.get('latency_ms'), 'ms', 1),
+                'ONLINE' if online else 'OFFLINE',
+            )
+            for column, value in enumerate(values):
+                color = None
+                if column == 9:
+                    color = '#16834a' if online else '#b63737'
+                self.perception_comparison_table.setItem(
+                    row, column, self._item(value, color)
+                )
+
+        summary = metrics.get('summary', {})
+        lv_dot = summary.get('lv_dot', {})
+        fusion = summary.get('fusion', {})
+        self.perception_fusion_summary.setText(
+            'Shadow Mode | control source: %s | '
+            'LV-DOT mean error: %s | Fusion mean error: %s | '
+            'LV-DOT/Fusion ID switches: %d/%d'
+            % (
+                metrics.get('control_source', 'ground_truth'),
+                number(lv_dot.get('mean_position_error_m'), 'm', 2),
+                number(fusion.get('mean_position_error_m'), 'm', 2),
+                int(lv_dot.get('id_switches') or 0),
+                int(fusion.get('id_switches') or 0),
+            )
+        )
 
     def _update_vehicle(self, data):
         self._touch_ros()

@@ -36,3 +36,20 @@
 
 只有多个正式消费者都需要、且无法从现有字段表达时，才建立版本化
 `TrackedObjectV2`，并提供 V1/V2 bridge。禁止直接改变现有字段顺序或语义。
+
+## LV-DOT Phase 5兼容映射
+
+`/perception/lv_dot_ros2/dynamic_tracks`只包含已经通过连续动态投票的轨迹。
+标准适配器发布`/perception/lv_dot/observations`时采用以下非破坏性映射：
+
+| LV-DOT内部含义 | V1正式字段 | 旁路状态 |
+| --- | --- | --- |
+| dynamic probability | `confidence`包含跟踪置信度与动态概率的组合值 | `observation_status.compatibility`说明映射语义 |
+| motion state | 不写入V1 | 固定为`CONFIRMED_DYNAMIC` |
+| sensor source | `source_mask`，至少包含`SOURCE_LIDAR` | 同步报告字符串 |
+| covariance | `pose.covariance`, `twist.covariance` | 原样保留 |
+| semantic class | `classification` | 不根据运动状态伪造类别 |
+
+若后续需要同时发布`STATIC`、`MOVING_CANDIDATE`和
+`CONFIRMED_DYNAMIC`，应新增版本化消息或独立分类状态数组；不能重新定义V1
+`confidence`或`classification`的含义。
