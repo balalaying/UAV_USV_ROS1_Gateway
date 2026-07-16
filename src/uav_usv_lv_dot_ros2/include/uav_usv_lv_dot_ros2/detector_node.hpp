@@ -81,6 +81,16 @@ private:
     double last_average_velocity{0.0};
     double last_kalman_update_time_ms{0.0};
     double sum_kalman_update_time_ms{0.0};
+    std::uint64_t last_dynamic_total_track_count{0};
+    std::uint64_t last_dynamic_static_count{0};
+    std::uint64_t last_dynamic_candidate_count{0};
+    std::uint64_t last_dynamic_confirmed_count{0};
+    std::uint64_t last_dynamic_unclassified_count{0};
+    std::uint64_t total_dynamic_confirmed_count{0};
+    double last_dynamic_ratio{0.0};
+    double last_dynamic_average_velocity{0.0};
+    double last_dynamic_classification_time_ms{0.0};
+    double sum_dynamic_classification_time_ms{0.0};
   };
 
   void cloud_callback(sensor_msgs::msg::PointCloud2::ConstSharedPtr message);
@@ -100,8 +110,10 @@ private:
       uav_usv_interfaces::msg::TrackedObjectArray>::SharedPtr
       observations_publisher_;
   rclcpp_lifecycle::LifecyclePublisher<
+      uav_usv_interfaces::msg::TrackedObjectArray>::SharedPtr tracks_publisher_;
+  rclcpp_lifecycle::LifecyclePublisher<
       uav_usv_interfaces::msg::TrackedObjectArray>::SharedPtr
-      tracks_publisher_;
+      dynamic_tracks_publisher_;
   rclcpp_lifecycle::LifecyclePublisher<
       diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_publisher_;
   rclcpp_lifecycle::LifecyclePublisher<

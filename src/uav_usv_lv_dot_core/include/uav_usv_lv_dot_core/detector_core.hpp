@@ -5,8 +5,9 @@
 #include <cstdint>
 #include <vector>
 
-#include "uav_usv_lv_dot_core/types.hpp"
+#include "uav_usv_lv_dot_core/dynamic_classifier.hpp"
 #include "uav_usv_lv_dot_core/multi_object_tracker.hpp"
+#include "uav_usv_lv_dot_core/types.hpp"
 
 namespace uav_usv_lv_dot_core {
 
@@ -38,6 +39,7 @@ struct CoreConfiguration {
   std::array<double, 3> maximum_object_size{{30.0, 15.0, 12.0}};
 
   TrackingConfiguration tracking;
+  DynamicClassificationConfiguration dynamic_classification;
 };
 
 class DetectorCore {
@@ -56,6 +58,7 @@ private:
 
   CoreConfiguration configuration_;
   MultiObjectTracker tracker_;
+  DynamicClassifier dynamic_classifier_;
   bool configured_{false};
   std::uint64_t processed_frames_{0};
 };

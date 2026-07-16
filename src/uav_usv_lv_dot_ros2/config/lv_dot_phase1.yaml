@@ -33,3 +33,11 @@
     tracking_confirmation_hits: 3
     tracking_maximum_missed_frames: 5
     kalman_filter_parameters: [0.25, 0.01, 0.05, 0.05, 0.04, 0.3, 0.6]
+    # Accepted dynamic parameters from LV_DOT_TUNING_REPORT.md.
+    frame_skip: 2
+    dynamic_velocity_threshold: 0.05
+    dynamic_voting_threshold: 0.15
+    frames_force_dynamic: 3
+    frames_force_dynamic_check_range: 12
+    dynamic_consistency_threshold: 2
+    dynamic_history_size: 100

@@ -82,6 +82,24 @@ TEST(MessageConversion, PreservesCompleteTrackFields) {
   EXPECT_FLOAT_EQ(message.objects[0].confidence, 0.75F);
 }
 
+TEST(MessageConversion, ConvertsOnlySelectedDynamicTracks) {
+  core::DetectionResult result;
+  result.stamp_nanoseconds = 3123456789LL;
+  result.output_frame = "map";
+  core::TrackEstimate dynamic_track;
+  dynamic_track.track_id = "dynamic_track_7";
+  dynamic_track.position = {7.0, 8.0, 0.0};
+  dynamic_track.linear_velocity = {1.2, 0.4, 0.0};
+  dynamic_track.confidence = 0.8F;
+  result.tracks.push_back(dynamic_track);
+
+  const auto message = wrapper::to_ros_message(result);
+  ASSERT_EQ(message.objects.size(), 1U);
+  EXPECT_EQ(message.objects.front().track_id, "dynamic_track_7");
+  EXPECT_DOUBLE_EQ(message.objects.front().twist.twist.linear.x, 1.2);
+  EXPECT_FLOAT_EQ(message.objects.front().confidence, 0.8F);
+}
+
 TEST(ClusterMarkerConversion, PublishesDeleteAndTrueThreeDimensionalBoxes) {
   core::DetectionResult result;
   result.stamp_nanoseconds = 2123456789LL;

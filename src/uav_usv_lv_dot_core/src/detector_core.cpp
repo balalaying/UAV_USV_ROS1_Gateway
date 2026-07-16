@@ -125,6 +125,7 @@ void validate_configuration(const CoreConfiguration &configuration) {
 void DetectorCore::configure(const CoreConfiguration &configuration) {
   validate_configuration(configuration);
   tracker_.configure(configuration.tracking);
+  dynamic_classifier_.configure(configuration.dynamic_classification);
   configuration_ = configuration;
   configured_ = true;
   processed_frames_ = 0;
@@ -132,6 +133,7 @@ void DetectorCore::configure(const CoreConfiguration &configuration) {
 
 void DetectorCore::reset() {
   tracker_.reset();
+  dynamic_classifier_.reset();
   configured_ = false;
   processed_frames_ = 0;
 }
@@ -249,11 +251,16 @@ DetectionResult DetectorCore::process(const PointCloudFrame &frame) {
                                                 clustering_start)
           .count();
 
-  auto tracking_result = tracker_.update(
-      result.lidar_clusters, frame.context.stamp_nanoseconds,
-      frame.context.sensor_to_output.translation);
+  auto tracking_result =
+      tracker_.update(result.lidar_clusters, frame.context.stamp_nanoseconds,
+                      frame.context.sensor_to_output.translation);
   result.tracks = std::move(tracking_result.tracks);
   result.tracking_statistics = tracking_result.statistics;
+  auto dynamic_result = dynamic_classifier_.classify(
+      result.tracks, frame.context.stamp_nanoseconds);
+  result.classified_tracks = std::move(dynamic_result.classified_tracks);
+  result.dynamic_tracks = std::move(dynamic_result.dynamic_tracks);
+  result.dynamic_statistics = dynamic_result.statistics;
 
   ++processed_frames_;
   return result;

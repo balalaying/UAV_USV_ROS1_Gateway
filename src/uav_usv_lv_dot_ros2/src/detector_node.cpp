@@ -79,6 +79,13 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions &options)
   declare_parameter<std::vector<double>>(
       "kalman_filter_parameters",
       std::vector<double>{0.25, 0.01, 0.05, 0.05, 0.04, 0.3, 0.6});
+  declare_parameter<std::int64_t>("frame_skip", 2);
+  declare_parameter<double>("dynamic_velocity_threshold", 0.05);
+  declare_parameter<double>("dynamic_voting_threshold", 0.15);
+  declare_parameter<std::int64_t>("frames_force_dynamic", 3);
+  declare_parameter<std::int64_t>("frames_force_dynamic_check_range", 12);
+  declare_parameter<std::int64_t>("dynamic_consistency_threshold", 2);
+  declare_parameter<std::int64_t>("dynamic_history_size", 100);
 }
 
 DetectorNode::CallbackReturn
@@ -160,8 +167,8 @@ DetectorNode::on_configure(const rclcpp_lifecycle::State &) {
   tracking.kalman_averaging_frames =
       static_cast<std::uint32_t>(std::max<std::int64_t>(
           1, get_parameter("tracking_kalman_averaging_frames").as_int()));
-  tracking.confirmation_hits = static_cast<std::uint32_t>(
-      std::max<std::int64_t>(
+  tracking.confirmation_hits =
+      static_cast<std::uint32_t>(std::max<std::int64_t>(
           1, get_parameter("tracking_confirmation_hits").as_int()));
   tracking.maximum_missed_frames =
       static_cast<std::uint32_t>(std::max<std::int64_t>(
@@ -173,10 +180,28 @@ DetectorNode::on_configure(const rclcpp_lifecycle::State &) {
   tracking.kalman_noise.measurement_position = kalman_filter_parameters[4];
   tracking.kalman_noise.measurement_velocity = kalman_filter_parameters[5];
   tracking.kalman_noise.measurement_acceleration = kalman_filter_parameters[6];
+  auto &dynamic = core_configuration.dynamic_classification;
+  dynamic.frame_skip = static_cast<std::uint32_t>(
+      std::max<std::int64_t>(1, get_parameter("frame_skip").as_int()));
+  dynamic.velocity_threshold =
+      get_parameter("dynamic_velocity_threshold").as_double();
+  dynamic.voting_threshold =
+      get_parameter("dynamic_voting_threshold").as_double();
+  dynamic.force_dynamic_frames =
+      static_cast<std::uint32_t>(std::max<std::int64_t>(
+          1, get_parameter("frames_force_dynamic").as_int()));
+  dynamic.force_dynamic_check_range =
+      static_cast<std::uint32_t>(std::max<std::int64_t>(
+          1, get_parameter("frames_force_dynamic_check_range").as_int()));
+  dynamic.consistency_threshold =
+      static_cast<std::uint32_t>(std::max<std::int64_t>(
+          1, get_parameter("dynamic_consistency_threshold").as_int()));
+  dynamic.history_size = static_cast<std::uint32_t>(std::max<std::int64_t>(
+      1, get_parameter("dynamic_history_size").as_int()));
   try {
     detector_core_.configure(core_configuration);
   } catch (const std::exception &error) {
-    RCLCPP_ERROR(get_logger(), "Invalid Phase 3 core parameters: %s",
+    RCLCPP_ERROR(get_logger(), "Invalid Phase 4 core parameters: %s",
                  error.what());
     return CallbackReturn::FAILURE;
   }
@@ -189,6 +214,9 @@ DetectorNode::on_configure(const rclcpp_lifecycle::State &) {
   tracks_publisher_ =
       create_publisher<uav_usv_interfaces::msg::TrackedObjectArray>(
           "tracks", rclcpp::QoS(10).reliable());
+  dynamic_tracks_publisher_ =
+      create_publisher<uav_usv_interfaces::msg::TrackedObjectArray>(
+          "dynamic_tracks", rclcpp::QoS(10).reliable());
   diagnostics_publisher_ =
       create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
           "diagnostics", rclcpp::QoS(10).reliable());
@@ -200,10 +228,10 @@ DetectorNode::on_configure(const rclcpp_lifecycle::State &) {
       std::bind(&DetectorNode::publish_diagnostics, this));
   diagnostics_timer_->cancel();
 
-  RCLCPP_INFO(
-      get_logger(),
-      "Configured Phase 3 LiDAR tracker for vehicle '%s', output frame '%s'",
-      vehicle_id_.c_str(), output_frame_.c_str());
+  RCLCPP_INFO(get_logger(),
+              "Configured Phase 4 LiDAR dynamic classifier for vehicle '%s', "
+              "output frame '%s'",
+              vehicle_id_.c_str(), output_frame_.c_str());
   return CallbackReturn::SUCCESS;
 }
 
@@ -239,6 +267,7 @@ DetectorNode::on_cleanup(const rclcpp_lifecycle::State &) {
   diagnostics_timer_.reset();
   observations_publisher_.reset();
   tracks_publisher_.reset();
+  dynamic_tracks_publisher_.reset();
   diagnostics_publisher_.reset();
   lidar_bboxes_publisher_.reset();
   tf_listener_.reset();
@@ -353,6 +382,9 @@ void DetectorNode::cloud_callback(
   auto result = detector_core_.process(frame);
   auto markers = to_lidar_bbox_markers(result);
   auto tracks = to_ros_message(result);
+  auto dynamic_result = result;
+  dynamic_result.tracks = result.dynamic_tracks;
+  auto dynamic_tracks = to_ros_message(dynamic_result);
   auto observation_result = result;
   observation_result.tracks.clear();
   auto observations = to_ros_message(observation_result);
@@ -364,6 +396,9 @@ void DetectorNode::cloud_callback(
   }
   if (tracks_publisher_->is_activated()) {
     tracks_publisher_->publish(std::move(tracks));
+  }
+  if (dynamic_tracks_publisher_->is_activated()) {
+    dynamic_tracks_publisher_->publish(std::move(dynamic_tracks));
   }
 
   const auto processing_end = std::chrono::steady_clock::now();
@@ -394,8 +429,7 @@ void DetectorNode::cloud_callback(
         result.clustering_statistics.clustering_time_ms;
     statistics_.last_detection_count =
         result.tracking_statistics.detection_count;
-    statistics_.last_matched_count =
-        result.tracking_statistics.matched_count;
+    statistics_.last_matched_count = result.tracking_statistics.matched_count;
     statistics_.last_created_track_count =
         result.tracking_statistics.created_track_count;
     statistics_.last_removed_track_count =
@@ -408,8 +442,7 @@ void DetectorNode::cloud_callback(
         result.tracking_statistics.lost_track_count;
     statistics_.total_detection_count +=
         result.tracking_statistics.detection_count;
-    statistics_.total_matched_count +=
-        result.tracking_statistics.matched_count;
+    statistics_.total_matched_count += result.tracking_statistics.matched_count;
     statistics_.total_created_track_count +=
         result.tracking_statistics.created_track_count;
     statistics_.total_removed_track_count +=
@@ -429,6 +462,25 @@ void DetectorNode::cloud_callback(
         result.tracking_statistics.kalman_update_time_ms;
     statistics_.sum_kalman_update_time_ms +=
         result.tracking_statistics.kalman_update_time_ms;
+    statistics_.last_dynamic_total_track_count =
+        result.dynamic_statistics.total_track_count;
+    statistics_.last_dynamic_static_count =
+        result.dynamic_statistics.static_track_count;
+    statistics_.last_dynamic_candidate_count =
+        result.dynamic_statistics.candidate_track_count;
+    statistics_.last_dynamic_confirmed_count =
+        result.dynamic_statistics.confirmed_dynamic_count;
+    statistics_.last_dynamic_unclassified_count =
+        result.dynamic_statistics.unclassified_track_count;
+    statistics_.total_dynamic_confirmed_count +=
+        result.dynamic_statistics.confirmed_dynamic_count;
+    statistics_.last_dynamic_ratio = result.dynamic_statistics.dynamic_ratio;
+    statistics_.last_dynamic_average_velocity =
+        result.dynamic_statistics.average_velocity;
+    statistics_.last_dynamic_classification_time_ms =
+        result.dynamic_statistics.classification_time_ms;
+    statistics_.sum_dynamic_classification_time_ms +=
+        result.dynamic_statistics.classification_time_ms;
   }
 }
 
@@ -485,6 +537,11 @@ void DetectorNode::publish_diagnostics() {
           ? 0.0
           : statistics.sum_kalman_update_time_ms /
                 static_cast<double>(statistics.accepted_count);
+  const double average_dynamic_classification =
+      statistics.accepted_count == 0
+          ? 0.0
+          : statistics.sum_dynamic_classification_time_ms /
+                static_cast<double>(statistics.accepted_count);
   const double cumulative_match_success =
       statistics.total_detection_count == 0
           ? 1.0
@@ -500,7 +557,7 @@ void DetectorNode::publish_diagnostics() {
   array.header.stamp = now();
   diagnostic_msgs::msg::DiagnosticStatus status;
   status.name = get_node_base_interface()->get_fully_qualified_name() +
-                std::string(": phase3_tracking");
+                std::string(": phase4_dynamic_classification");
   status.hardware_id = vehicle_id_.empty() ? "unassigned_vehicle" : vehicle_id_;
   if (statistics.input_count == 0) {
     status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
@@ -510,7 +567,7 @@ void DetectorNode::publish_diagnostics() {
     status.message = "ACTIVE: timestamped TF failures detected";
   } else {
     status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
-    status.message = "ACTIVE: Phase 3 LiDAR tracking healthy";
+    status.message = "ACTIVE: Phase 4 dynamic classification healthy";
   }
 
   status.values.push_back(
@@ -574,62 +631,88 @@ void DetectorNode::publish_diagnostics() {
       "last_clustering_time_ms", fixed(statistics.last_clustering_time_ms)));
   status.values.push_back(diagnostic_value("average_clustering_time_ms",
                                            fixed(average_clustering)));
-  status.values.push_back(diagnostic_value(
-      "tracking_detection_count",
-      std::to_string(statistics.last_detection_count)));
+  status.values.push_back(
+      diagnostic_value("tracking_detection_count",
+                       std::to_string(statistics.last_detection_count)));
   status.values.push_back(diagnostic_value(
       "tracking_matched_count", std::to_string(statistics.last_matched_count)));
+  status.values.push_back(
+      diagnostic_value("tracking_created_count",
+                       std::to_string(statistics.last_created_track_count)));
+  status.values.push_back(
+      diagnostic_value("tracking_removed_count",
+                       std::to_string(statistics.last_removed_track_count)));
+  status.values.push_back(
+      diagnostic_value("tracking_active_count",
+                       std::to_string(statistics.last_active_track_count)));
+  status.values.push_back(
+      diagnostic_value("tracking_confirmed_count",
+                       std::to_string(statistics.last_confirmed_track_count)));
   status.values.push_back(diagnostic_value(
-      "tracking_created_count",
-      std::to_string(statistics.last_created_track_count)));
+      "tracking_lost_count", std::to_string(statistics.last_lost_track_count)));
+  status.values.push_back(
+      diagnostic_value("tracking_id_switch_count",
+                       std::to_string(statistics.total_id_switch_count)));
+  status.values.push_back(
+      diagnostic_value("tracking_detection_count_total",
+                       std::to_string(statistics.total_detection_count)));
+  status.values.push_back(
+      diagnostic_value("tracking_matched_count_total",
+                       std::to_string(statistics.total_matched_count)));
+  status.values.push_back(
+      diagnostic_value("tracking_created_count_total",
+                       std::to_string(statistics.total_created_track_count)));
+  status.values.push_back(
+      diagnostic_value("tracking_removed_count_total",
+                       std::to_string(statistics.total_removed_track_count)));
+  status.values.push_back(diagnostic_value("tracking_match_success_rate_total",
+                                           fixed(cumulative_match_success, 6)));
+  status.values.push_back(
+      diagnostic_value("tracking_average_match_distance_total_m",
+                       fixed(cumulative_match_distance)));
+  status.values.push_back(
+      diagnostic_value("tracking_match_success_rate",
+                       fixed(statistics.last_match_success_rate, 6)));
+  status.values.push_back(
+      diagnostic_value("tracking_average_match_distance_m",
+                       fixed(statistics.last_average_match_distance)));
+  status.values.push_back(
+      diagnostic_value("tracking_average_velocity_mps",
+                       fixed(statistics.last_average_velocity)));
+  status.values.push_back(
+      diagnostic_value("tracking_last_kalman_update_time_ms",
+                       fixed(statistics.last_kalman_update_time_ms)));
   status.values.push_back(diagnostic_value(
-      "tracking_removed_count",
-      std::to_string(statistics.last_removed_track_count)));
+      "tracking_average_kalman_update_time_ms", fixed(average_kalman_update)));
   status.values.push_back(diagnostic_value(
-      "tracking_active_count",
-      std::to_string(statistics.last_active_track_count)));
+      "dynamic_total_tracks",
+      std::to_string(statistics.last_dynamic_total_track_count)));
   status.values.push_back(diagnostic_value(
-      "tracking_confirmed_count",
-      std::to_string(statistics.last_confirmed_track_count)));
+      "dynamic_candidates",
+      std::to_string(statistics.last_dynamic_candidate_count)));
   status.values.push_back(diagnostic_value(
-      "tracking_lost_count",
-      std::to_string(statistics.last_lost_track_count)));
+      "dynamic_confirmed",
+      std::to_string(statistics.last_dynamic_confirmed_count)));
+  status.values.push_back(
+      diagnostic_value("dynamic_static_count",
+                       std::to_string(statistics.last_dynamic_static_count)));
   status.values.push_back(diagnostic_value(
-      "tracking_id_switch_count",
-      std::to_string(statistics.total_id_switch_count)));
+      "dynamic_unclassified_count",
+      std::to_string(statistics.last_dynamic_unclassified_count)));
   status.values.push_back(diagnostic_value(
-      "tracking_detection_count_total",
-      std::to_string(statistics.total_detection_count)));
+      "dynamic_ratio", fixed(statistics.last_dynamic_ratio, 6)));
+  status.values.push_back(
+      diagnostic_value("dynamic_average_velocity_mps",
+                       fixed(statistics.last_dynamic_average_velocity)));
+  status.values.push_back(
+      diagnostic_value("dynamic_classification_latency_ms",
+                       fixed(statistics.last_dynamic_classification_time_ms)));
+  status.values.push_back(
+      diagnostic_value("dynamic_average_classification_latency_ms",
+                       fixed(average_dynamic_classification)));
   status.values.push_back(diagnostic_value(
-      "tracking_matched_count_total",
-      std::to_string(statistics.total_matched_count)));
-  status.values.push_back(diagnostic_value(
-      "tracking_created_count_total",
-      std::to_string(statistics.total_created_track_count)));
-  status.values.push_back(diagnostic_value(
-      "tracking_removed_count_total",
-      std::to_string(statistics.total_removed_track_count)));
-  status.values.push_back(diagnostic_value(
-      "tracking_match_success_rate_total",
-      fixed(cumulative_match_success, 6)));
-  status.values.push_back(diagnostic_value(
-      "tracking_average_match_distance_total_m",
-      fixed(cumulative_match_distance)));
-  status.values.push_back(diagnostic_value(
-      "tracking_match_success_rate",
-      fixed(statistics.last_match_success_rate, 6)));
-  status.values.push_back(diagnostic_value(
-      "tracking_average_match_distance_m",
-      fixed(statistics.last_average_match_distance)));
-  status.values.push_back(diagnostic_value(
-      "tracking_average_velocity_mps",
-      fixed(statistics.last_average_velocity)));
-  status.values.push_back(diagnostic_value(
-      "tracking_last_kalman_update_time_ms",
-      fixed(statistics.last_kalman_update_time_ms)));
-  status.values.push_back(diagnostic_value(
-      "tracking_average_kalman_update_time_ms",
-      fixed(average_kalman_update)));
+      "dynamic_confirmed_count_total",
+      std::to_string(statistics.total_dynamic_confirmed_count)));
   array.status.push_back(std::move(status));
   diagnostics_publisher_->publish(std::move(array));
 }

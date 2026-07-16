@@ -11,6 +11,7 @@ find_package(ament_cmake REQUIRED)
 add_library(${PROJECT_NAME} SHARED
   src/dbscan.cpp
   src/detector_core.cpp
+  src/dynamic_classifier.cpp
   src/kalman_filter.cpp
   src/lidar_clusterer.cpp
   src/multi_object_tracker.cpp

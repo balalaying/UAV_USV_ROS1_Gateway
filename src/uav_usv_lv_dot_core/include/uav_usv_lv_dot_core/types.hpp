@@ -31,6 +31,12 @@ enum class TrackLifecycle : std::uint8_t {
   kRemoved = 3,
 };
 
+enum class DynamicMotionState : std::uint8_t {
+  kStatic = 0,
+  kMovingCandidate = 1,
+  kConfirmedDynamic = 2,
+};
+
 struct PointXYZI {
   float x{0.0F};
   float y{0.0F};
@@ -113,6 +119,39 @@ struct TrackingStatistics {
   double kalman_update_time_ms{0.0};
 };
 
+struct MotionHistorySample {
+  std::int64_t stamp_nanoseconds{0};
+  std::array<double, 3> position{{0.0, 0.0, 0.0}};
+  std::array<double, 3> velocity{{0.0, 0.0, 0.0}};
+  double speed{0.0};
+  double displacement_speed{0.0};
+  double direction_similarity{0.0};
+  double vote_ratio{0.0};
+  bool is_candidate{false};
+  bool is_dynamic{false};
+};
+
+struct DynamicTrackEstimate {
+  std::string track_id;
+  TrackEstimate track;
+  double dynamic_probability{0.0};
+  bool is_dynamic{false};
+  DynamicMotionState motion_state{DynamicMotionState::kStatic};
+  std::vector<MotionHistorySample> motion_history;
+  float confidence{0.0F};
+};
+
+struct DynamicClassificationStatistics {
+  std::uint64_t total_track_count{0};
+  std::uint64_t static_track_count{0};
+  std::uint64_t candidate_track_count{0};
+  std::uint64_t confirmed_dynamic_count{0};
+  std::uint64_t unclassified_track_count{0};
+  double dynamic_ratio{0.0};
+  double average_velocity{0.0};
+  double classification_time_ms{0.0};
+};
+
 struct DetectionResult {
   std::int64_t stamp_nanoseconds{0};
   std::string output_frame;
@@ -120,6 +159,9 @@ struct DetectionResult {
   ClusteringStatistics clustering_statistics;
   std::vector<TrackEstimate> tracks;
   TrackingStatistics tracking_statistics;
+  std::vector<DynamicTrackEstimate> classified_tracks;
+  std::vector<TrackEstimate> dynamic_tracks;
+  DynamicClassificationStatistics dynamic_statistics;
 };
 
 } // namespace uav_usv_lv_dot_core

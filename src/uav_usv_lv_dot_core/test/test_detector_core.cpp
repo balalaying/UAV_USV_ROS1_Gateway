@@ -6,6 +6,7 @@
 
 #include "uav_usv_lv_dot_core/dbscan.hpp"
 #include "uav_usv_lv_dot_core/detector_core.hpp"
+#include "uav_usv_lv_dot_core/dynamic_classifier.hpp"
 #include "uav_usv_lv_dot_core/lidar_clusterer.hpp"
 #include "uav_usv_lv_dot_core/multi_object_tracker.hpp"
 
@@ -157,15 +158,13 @@ TEST(MultiObjectTracker, KeepsStableIdAndUsesLifecycleGracePeriod) {
   EXPECT_EQ(first.tracks[0].lifecycle, core::TrackLifecycle::kNew);
 
   detection.center[0] = 0.5;
-  auto second = tracker.update({detection}, 1500000000LL,
-                               {0.0, 0.0, 0.0});
+  auto second = tracker.update({detection}, 1500000000LL, {0.0, 0.0, 0.0});
   ASSERT_EQ(second.tracks.size(), 1U);
   EXPECT_EQ(second.tracks[0].track_id, identifier);
   EXPECT_EQ(second.tracks[0].lifecycle, core::TrackLifecycle::kNew);
 
   detection.center[0] = 1.5;
-  auto third = tracker.update({detection}, 2500000000LL,
-                              {0.0, 0.0, 0.0});
+  auto third = tracker.update({detection}, 2500000000LL, {0.0, 0.0, 0.0});
   ASSERT_EQ(third.tracks.size(), 1U);
   EXPECT_EQ(third.tracks[0].track_id, identifier);
   EXPECT_EQ(third.tracks[0].lifecycle, core::TrackLifecycle::kConfirmed);
@@ -179,8 +178,7 @@ TEST(MultiObjectTracker, KeepsStableIdAndUsesLifecycleGracePeriod) {
   EXPECT_EQ(lost.tracks[0].missed_count, 1U);
 
   tracker.update({}, 3500000000LL, {0.0, 0.0, 0.0});
-  const auto removed =
-      tracker.update({}, 4000000000LL, {0.0, 0.0, 0.0});
+  const auto removed = tracker.update({}, 4000000000LL, {0.0, 0.0, 0.0});
   EXPECT_TRUE(removed.tracks.empty());
   EXPECT_EQ(removed.statistics.removed_track_count, 1U);
 }
@@ -198,8 +196,8 @@ TEST(MultiObjectTracker, PreventsTwoDetectionsFromOwningOneTrack) {
   auto second = seed;
   first.center[0] = 0.1;
   second.center[0] = 0.2;
-  const auto result = tracker.update({first, second}, 1100000000LL,
-                                     {0.0, 0.0, 0.0});
+  const auto result =
+      tracker.update({first, second}, 1100000000LL, {0.0, 0.0, 0.0});
   ASSERT_EQ(result.tracks.size(), 2U);
   EXPECT_EQ(result.statistics.matched_count, 1U);
   EXPECT_EQ(result.statistics.created_track_count, 1U);
@@ -217,19 +215,107 @@ TEST(MultiObjectTracker, VelocityObservationUsesActualTimestampDifference) {
   slow_tracker.configure(configuration);
   slow_tracker.update({detection}, 1000000000LL, {0.0, 0.0, 0.0});
   detection.center[0] = 1.0;
-  const auto slow = slow_tracker.update(
-      {detection}, 2000000000LL, {0.0, 0.0, 0.0});
+  const auto slow =
+      slow_tracker.update({detection}, 2000000000LL, {0.0, 0.0, 0.0});
 
   detection.center[0] = 0.0;
   core::MultiObjectTracker fast_tracker;
   fast_tracker.configure(configuration);
   fast_tracker.update({detection}, 1000000000LL, {0.0, 0.0, 0.0});
   detection.center[0] = 1.0;
-  const auto fast = fast_tracker.update(
-      {detection}, 1500000000LL, {0.0, 0.0, 0.0});
+  const auto fast =
+      fast_tracker.update({detection}, 1500000000LL, {0.0, 0.0, 0.0});
 
   ASSERT_EQ(slow.tracks.size(), 1U);
   ASSERT_EQ(fast.tracks.size(), 1U);
   EXPECT_GT(fast.tracks[0].linear_velocity[0],
             slow.tracks[0].linear_velocity[0] * 1.2);
+}
+
+TEST(DynamicClassifier, ConfirmsContinuousMotionAfterTunedHistoryWindow) {
+  core::DynamicClassifier classifier;
+  classifier.configure(core::DynamicClassificationConfiguration{});
+  core::TrackEstimate track;
+  track.track_id = "moving_track";
+  track.lifecycle = core::TrackLifecycle::kConfirmed;
+  track.confidence = 1.0F;
+  track.linear_velocity = {1.0, 0.0, 0.0};
+
+  core::DynamicClassificationResult result;
+  for (std::int64_t frame = 0; frame < 13; ++frame) {
+    track.position[0] = static_cast<double>(frame) * 0.1;
+    result = classifier.classify({track}, 1000000000LL + frame * 100000000LL);
+    if (frame < 12) {
+      EXPECT_TRUE(result.dynamic_tracks.empty());
+    }
+  }
+
+  ASSERT_EQ(result.classified_tracks.size(), 1U);
+  EXPECT_EQ(result.classified_tracks[0].motion_state,
+            core::DynamicMotionState::kConfirmedDynamic);
+  EXPECT_TRUE(result.classified_tracks[0].is_dynamic);
+  EXPECT_GT(result.classified_tracks[0].dynamic_probability, 0.5);
+  EXPECT_EQ(result.classified_tracks[0].motion_history.size(), 13U);
+  ASSERT_EQ(result.dynamic_tracks.size(), 1U);
+  EXPECT_EQ(result.dynamic_tracks[0].track_id, track.track_id);
+}
+
+TEST(DynamicClassifier, KeepsAStationaryTrackStatic) {
+  core::DynamicClassifier classifier;
+  classifier.configure(core::DynamicClassificationConfiguration{});
+  core::TrackEstimate track;
+  track.track_id = "static_track";
+  track.lifecycle = core::TrackLifecycle::kConfirmed;
+  track.confidence = 1.0F;
+
+  for (std::int64_t frame = 0; frame < 20; ++frame) {
+    const auto result =
+        classifier.classify({track}, 1000000000LL + frame * 100000000LL);
+    ASSERT_EQ(result.classified_tracks.size(), 1U);
+    EXPECT_EQ(result.classified_tracks[0].motion_state,
+              core::DynamicMotionState::kStatic);
+    EXPECT_FALSE(result.classified_tracks[0].is_dynamic);
+    EXPECT_TRUE(result.dynamic_tracks.empty());
+    EXPECT_EQ(result.statistics.static_track_count, 1U);
+  }
+}
+
+TEST(DynamicClassifier, ForceDynamicRetainsARecentlyConfirmedTrack) {
+  core::DynamicClassifier classifier;
+  classifier.configure(core::DynamicClassificationConfiguration{});
+  core::TrackEstimate track;
+  track.track_id = "retained_track";
+  track.lifecycle = core::TrackLifecycle::kConfirmed;
+  track.confidence = 1.0F;
+  track.linear_velocity = {1.0, 0.0, 0.0};
+
+  for (std::int64_t frame = 0; frame < 16; ++frame) {
+    track.position[0] = static_cast<double>(frame) * 0.1;
+    classifier.classify({track}, 1000000000LL + frame * 100000000LL);
+  }
+  track.linear_velocity = {0.0, 0.0, 0.0};
+  const auto retained = classifier.classify({track}, 2600000000LL);
+  ASSERT_EQ(retained.classified_tracks.size(), 1U);
+  EXPECT_TRUE(retained.classified_tracks[0].is_dynamic);
+  EXPECT_EQ(retained.classified_tracks[0].motion_state,
+            core::DynamicMotionState::kConfirmedDynamic);
+}
+
+TEST(DynamicClassifier, DoesNotPublishPredictedLostTracksAsDynamic) {
+  core::DynamicClassifier classifier;
+  classifier.configure(core::DynamicClassificationConfiguration{});
+  core::TrackEstimate track;
+  track.track_id = "lost_track";
+  track.lifecycle = core::TrackLifecycle::kConfirmed;
+  track.confidence = 1.0F;
+  track.linear_velocity = {1.0, 0.0, 0.0};
+  for (std::int64_t frame = 0; frame < 13; ++frame) {
+    track.position[0] = static_cast<double>(frame) * 0.1;
+    classifier.classify({track}, 1000000000LL + frame * 100000000LL);
+  }
+
+  track.lifecycle = core::TrackLifecycle::kLost;
+  const auto lost = classifier.classify({track}, 2300000000LL);
+  EXPECT_TRUE(lost.dynamic_tracks.empty());
+  EXPECT_EQ(lost.statistics.unclassified_track_count, 1U);
 }
