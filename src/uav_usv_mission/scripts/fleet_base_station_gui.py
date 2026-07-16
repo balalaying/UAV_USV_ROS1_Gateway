@@ -18,6 +18,7 @@ from rcl_interfaces.msg import ParameterValue
 from rcl_interfaces.srv import SetParameters
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtWidgets import QAbstractItemView
+from PyQt5.QtWidgets import QCheckBox
 from PyQt5.QtWidgets import QDoubleSpinBox
 from PyQt5.QtWidgets import QGridLayout
 from PyQt5.QtWidgets import QGroupBox
@@ -73,6 +74,7 @@ class GuiSignals(QObject):
     capture_markers = pyqtSignal(object)
     perception_metrics = pyqtSignal(object)
     perception_fusion_metrics = pyqtSignal(object)
+    multisensor_metrics = pyqtSignal(object)
     log = pyqtSignal(str)
 
 
@@ -247,6 +249,15 @@ class BaseStationGuiNode(Node):
                 '/perception/lv_dot/fusion_metrics',
             ),
             self._on_perception_fusion_metrics,
+            10,
+        )
+        self.create_subscription(
+            String,
+            self._topic(
+                self.capture_namespace,
+                '/perception/multisensor/metrics',
+            ),
+            self._on_multisensor_metrics,
             10,
         )
         self.create_subscription(
@@ -522,6 +533,15 @@ class BaseStationGuiNode(Node):
             return
         if isinstance(metrics, dict):
             self.signals.perception_fusion_metrics.emit(metrics)
+
+    def _on_multisensor_metrics(self, msg):
+        try:
+            metrics = json.loads(msg.data)
+        except (TypeError, ValueError):
+            self.get_logger().warning('Invalid multisensor metrics JSON')
+            return
+        if isinstance(metrics, dict):
+            self.signals.multisensor_metrics.emit(metrics)
 
     def _on_defense_status(self, msg):
         fields = {}
@@ -1244,6 +1264,7 @@ class BaseStationWindow(QMainWindow):
         signals.perception_fusion_metrics.connect(
             self._update_perception_fusion_metrics
         )
+        signals.multisensor_metrics.connect(self._update_multisensor_metrics)
         signals.log.connect(self._append_log)
 
     def _build_ui(self):
@@ -1694,7 +1715,7 @@ class BaseStationWindow(QMainWindow):
         layout.addWidget(command_group)
 
     def _build_perception_monitor(self, layout):
-        status_group = QGroupBox('LV-DOT Shadow Mode')
+        status_group = QGroupBox('多源感知 Shadow Mode')
         status_layout = QGridLayout(status_group)
         self.perception_metric_labels = {}
         fields = (
@@ -1724,30 +1745,57 @@ class BaseStationWindow(QMainWindow):
             self.perception_metric_labels[key] = value
         layout.addWidget(status_group)
 
-        comparison_group = QGroupBox('Ground Truth / LV-DOT / Fusion')
+        comparison_group = QGroupBox('Sensor Layer')
         comparison_layout = QVBoxLayout(comparison_group)
-        self.perception_comparison_table = QTableWidget(3, 10)
+        layer_controls = QHBoxLayout()
+        layer_controls.addWidget(QLabel('显示层：'))
+        self.perception_layer_checks = {}
+        layer_definitions = (
+            ('Ground Truth', 'ground_truth'),
+            ('LV-DOT', 'lv_dot'),
+            ('UAV Camera', 'uav_camera'),
+            ('Fusion', 'fusion'),
+        )
+        for row, (title, key) in enumerate(layer_definitions):
+            checkbox = QCheckBox(title)
+            checkbox.setChecked(True)
+            checkbox.toggled.connect(
+                lambda checked, index=row: (
+                    self.perception_comparison_table.setRowHidden(
+                        index, not checked
+                    )
+                )
+            )
+            self.perception_layer_checks[key] = checkbox
+            layer_controls.addWidget(checkbox)
+        layer_controls.addStretch()
+        comparison_layout.addLayout(layer_controls)
+
+        self.perception_comparison_table = QTableWidget(4, 11)
         self.perception_comparison_table.setHorizontalHeaderLabels([
             'Source', 'Track ID', 'Position / m', 'Velocity / m/s',
             'Sensor Source', 'Confidence', 'Position Error',
-            'Velocity Error', 'Latency', 'Status',
+            'Velocity Error', 'Time Delta', 'Updated', 'Status',
         ])
         self._configure_table(self.perception_comparison_table)
         self.perception_comparison_table.setVerticalHeaderLabels([
-            'Ground Truth', 'LV-DOT', 'Fusion'
+            'Ground Truth', 'LV-DOT', 'UAV Camera', 'Fusion'
         ])
-        for row, source in enumerate(
-            ('Ground Truth', 'LV-DOT', 'Fusion')
-        ):
+        for row, (source, _key) in enumerate(layer_definitions):
             self.perception_comparison_table.setItem(
                 row, 0, self._item(source)
             )
         comparison_layout.addWidget(self.perception_comparison_table)
         self.perception_fusion_summary = QLabel(
-            '等待 /perception/lv_dot/fusion_metrics'
+            '等待 /perception/multisensor/metrics'
         )
         self.perception_fusion_summary.setObjectName('vehicleDetail')
         comparison_layout.addWidget(self.perception_fusion_summary)
+        self.perception_association_label = QLabel(
+            '关联关系：等待多源观测'
+        )
+        self.perception_association_label.setObjectName('vehicleDetail')
+        comparison_layout.addWidget(self.perception_association_label)
         layout.addWidget(comparison_group)
 
         flow_group = QGroupBox('Shadow Mode 数据流')
@@ -2081,7 +2129,7 @@ class BaseStationWindow(QMainWindow):
     def _update_perception_fusion_metrics(self, metrics):
         self._touch_ros()
         sources = metrics.get('sources', {})
-        source_order = ('ground_truth', 'lv_dot', 'fusion')
+        source_order = ('ground_truth', 'lv_dot', 'uav_camera', 'fusion')
 
         def vector_text(value, unit=''):
             if not isinstance(value, (list, tuple)) or len(value) < 2:
@@ -2103,6 +2151,10 @@ class BaseStationWindow(QMainWindow):
         for row, source_name in enumerate(source_order):
             source = sources.get(source_name, {})
             online = bool(source.get('online'))
+            time_delta = source.get('timestamp_delta_ms')
+            if time_delta is None:
+                time_delta = source.get('latency_ms')
+            timestamp = source.get('timestamp')
             values = (
                 source_name.replace('_', ' ').title(),
                 source.get('track_id') or '-',
@@ -2112,12 +2164,13 @@ class BaseStationWindow(QMainWindow):
                 number(source.get('confidence'), '', 2),
                 number(source.get('position_error_m'), 'm', 2),
                 number(source.get('velocity_error_mps'), 'm/s', 2),
-                number(source.get('latency_ms'), 'ms', 1),
+                number(time_delta, 'ms', 1),
+                number(timestamp, 's', 3),
                 'ONLINE' if online else 'OFFLINE',
             )
             for column, value in enumerate(values):
                 color = None
-                if column == 9:
+                if column == 10:
                     color = '#16834a' if online else '#b63737'
                 self.perception_comparison_table.setItem(
                     row, column, self._item(value, color)
@@ -2125,19 +2178,45 @@ class BaseStationWindow(QMainWindow):
 
         summary = metrics.get('summary', {})
         lv_dot = summary.get('lv_dot', {})
+        uav_camera = summary.get('uav_camera', {})
         fusion = summary.get('fusion', {})
         self.perception_fusion_summary.setText(
             'Shadow Mode | control source: %s | '
-            'LV-DOT mean error: %s | Fusion mean error: %s | '
-            'LV-DOT/Fusion ID switches: %d/%d'
+            'LV-DOT/Camera/Fusion mean error: %s / %s / %s | '
+            'ID switches: %d / %d / %d'
             % (
                 metrics.get('control_source', 'ground_truth'),
                 number(lv_dot.get('mean_position_error_m'), 'm', 2),
+                number(
+                    uav_camera.get('mean_position_error_m'), 'm', 2
+                ),
                 number(fusion.get('mean_position_error_m'), 'm', 2),
                 int(lv_dot.get('id_switches') or 0),
+                int(uav_camera.get('id_switches') or 0),
                 int(fusion.get('id_switches') or 0),
             )
         )
+        association = metrics.get('association', {})
+        if association:
+            self.perception_association_label.setText(
+                '关联关系：%s + %s -> %s | sources=%s | rate=%s'
+                % (
+                    association.get('lv_dot_track_id') or '-',
+                    association.get('uav_camera_track_id') or '-',
+                    association.get('fusion_track_id') or '-',
+                    association.get('fusion_sources') or 'UNKNOWN',
+                    (
+                        '%.1f %%' % (
+                            100.0 * float(
+                                association.get('association_rate') or 0.0
+                            )
+                        )
+                    ),
+                )
+            )
+
+    def _update_multisensor_metrics(self, metrics):
+        self._update_perception_fusion_metrics(metrics)
 
     def _update_vehicle(self, data):
         self._touch_ros()

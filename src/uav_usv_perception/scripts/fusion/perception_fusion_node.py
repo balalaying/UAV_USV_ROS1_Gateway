@@ -49,6 +49,14 @@ class ActiveTrack:
     observed_at: float
 
 
+@dataclass
+class ObservationBatch:
+    topic: str
+    observed_at: float
+    received_at: float
+    candidates: list
+
+
 def _stamp_seconds(stamp):
     return float(stamp.sec) + float(stamp.nanosec) * 1e-9
 
@@ -96,6 +104,58 @@ def _yaw(quaternion):
     )
 
 
+def partition_ready_groups(
+    groups, expected_topic_count, aggregation_wait, now_monotonic
+):
+    """Hold incomplete cross-source groups briefly without changing fusion."""
+    ready = []
+    waiting = []
+    for group in groups:
+        topic_count = len({item.topic for item in group})
+        oldest_arrival = min(item.received_at for item in group)
+        wait_elapsed = max(0.0, now_monotonic - oldest_arrival)
+        if (
+            aggregation_wait <= 0.0
+            or topic_count >= expected_topic_count
+            or wait_elapsed >= aggregation_wait
+        ):
+            ready.append(group)
+        else:
+            waiting.append(group)
+    return ready, waiting
+
+
+def select_synchronized_batches(histories, topics, sync_slop):
+    """Select one temporally coherent non-empty batch from every source."""
+    available = {}
+    for topic in topics:
+        batches = [
+            batch for batch in histories.get(topic, ())
+            if batch.candidates
+        ]
+        if not batches:
+            return []
+        available[topic] = batches
+
+    watermark = min(
+        max(batch.observed_at for batch in batches)
+        for batches in available.values()
+    )
+    selected = []
+    for topic in topics:
+        batch = min(
+            available[topic],
+            key=lambda item: (
+                abs(item.observed_at - watermark),
+                -item.observed_at,
+            ),
+        )
+        if abs(batch.observed_at - watermark) > sync_slop:
+            return []
+        selected.append(batch)
+    return selected
+
+
 class PerceptionFusionNode(Node):
     def __init__(self):
         super().__init__('perception_fusion_node')
@@ -111,6 +171,8 @@ class PerceptionFusionNode(Node):
         self.declare_parameter('publish_rate_hz', 10.0)
         self.declare_parameter('max_input_age_seconds', 1.0)
         self.declare_parameter('sync_slop_seconds', 0.35)
+        self.declare_parameter('aggregation_wait_seconds', 0.0)
+        self.declare_parameter('observation_history_seconds', 0.0)
         self.declare_parameter('association_distance', 8.0)
         self.declare_parameter('track_timeout_seconds', 2.0)
         self.declare_parameter('smoothing_alpha', 0.75)
@@ -141,6 +203,23 @@ class PerceptionFusionNode(Node):
         )
         self.sync_slop = max(
             0.0, float(self.get_parameter('sync_slop_seconds').value)
+        )
+        self.aggregation_wait = min(
+            self.max_input_age,
+            max(
+                0.0,
+                float(
+                    self.get_parameter('aggregation_wait_seconds').value
+                ),
+            ),
+        )
+        self.history_seconds = max(
+            0.0,
+            float(
+                self.get_parameter(
+                    'observation_history_seconds'
+                ).value
+            ),
         )
         self.association_distance = max(
             0.01, float(
@@ -179,6 +258,10 @@ class PerceptionFusionNode(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.pending = []
+        self.observation_history = {
+            topic: [] for topic in self.input_topics
+        }
+        self.last_snapshot_signature = None
         self.tracks = {}
         self.next_track_number = 1
         self.last_tf_warning = {}
@@ -287,6 +370,7 @@ class PerceptionFusionNode(Node):
         observed_at = _stamp_seconds(message.header.stamp)
         if observed_at <= 0.0:
             observed_at = self.get_clock().now().nanoseconds * 1e-9
+        latest = []
         for tracked in message.objects:
             object_stamp = _stamp_seconds(tracked.last_update)
             if object_stamp <= 0.0:
@@ -296,11 +380,21 @@ class PerceptionFusionNode(Node):
             )
             if transformed is None:
                 continue
-            self.pending.append(Candidate(
+            candidate = Candidate(
                 topic=topic,
                 observed_at=object_stamp,
                 received_at=received_at,
                 tracked=transformed,
+            )
+            if self.history_seconds <= 0.0:
+                self.pending.append(candidate)
+            latest.append(candidate)
+        if self.history_seconds > 0.0:
+            self.observation_history[topic].append(ObservationBatch(
+                topic=topic,
+                observed_at=observed_at,
+                received_at=received_at,
+                candidates=latest,
             ))
 
     def _candidate_groups(self, candidates):
@@ -517,13 +611,56 @@ class PerceptionFusionNode(Node):
 
     def _process_and_publish(self):
         now_monotonic = time.monotonic()
-        candidates = [
-            item for item in self.pending
-            if now_monotonic - item.received_at <= self.max_input_age
-        ]
-        self.pending = []
+        if self.history_seconds > 0.0:
+            for topic, batches in self.observation_history.items():
+                self.observation_history[topic] = [
+                    batch for batch in batches
+                    if now_monotonic - batch.received_at
+                    <= self.history_seconds
+                ]
+            selected_batches = select_synchronized_batches(
+                self.observation_history,
+                self.input_topics,
+                self.sync_slop,
+            )
+            signature = tuple(
+                (batch.topic, round(batch.observed_at, 9))
+                for batch in selected_batches
+            )
+            if selected_batches and signature != self.last_snapshot_signature:
+                candidates = [
+                    candidate
+                    for batch in selected_batches
+                    for candidate in batch.candidates
+                ]
+                self.last_snapshot_signature = signature
+            else:
+                candidates = []
+        else:
+            candidates = [
+                item for item in self.pending
+                if now_monotonic - item.received_at <= self.max_input_age
+            ]
+        groups = self._candidate_groups(candidates)
+        if self.history_seconds > 0.0:
+            ready_groups = [
+                group for group in groups
+                if len({item.topic for item in group})
+                == len(self.input_topics)
+            ]
+            waiting_groups = []
+        else:
+            ready_groups, waiting_groups = partition_ready_groups(
+                groups,
+                len(self.input_topics),
+                self.aggregation_wait,
+                now_monotonic,
+            )
+            self.pending = [
+                item for group in waiting_groups for item in group
+            ]
         assigned = set()
-        for group in self._candidate_groups(candidates):
+        for group in ready_groups:
             track_id = self._select_track_id(group, assigned)
             assigned.add(track_id)
             self._fuse_group(track_id, group, now_monotonic)

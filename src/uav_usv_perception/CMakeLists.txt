@@ -22,8 +22,10 @@ install(PROGRAMS
   scripts/adapters/lv_dot_ingress_relay.py
   scripts/adapters/lv_dot_observation_adapter.py
   scripts/adapters/lv_dot_pose_adapter.py
+  scripts/adapters/uav_visual_observation_node.py
   scripts/evaluation/lv_dot_fusion_evaluator.py
   scripts/evaluation/lv_dot_shadow_evaluator.py
+  scripts/evaluation/multisensor_validation_evaluator.py
   scripts/fusion/perception_fusion_node.py
   scripts/fusion/perception_source_mux.py
   DESTINATION lib/${PROJECT_NAME}
@@ -57,6 +59,16 @@ if(BUILD_TESTING)
     test_lv_dot_phase5_adapter
     test/test_lv_dot_phase5_adapter.py
     APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/adapters
+  )
+  ament_add_pytest_test(
+    test_uav_visual_observation
+    test/test_uav_visual_observation.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/adapters
+  )
+  ament_add_pytest_test(
+    test_perception_fusion_batching
+    test/test_perception_fusion_batching.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/fusion:${CMAKE_CURRENT_SOURCE_DIR}/scripts/tracking
   )
 endif()
 

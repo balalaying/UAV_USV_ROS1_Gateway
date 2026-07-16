@@ -53,3 +53,25 @@
 若后续需要同时发布`STATIC`、`MOVING_CANDIDATE`和
 `CONFIRMED_DYNAMIC`，应新增版本化消息或独立分类状态数组；不能重新定义V1
 `confidence`或`classification`的含义。
+
+## 多传感器Observation统一约束
+
+LV-DOT和UAV视觉Observation使用完全相同的`TrackedObjectArray`，正式消息中禁止
+加入LiDAR点数、图像像素框等传感器私有字段。
+
+| 语义 | LV-DOT Observation | UAV Camera Observation |
+| --- | --- | --- |
+| UUID | 由来源内稳定track ID确定生成 | 由来源内稳定track ID确定生成 |
+| track_id | LV-DOT tracker ID | `<vehicle>_camera_<target>` |
+| position/velocity | `map`坐标 | `map`坐标 |
+| covariance | tracker估计 | 视觉代理噪声模型 |
+| source_mask | `SOURCE_LIDAR` | `SOURCE_CAMERA` |
+| confidence | 动态track置信度 | 视觉Observation置信度 |
+| classification | 不推断未知类别 | 保留代理真值类别 |
+| timestamp | 动态track测量时间 | 触发图像时间 |
+| frame | 数组header指定 | 数组header指定 |
+
+当前UAV视觉第一阶段使用真值构造Observation，但只有在图像、CameraInfo、对应图像
+时间戳的TF和视锥判定均有效时才发布非空观测。该来源在正式消息中标记为CAMERA，
+并在独立状态topic明确标记`mode=ground_truth_proxy`；不得把该模式描述成真实视觉
+检测精度。
