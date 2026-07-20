@@ -1,0 +1,58 @@
+usv_01_camera_detection:
+  ros__parameters:
+    detector_backend: simulation_marker
+    enable_affiliation_filter: true
+    min_pixels: 3
+    padding_pixels: 7
+    maximum_center_y_ratio: 0.90
+    max_rate_hz: 20.0
+    visual_track_pixel_gate: 64.0
+    affiliation_history_size: 7
+    affiliation_confirmation_frames: 3
+    affiliation_switch_frames: 4
+    affiliation_hold_seconds: 1.0
+    affiliation_unknown_timeout: 2.0
+    affiliation_min_confidence: 0.55
+
+usv_01_vision_guided_lidar_roi:
+  ros__parameters:
+    shadow_mode: true
+    sync_slop_seconds: 0.20
+    roi_expand_pixels: 14.0
+    minimum_roi_points: 4
+    maximum_roi_points: 600
+    minimum_depth: 1.0
+    maximum_depth: 90.0
+    depth_percentile_low: 5.0
+    depth_percentile_high: 92.0
+    depth_outlier_threshold: 1.2
+    local_cluster_epsilon: 1.00
+    local_cluster_min_samples: 3
+    water_surface_z: 0.0
+    water_surface_margin: 0.05
+    minimum_length: 0.15
+    maximum_length: 18.0
+    minimum_width: 0.10
+    maximum_width: 8.0
+    minimum_height: 0.05
+    maximum_height: 8.0
+    minimum_confirmed_frames: 2
+    track_prediction_gate: 3.0
+    bbox_smoothing_alpha: 0.45
+    maximum_bbox_jump: 0.75
+    bbox_jump_confirmation_frames: 3
+    known_vessel_width: 2.6
+    tf_lookup_timeout_seconds: 0.20
+    minimum_occluded_extent: 0.60
+
+usv_01_camera_lidar_association:
+  ros__parameters:
+    sync_slop_seconds: 0.20
+    minimum_association_score: 0.08
+    pixel_gate: 32.0
+    minimum_lidar_xy_extent: 0.20
+    vision_guided_max_age_seconds: 0.35
+    vision_guided_lidar_gate: 5.0
+    enable_global_lidar_fallback: true
+    affiliation_hold_seconds: 1.0
+    affiliation_unknown_timeout: 2.0

@@ -137,7 +137,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 'start_qt',
-                default_value='true',
+                default_value='false',
                 description='Start Qt base station.',
             ),
             DeclareLaunchArgument(

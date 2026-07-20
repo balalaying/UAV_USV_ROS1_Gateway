@@ -71,7 +71,8 @@
     <include><uri>model://x500_low_latency_cam_down</uri><name>uav_04</name><pose>-15 -34 1.35 0 0 0</pose></include>
     <include><uri>model://defense_own_01_boat</uri><name>usv_01</name><pose>-16 2 0 0 0 0</pose></include>
     <include><uri>model://defense_own_02_boat</uri><name>usv_02</name><pose>-16 14 0 0 0 0</pose></include>
-    <include><uri>model://target_vessel</uri><name>enemy_target</name><pose>52 -20 0 0 0 0.25</pose></include>
+    <!-- Inside the common USV camera / 70 m Mid-360 field at startup. -->
+    <include><uri>model://target_vessel</uri><name>enemy_target</name><pose>32 -8 0 0 0 0.25</pose></include>
 
     <light name="sun" type="directional"><pose>0 0 80 0 0 0</pose><cast_shadows>true</cast_shadows><intensity>1.1</intensity>
       <direction>-0.35 0.2 -0.92</direction><diffuse>0.9 0.9 0.86 1</diffuse><specular>0.25 0.25 0.25 1</specular></light>

@@ -49,6 +49,12 @@ def adapt_dynamic_message(message, fallback_stamp):
         tracked.source_mask = int(tracked.source_mask) | int(
             TrackedObject.SOURCE_LIDAR
         )
+        if not tracked.class_name:
+            tracked.class_name = 'unknown'
+        tracked.class_confidence = min(
+            1.0, max(0.0, float(tracked.class_confidence))
+        )
+        tracked.sensor_source = 'lidar'
         confidence = float(tracked.confidence)
         if not math.isfinite(confidence):
             confidence = 0.0

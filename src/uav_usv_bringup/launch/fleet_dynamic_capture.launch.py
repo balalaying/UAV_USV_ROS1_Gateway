@@ -14,7 +14,6 @@ from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import EnvironmentVariable
 from launch.substitutions import LaunchConfiguration
-from launch.substitutions import PythonExpression
 from launch_ros.actions import Node
 from launch_ros.actions import PushRosNamespace
 from launch_ros.parameter_descriptions import ParameterValue
@@ -59,6 +58,7 @@ def _fleet_runtime_actions(
     mid360_visualize = _launch_bool(context, 'mid360_visualize')
     px4_dir = LaunchConfiguration('px4_dir').perform(context)
     uav_model_scale = LaunchConfiguration('uav_model_scale').perform(context)
+    uav_camera_rate = LaunchConfiguration('uav_camera_rate').perform(context)
     vehicle_id = LaunchConfiguration('mid360_vehicle_id').perform(context)
     ros_topic = LaunchConfiguration('mid360_topic').perform(context)
     update_rate = float(
@@ -73,22 +73,12 @@ def _fleet_runtime_actions(
     voxel_size = float(
         LaunchConfiguration('mid360_voxel_size').perform(context)
     )
-    visual_scale = float(
-        LaunchConfiguration('mid360_visual_scale').perform(context)
-    )
-    perception_source = LaunchConfiguration(
-        'perception_source'
-    ).perform(context).strip().lower()
-    if perception_source not in ('ground_truth', 'mid360', 'hybrid'):
-        raise RuntimeError(
-            'perception_source must be ground_truth, mid360, or hybrid'
-        )
     rgl_root = LaunchConfiguration('rgl_install').perform(context)
     rgl_patterns = LaunchConfiguration('rgl_patterns').perform(context)
     rgl_plugin_dir = os.path.join(rgl_root, 'RGLServerPlugin')
     frame_id = vehicle_id + '/mid360_link'
     raw_topic = '/fleet/uplink/%s/mid360/rgl_points' % vehicle_id
-    filtered_topic = '/perception/%s/points_filtered' % vehicle_id
+    filtered_topic = '/perception/%s/mid360/points_filtered' % vehicle_id
     preview_topic = '/perception/%s/mid360/preview' % vehicle_id
 
     px4_models = os.path.join(px4_dir, 'Tools', 'simulation', 'gz', 'models')
@@ -116,11 +106,12 @@ def _fleet_runtime_actions(
     if start_gazebo:
         prepare_uav = (
             '%s --px4-dir %s --scale %s '
-            '--camera-width 320 --camera-height 180 --camera-rate 20'
+            '--camera-width 320 --camera-height 180 --camera-rate %s'
             % (
                 shlex.quote(prepare_x500),
                 shlex.quote(px4_dir),
                 shlex.quote(uav_model_scale),
+                shlex.quote(uav_camera_rate),
             )
         )
         selected_world = world
@@ -147,8 +138,7 @@ def _fleet_runtime_actions(
             prepare_sensor = (
                 '%s --world %s --models-dir %s --output-root %s '
                 '--vehicle-id %s --raw-topic %s --frame-id %s '
-                '--update-rate %.6f --min-range %.6f --max-range %.6f '
-                '--visual-scale %.6f'
+                '--update-rate %.6f --min-range %.6f --max-range %.6f'
                 % (
                     shlex.quote(prepare_mid360),
                     shlex.quote(world),
@@ -160,7 +150,6 @@ def _fleet_runtime_actions(
                     update_rate,
                     min_range,
                     max_range,
-                    visual_scale,
                 )
             )
             command = (
@@ -200,17 +189,6 @@ def _fleet_runtime_actions(
             output='screen',
             additional_env=environment,
         ))
-        actions.append(Node(
-            package='uav_usv_perception',
-            executable='fleet_gazebo_labels.py',
-            name='fleet_gazebo_labels',
-            output='screen',
-            parameters=[{
-                'pose_topic': '/world/%s/pose/info' % WORLD_NAME,
-                'mid360_vehicle_id': vehicle_id,
-                'show_mid360': enable_mid360,
-            }],
-        ))
 
     if enable_mid360:
         actions.extend([
@@ -238,7 +216,6 @@ def _fleet_runtime_actions(
                     'preview_topic': preview_topic,
                     'vehicle_id': vehicle_id,
                     'frame_id': frame_id,
-                    'tf_target_frame': 'map',
                     'expected_rate_hz': update_rate,
                     'min_range': min_range,
                     'max_range': max_range,
@@ -256,6 +233,18 @@ def _fleet_runtime_actions(
                     '--roll', '0.0', '--pitch', '0.0', '--yaw', '0.0',
                     '--frame-id', vehicle_id + '/base_link',
                     '--child-frame-id', frame_id,
+                ],
+            ),
+            Node(
+                package='tf2_ros',
+                executable='static_transform_publisher',
+                name='fleet_usv_01_camera_mount_tf',
+                output='screen',
+                arguments=[
+                    '--x', '3.24', '--y', '0.0', '--z', '1.55',
+                    '--roll', '0.0', '--pitch', '0.0', '--yaw', '0.0',
+                    '--frame-id', 'usv_01/base_link',
+                    '--child-frame-id', 'usv_01/camera_link',
                 ],
             ),
             Node(
@@ -392,7 +381,6 @@ def _usv_agent(
         'scan_topic': '/%s/scan' % vehicle_id,
         'navigate_action': '/%s/navigate_to_pose' % vehicle_id,
         'emergency_cmd_topic': '/model/%s/cmd_vel' % model_control_name,
-        'manage_nav2_lifecycle': True,
     }
     if unreachable is not False:
         parameters['simulate_unreachable'] = ParameterValue(
@@ -407,7 +395,7 @@ def _usv_agent(
     )
 
 
-def _sensor_bridges(camera_rate):
+def _sensor_bridges():
     return [Node(
         package='uav_usv_mission',
         executable='gz_sensor_bridge',
@@ -421,44 +409,8 @@ def _sensor_bridges(camera_rate):
             'usv_source_names': [item[1] for item in USV_CONFIG],
             'bridge_usv_scans': True,
             'bridge_base_radar': False,
-            'camera_max_rate': ParameterValue(
-                camera_rate, value_type=float
-            ),
         }],
     )]
-
-
-def _uav_camera_nodes(enable_adapter, expected_rate):
-    vehicle_ids = [item[0] for item in UAV_CONFIG]
-    condition = IfCondition(enable_adapter)
-    return [
-        Node(
-            package='uav_usv_perception',
-            executable='uav_camera_tf.py',
-            name='fleet_uav_camera_tf',
-            output='screen',
-            condition=condition,
-            parameters=[{
-                'vehicle_ids': vehicle_ids,
-                'pose_topic': '/world/%s/pose/info' % WORLD_NAME,
-                'map_frame_id': 'map',
-            }],
-        ),
-        Node(
-            package='uav_usv_perception',
-            executable='uav_camera_adapter.py',
-            name='fleet_uav_camera_adapter',
-            output='screen',
-            condition=condition,
-            parameters=[{
-                'vehicle_ids': vehicle_ids,
-                'expected_rate_hz': ParameterValue(
-                    expected_rate, value_type=float
-                ),
-                'tf_target_frame': 'map',
-            }],
-        ),
-    ]
 
 
 def generate_launch_description():
@@ -477,14 +429,14 @@ def generate_launch_description():
     start_dds_agent = LaunchConfiguration('start_dds_agent')
     enable_sudden_turn = LaunchConfiguration('enable_sudden_turn')
     sudden_turn_time = LaunchConfiguration('sudden_turn_time')
+    target_speed = LaunchConfiguration('target_speed')
+    target_nominal_turn_rate = LaunchConfiguration(
+        'target_nominal_turn_rate'
+    )
     simulate_usv_02_unreachable = LaunchConfiguration(
         'simulate_usv_02_unreachable'
     )
     uav_model_scale = LaunchConfiguration('uav_model_scale')
-    enable_uav_camera_adapter = LaunchConfiguration(
-        'enable_uav_camera_adapter'
-    )
-    uav_camera_rate = LaunchConfiguration('uav_camera_rate')
 
     px4_dir_default = os.path.expanduser(
         os.environ.get('PX4_DIR', '~/PX4-Autopilot')
@@ -574,15 +526,12 @@ def generate_launch_description():
         DeclareLaunchArgument('start_dds_agent', default_value='true'),
         DeclareLaunchArgument('enable_sudden_turn', default_value='true'),
         DeclareLaunchArgument('sudden_turn_time', default_value='55.0'),
-        DeclareLaunchArgument('uav_model_scale', default_value='6.0'),
+        DeclareLaunchArgument('target_speed', default_value='1.2'),
         DeclareLaunchArgument(
-            'enable_uav_camera_adapter',
-            default_value='true',
-            description=(
-                'Publish standardized UAV image_raw/camera_info and TF.'
-            ),
+            'target_nominal_turn_rate', default_value='0.01'
         ),
-        DeclareLaunchArgument('uav_camera_rate', default_value='15.0'),
+        DeclareLaunchArgument('uav_model_scale', default_value='6.0'),
+        DeclareLaunchArgument('uav_camera_rate', default_value='20.0'),
         DeclareLaunchArgument('enable_mid360', default_value='true'),
         DeclareLaunchArgument('mid360_vehicle_id', default_value='usv_01'),
         DeclareLaunchArgument(
@@ -594,31 +543,6 @@ def generate_launch_description():
         DeclareLaunchArgument('mid360_min_range', default_value='0.5'),
         DeclareLaunchArgument('mid360_range', default_value='70.0'),
         DeclareLaunchArgument('mid360_voxel_size', default_value='0.12'),
-        DeclareLaunchArgument('mid360_visual_scale', default_value='1.0'),
-        DeclareLaunchArgument(
-            'perception_source',
-            default_value='ground_truth',
-            description=(
-                'Reserved perception source selector: ground_truth, mid360, '
-                'or hybrid. Capture input remains ground_truth in this stage.'
-            ),
-        ),
-        DeclareLaunchArgument(
-            'nav2_start_delay',
-            default_value='20.0',
-            description=(
-                'Delay Nav2 lifecycle startup until Gazebo/RGL odometry is '
-                'available.'
-            ),
-        ),
-        DeclareLaunchArgument(
-            'nav2_start_stagger',
-            default_value='10.0',
-            description=(
-                'Stagger consecutive Nav2 stacks to avoid lifecycle service '
-                'timeouts while Gazebo and RGL are under startup load.'
-            ),
-        ),
         DeclareLaunchArgument(
             'rgl_install',
             default_value='/var/tmp/RGLGazeboPlugin/install',
@@ -651,10 +575,7 @@ def generate_launch_description():
         ),
     ]
 
-    actions.extend(_sensor_bridges(uav_camera_rate))
-    actions.extend(_uav_camera_nodes(
-        enable_uav_camera_adapter, uav_camera_rate
-    ))
+    actions.extend(_sensor_bridges())
 
     for usv_index, (vehicle_id, model_control_name) in enumerate(USV_CONFIG):
         actions.append(_boat_interface(
@@ -662,13 +583,7 @@ def generate_launch_description():
         ))
         configured_nav_params = _nav_params(nav_params, vehicle_id)
         actions.append(TimerAction(
-            period=PythonExpression([
-                LaunchConfiguration('nav2_start_delay'),
-                ' + ',
-                LaunchConfiguration('nav2_start_stagger'),
-                ' * ',
-                str(usv_index),
-            ]),
+            period=2.0 + 3.0 * usv_index,
             actions=[GroupAction(actions=[
                 PushRosNamespace(vehicle_id),
                 IncludeLaunchDescription(
@@ -677,10 +592,7 @@ def generate_launch_description():
                         'namespace': vehicle_id,
                         'use_sim_time': use_sim_time,
                         'params_file': configured_nav_params,
-                        # The USV agent activates lifecycle nodes sequentially.
-                        # Immediate Nav2 autostart is unreliable while Gazebo,
-                        # RGL and PX4 are all loading at the same time.
-                        'autostart': 'false',
+                        'autostart': 'true',
                         'use_composition': 'False',
                         'log_level': 'warn',
                     }.items(),
@@ -750,6 +662,10 @@ def generate_launch_description():
                 ),
                 'sudden_turn_time': ParameterValue(
                     sudden_turn_time, value_type=float
+                ),
+                'speed': ParameterValue(target_speed, value_type=float),
+                'nominal_turn_rate': ParameterValue(
+                    target_nominal_turn_rate, value_type=float
                 ),
             }],
         ),

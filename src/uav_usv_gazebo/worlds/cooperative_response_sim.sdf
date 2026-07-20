@@ -1,0 +1,73 @@
+<?xml version='1.0'?>
+<sdf version='1.10'>
+  <world name='cooperative_response_sim'>
+    <gui fullscreen='0'>
+      <plugin filename='MinimalScene' name='3D View'>
+        <gz-gui><title>3D View</title><property type='bool' key='showTitleBar'>false</property><property type='string' key='state'>docked</property></gz-gui>
+        <engine>ogre2</engine><scene>scene</scene>
+        <ambient_light>0.82 0.84 0.86</ambient_light>
+        <background_color>1 1 1</background_color>
+        <camera_pose>-420 -430 420 0 0.9 0.72</camera_pose>
+        <camera_clip><near>0.25</near><far>5000</far></camera_clip>
+      </plugin>
+      <plugin filename='GzSceneManager' name='Scene Manager'/>
+      <plugin filename='InteractiveViewControl' name='Interactive view control'/>
+      <plugin filename='CameraTracking' name='Camera Tracking'/>
+      <plugin filename='MarkerManager' name='Marker manager'/>
+      <plugin filename='WorldControl' name='World control'><play_pause>true</play_pause><step>true</step><start_paused>false</start_paused><use_event>true</use_event></plugin>
+    </gui>
+    <plugin filename='gz-sim-physics-system' name='gz::sim::systems::Physics'/>
+    <plugin filename='gz-sim-user-commands-system' name='gz::sim::systems::UserCommands'/>
+    <plugin filename='gz-sim-scene-broadcaster-system' name='gz::sim::systems::SceneBroadcaster'/>
+    <plugin filename='gz-sim-sensors-system' name='gz::sim::systems::Sensors'><render_engine>ogre2</render_engine></plugin>
+    <plugin filename='gz-sim-imu-system' name='gz::sim::systems::Imu'/>
+    <plugin filename='gz-sim-air-pressure-system' name='gz::sim::systems::AirPressure'/>
+    <plugin filename='gz-sim-navsat-system' name='gz::sim::systems::NavSat'/>
+    <plugin filename='gz-sim-magnetometer-system' name='gz::sim::systems::Magnetometer'/>
+    <physics type='ode'><max_step_size>0.004</max_step_size><real_time_factor>1</real_time_factor><real_time_update_rate>250</real_time_update_rate></physics>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6.0e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>47.3979710577</latitude_deg>
+      <longitude_deg>8.5461637398</longitude_deg>
+      <elevation>0</elevation><heading_deg>0</heading_deg>
+    </spherical_coordinates>
+    <scene><grid>false</grid><ambient>0.82 0.84 0.86 1</ambient><background>1 1 1 1</background><shadows>true</shadows></scene>
+    <model name='ocean_plane'>
+      <static>true</static>
+      <link name='ocean_link'>
+        <visual name='ocean_visual'><pose>0 0 -0.02 0 0 0</pose><geometry><plane><normal>0 0 1</normal><size>1400 1400</size></plane></geometry><material><ambient>0 0.08 0.16 0.55</ambient><diffuse>0 0.2 0.34 0.55</diffuse><specular>0.04 0.07 0.08 1</specular></material></visual>
+        <collision name='ocean_collision'><geometry><plane><normal>0 0 1</normal><size>1400 1400</size></plane></geometry></collision>
+      </link>
+    </model>
+    <include><uri>model://waves</uri><name>waves</name><pose>0 0 0.015 0 0 0</pose></include>
+
+    <include><name>command_base</name><pose>-120 -120 0 0 0 0</pose><uri>model://offshore_command_base</uri></include>
+    <include><name>fleet_uav_platform</name><pose>-120 -225 4 0 0 0</pose><uri>model://quad_uav_platform</uri></include>
+    <include><name>uav_01_large_visual</name><pose>-131 -234 3.5 0 0 0</pose><uri>model://large_uav_shell</uri></include>
+    <include><name>uav_02_large_visual</name><pose>-109 -234 3.5 0 0 0</pose><uri>model://large_uav_shell</uri></include>
+    <include><name>uav_03_large_visual</name><pose>-131 -216 3.5 0 0 0</pose><uri>model://large_uav_shell</uri></include>
+    <include><name>uav_04_large_visual</name><pose>-109 -216 3.5 0 0 0</pose><uri>model://large_uav_shell</uri></include>
+    <plugin filename="libDroneDeckFollower.so" name="gz::sim::systems::DroneDeckFollower"><boat_name>x500_mono_cam_down_0</boat_name><drone_name>uav_01_large_visual</drone_name><deck_offset>0 0 -3.1 0 0 0</deck_offset><release_after>1000000000</release_after><release_topic>/visual/uav_01/release</release_topic></plugin>
+    <plugin filename="libDroneDeckFollower.so" name="gz::sim::systems::DroneDeckFollower"><boat_name>x500_mono_cam_down_1</boat_name><drone_name>uav_02_large_visual</drone_name><deck_offset>0 0 -3.1 0 0 0</deck_offset><release_after>1000000000</release_after><release_topic>/visual/uav_02/release</release_topic></plugin>
+    <plugin filename="libDroneDeckFollower.so" name="gz::sim::systems::DroneDeckFollower"><boat_name>x500_mono_cam_down_2</boat_name><drone_name>uav_03_large_visual</drone_name><deck_offset>0 0 -3.1 0 0 0</deck_offset><release_after>1000000000</release_after><release_topic>/visual/uav_03/release</release_topic></plugin>
+    <plugin filename="libDroneDeckFollower.so" name="gz::sim::systems::DroneDeckFollower"><boat_name>x500_mono_cam_down_3</boat_name><drone_name>uav_04_large_visual</drone_name><deck_offset>0 0 -3.1 0 0 0</deck_offset><release_after>1000000000</release_after><release_topic>/visual/uav_04/release</release_topic></plugin>
+    <include><name>own_01</name><pose>-260 -230 0.2 0 0 0</pose><uri>model://cooperative_own_01_boat</uri></include>
+    <include><name>own_02</name><pose>-250 -160 0.2 0 0 0</pose><uri>model://cooperative_own_02_boat</uri></include>
+    <include><name>own_03</name><pose>-250 -80 0.2 0 0 0</pose><uri>model://cooperative_own_03_boat</uri></include>
+    <include><name>own_04</name><pose>-260 -10 0.2 0 0 0</pose><uri>model://cooperative_own_04_boat</uri></include>
+    <include><name>enemy_01</name><pose>360 -360 0.2 0 0 2.5</pose><uri>model://cooperative_enemy_01_boat</uri></include>
+    <include><name>enemy_02</name><pose>410 -120 0.2 0 0 3.0</pose><uri>model://cooperative_enemy_02_boat</uri></include>
+    <include><name>enemy_03</name><pose>250 300 0.2 0 0 -2.3</pose><uri>model://cooperative_enemy_03_boat</uri></include>
+    <include><name>enemy_04</name><pose>-150 430 0.2 0 0 -1.6</pose><uri>model://cooperative_enemy_04_boat</uri></include>
+    <include><name>nav_buoy_north</name><pose>-120 260 0 0 0 0</pose><uri>model://medium_buoy</uri></include>
+    <include><name>nav_buoy_northeast</name><pose>250 120 0 0 0 0</pose><uri>model://green_channel_buoy</uri></include>
+    <include><name>nav_buoy_southeast</name><pose>180 -360 0 0 0 0</pose><uri>model://medium_buoy</uri></include>
+    <include><name>nav_buoy_south</name><pose>-170 -500 0 0 0 0</pose><uri>model://green_channel_buoy</uri></include>
+    <include><name>nav_buoy_west</name><pose>-520 -100 0 0 0 0</pose><uri>model://medium_buoy</uri></include>
+    <include><name>nav_buoy_northwest</name><pose>-430 250 0 0 0 0</pose><uri>model://green_channel_buoy</uri></include>
+    <light name='sun' type='directional'><pose>0 0 300 0 0 0</pose><cast_shadows>true</cast_shadows><intensity>1.1</intensity><direction>-0.35 0.15 -0.92</direction><diffuse>0.9 0.9 0.86 1</diffuse><specular>0.25 0.25 0.22 1</specular></light>
+  </world>
+</sdf>

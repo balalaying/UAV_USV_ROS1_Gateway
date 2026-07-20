@@ -499,10 +499,48 @@ class PerceptionFusionNode(Node):
             if item.tracked.classification != TrackedObject.CLASS_UNKNOWN
         ]
         if classified:
-            output.classification = max(
+            semantic = max(
                 classified,
-                key=lambda item: item.tracked.confidence,
-            ).tracked.classification
+                key=lambda item: max(
+                    item.tracked.class_confidence,
+                    item.tracked.confidence,
+                ),
+            ).tracked
+            output.classification = semantic.classification
+            output.class_name = semantic.class_name
+            output.class_confidence = max(
+                semantic.class_confidence, semantic.confidence
+            )
+        affiliated = [
+            item.tracked for item in group
+            if item.tracked.affiliation != TrackedObject.AFFILIATION_UNKNOWN
+            and item.tracked.affiliation_confidence > 0.0
+            and item.tracked.sensor_source != 'ground_truth'
+        ]
+        if affiliated:
+            identity = max(
+                affiliated,
+                key=lambda tracked: (
+                    tracked.affiliation_confidence,
+                    tracked.sensor_source == 'camera+lidar',
+                ),
+            )
+            output.affiliation = identity.affiliation
+            output.affiliation_confidence = identity.affiliation_confidence
+        else:
+            output.affiliation = TrackedObject.AFFILIATION_UNKNOWN
+            output.affiliation_confidence = 0.0
+        source_names = []
+        for bit, name in (
+            (TrackedObject.SOURCE_LIDAR, 'lidar'),
+            (TrackedObject.SOURCE_CAMERA, 'camera'),
+            (TrackedObject.SOURCE_AIS, 'ais'),
+        ):
+            if source_mask & bit:
+                source_names.append(name)
+        output.sensor_source = (
+            '+'.join(source_names) if source_names else 'ground_truth'
+        )
 
         position = output.pose.pose.position
         position.x = self._weighted(
@@ -600,6 +638,16 @@ class PerceptionFusionNode(Node):
                 + (1.0 - alpha) * old.confidence
             )
             output.first_seen = old.first_seen
+            # UNKNOWN never erases a confirmed camera identity during a short
+            # single-source dropout. The normal track timeout still removes it.
+            if (
+                output.affiliation == TrackedObject.AFFILIATION_UNKNOWN
+                and old.affiliation != TrackedObject.AFFILIATION_UNKNOWN
+            ):
+                output.affiliation = old.affiliation
+                output.affiliation_confidence = (
+                    old.affiliation_confidence * self.confidence_decay
+                )
 
         observed_at = max(item.observed_at for item in group)
         self.tracks[track_id] = ActiveTrack(

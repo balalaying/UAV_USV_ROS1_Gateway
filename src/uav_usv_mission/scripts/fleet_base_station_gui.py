@@ -8,6 +8,7 @@ import time
 
 from geometry_msgs.msg import PoseArray
 from geometry_msgs.msg import PoseStamped
+import numpy as np
 from PyQt5.QtCore import QObject, QPointF, Qt, pyqtSignal
 from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QColor, QFont, QImage, QPainter, QPen
@@ -19,6 +20,7 @@ from rcl_interfaces.srv import SetParameters
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtWidgets import QAbstractItemView
 from PyQt5.QtWidgets import QCheckBox
+from PyQt5.QtWidgets import QComboBox
 from PyQt5.QtWidgets import QDoubleSpinBox
 from PyQt5.QtWidgets import QGridLayout
 from PyQt5.QtWidgets import QGroupBox
@@ -30,6 +32,7 @@ from PyQt5.QtWidgets import QPlainTextEdit
 from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtWidgets import QSizePolicy
 from PyQt5.QtWidgets import QSlider
+from PyQt5.QtWidgets import QSpinBox
 from PyQt5.QtWidgets import QSplitter
 from PyQt5.QtWidgets import QTabWidget
 from PyQt5.QtWidgets import QTableWidget
@@ -43,10 +46,16 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy
 from rclpy.qos import QoSProfile
 from rclpy.qos import ReliabilityPolicy
+from rclpy.time import Time
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import PointCloud2
+from sensor_msgs_py import point_cloud2
 from std_msgs.msg import String
 from std_srvs.srv import SetBool
+from tf2_ros import Buffer
+from tf2_ros import TransformException
+from tf2_ros import TransformListener
 from uav_usv_interfaces.msg import CommandAck
 from uav_usv_interfaces.msg import CaptureAssignmentArray
 from uav_usv_interfaces.msg import CaptureState
@@ -54,6 +63,10 @@ from uav_usv_interfaces.msg import CaptureTargetStatus
 from uav_usv_interfaces.msg import SensorStatus
 from uav_usv_interfaces.msg import TrackedObjectArray
 from uav_usv_interfaces.msg import VehicleState
+from uav_usv_mission.perception_topdown import PerceptionTopDownWidget
+from uav_usv_mission.perception_topdown import TopDownVisualizationModel
+from uav_usv_mission.lv_dot_debug_visualization import LvDotDebugModel
+from uav_usv_mission.lv_dot_debug_visualization import LvDotDebugWidget
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 
@@ -111,6 +124,35 @@ class VideoMosaicLabel(QLabel):
         painter.drawImage(self.rect(), self._image)
 
 
+class CameraInsetLabel(QLabel):
+    """Low-copy 16:9 camera preview used beside the perception canvas."""
+
+    def __init__(self, text=''):
+        super().__init__(text)
+        self._image = None
+        self.setAlignment(Qt.AlignCenter)
+        self.setMinimumHeight(120)
+        self.setMaximumHeight(180)
+        self.setStyleSheet('background: #05090d; color: #8fa5b2;')
+
+    def set_image(self, image):
+        self._image = image
+        self.update()
+
+    def paintEvent(self, event):
+        if self._image is None:
+            super().paintEvent(event)
+            return
+        painter = QPainter(self)
+        scaled = self._image.scaled(
+            self.size(), Qt.KeepAspectRatioByExpanding,
+            Qt.SmoothTransformation,
+        )
+        x_offset = (self.width() - scaled.width()) // 2
+        y_offset = (self.height() - scaled.height()) // 2
+        painter.drawImage(x_offset, y_offset, scaled)
+
+
 class BaseStationGuiNode(Node):
     VEHICLE_NAMES = {
         'uav_01': '主感知无人机01（PX4）',
@@ -123,18 +165,155 @@ class BaseStationGuiNode(Node):
         'usv_04': '船04',
     }
 
-    def __init__(self, signals):
+    def __init__(
+        self, signals, visualization_model=None, lv_dot_debug_model=None
+    ):
         super().__init__('fleet_base_station_gui')
         self.signals = signals
+        self.visualization_model = (
+            visualization_model or TopDownVisualizationModel()
+        )
+        self.lv_dot_debug_model = lv_dot_debug_model or LvDotDebugModel()
         self.declare_parameter('capture_namespace', '')
         self.declare_parameter('defense_namespace', '')
         self.declare_parameter('defense_node_name', '/defense_sim_demo')
         self.declare_parameter('demo_mode', False)
+        self.declare_parameter('enable_perception_topdown', True)
+        self.declare_parameter('enable_lv_dot_debug', True)
+        self.declare_parameter('enable_affiliation_qt_mode', True)
+        self.declare_parameter(
+            'topdown_points_topic',
+            '/perception/visualization/usv_01/topdown_points',
+        )
+        self.declare_parameter(
+            'topdown_status_topic',
+            '/perception/visualization/usv_01/topdown_status',
+        )
+        self.declare_parameter(
+            'topdown_lidar_bboxes_topic',
+            '/perception/lv_dot_ros2/diagnostics/lidar_bboxes',
+        )
+        self.declare_parameter(
+            'topdown_tracks_topic', '/perception/lv_dot_ros2/tracks'
+        )
+        self.declare_parameter(
+            'topdown_dynamic_tracks_topic',
+            '/perception/lv_dot_ros2/dynamic_tracks',
+        )
+        self.declare_parameter(
+            'topdown_fused_tracks_topic', '/perception/fused/tracks'
+        )
+        self.declare_parameter(
+            'topdown_ground_truth_topic',
+            '/perception/ground_truth/tracks',
+        )
+        self.declare_parameter(
+            'topdown_camera_topic',
+            '/fleet/uplink/uav_01/camera/image_raw',
+        )
+        self.declare_parameter(
+            'topdown_usv_pose_topic',
+            '/perception/lv_dot/usv_01/pose',
+        )
         self.declare_parameter(
             'mid360_preview_service',
             '/perception/usv_01/mid360/set_visualization',
         )
+        self.declare_parameter(
+            'lv_dot_debug_raw_cloud_topic',
+            '/perception/visualization/usv_01/topdown_points',
+        )
+        self.declare_parameter(
+            'lv_dot_debug_filtered_cloud_topic',
+            '/perception/lv_dot/debug/cloud_filtered_map',
+        )
+        self.declare_parameter(
+            'lv_dot_debug_clusters_topic',
+            '/perception/lv_dot/debug/clusters',
+        )
+        self.declare_parameter(
+            'lv_dot_debug_bboxes_topic',
+            '/perception/lv_dot/debug/bboxes',
+        )
+        self.declare_parameter(
+            'camera_lidar_lidar_only_bboxes_topic',
+            '/perception/usv_01/camera_lidar/lidar_only_bboxes',
+        )
+        self.declare_parameter(
+            'camera_lidar_camera_only_bboxes_topic',
+            '/perception/usv_01/camera_lidar/camera_only_bboxes',
+        )
+        self.declare_parameter(
+            'camera_lidar_fused_bboxes_topic',
+            '/perception/usv_01/camera_lidar/fused_bboxes',
+        )
+        self.declare_parameter(
+            'camera_lidar_calibration_roi_topic',
+            '/perception/usv_01/vision_guided/roi_cloud',
+        )
+        self.declare_parameter(
+            'camera_lidar_camera_projection_topic',
+            '/perception/usv_01/vision_guided/camera_projection',
+        )
+        self.declare_parameter(
+            'camera_lidar_calibration_bbox_topic',
+            '/perception/usv_01/vision_guided/roi_bboxes',
+        )
+        self.declare_parameter(
+            'camera_lidar_status_topic',
+            '/perception/usv_01/camera_lidar/status',
+        )
+        self.declare_parameter(
+            'vision_guided_status_topic',
+            '/perception/usv_01/vision_guided/status',
+        )
+        self.declare_parameter(
+            'camera_detection_status_topic',
+            '/perception/usv_01/camera/detection_status',
+        )
+        self.declare_parameter(
+            'lv_dot_debug_tracks_topic',
+            '/perception/lv_dot/debug/tracks',
+        )
+        self.declare_parameter(
+            'lv_dot_debug_dynamic_topic',
+            '/perception/lv_dot/debug/dynamic',
+        )
+        self.declare_parameter(
+            'lv_dot_debug_fusion_topic', '/perception/fused/tracks'
+        )
+        self.declare_parameter(
+            'lv_dot_debug_status_topic', '/perception/lv_dot/debug/status'
+        )
+        self.declare_parameter('lv_dot_debug_fixed_frame', 'map')
+        self.declare_parameter(
+            'lv_dot_debug_base_frame', 'usv_01/base_link'
+        )
+        self.declare_parameter(
+            'lv_dot_debug_radar_frame', 'usv_01/mid360_link'
+        )
         self.demo_mode = bool(self.get_parameter('demo_mode').value)
+        self.enable_perception_topdown = bool(
+            self.get_parameter('enable_perception_topdown').value
+        )
+        self.enable_lv_dot_debug = bool(
+            self.get_parameter('enable_lv_dot_debug').value
+        )
+        self.enable_affiliation_qt_mode = bool(
+            self.get_parameter('enable_affiliation_qt_mode').value
+        )
+        self.lv_dot_debug_fixed_frame = str(
+            self.get_parameter('lv_dot_debug_fixed_frame').value
+        )
+        self.lv_dot_debug_frames = {
+            'base': str(self.get_parameter('lv_dot_debug_base_frame').value),
+            'radar': str(
+                self.get_parameter('lv_dot_debug_radar_frame').value
+            ),
+        }
+        self.camera_lidar_status = {}
+        self.vision_guided_status = {}
+        self.camera_detection_status = {}
         self.capture_namespace = str(
             self.get_parameter('capture_namespace').value
         ).strip('/')
@@ -158,6 +337,9 @@ class BaseStationGuiNode(Node):
         state_qos = QoSProfile(depth=5)
         state_qos.reliability = ReliabilityPolicy.BEST_EFFORT
         state_qos.durability = DurabilityPolicy.VOLATILE
+        topdown_qos = QoSProfile(depth=1)
+        topdown_qos.reliability = ReliabilityPolicy.BEST_EFFORT
+        topdown_qos.durability = DurabilityPolicy.VOLATILE
 
         namespaces = []
         for namespace in (
@@ -209,6 +391,112 @@ class BaseStationGuiNode(Node):
             self._on_capture_status,
             10,
         )
+        if self.enable_perception_topdown or self.enable_lv_dot_debug:
+            self.create_subscription(
+                Image,
+                str(self.get_parameter('topdown_camera_topic').value),
+                lambda message: self._on_image(
+                    message, 'topdown_camera'
+                ),
+                image_qos,
+            )
+        if self.enable_lv_dot_debug:
+            self.lv_dot_tf_buffer = Buffer()
+            self.lv_dot_tf_listener = TransformListener(
+                self.lv_dot_tf_buffer, self
+            )
+            self.lv_dot_tf_timer = self.create_timer(
+                0.1, self._update_lv_dot_debug_tf
+            )
+            for parameter_name, layer in (
+                ('lv_dot_debug_raw_cloud_topic', 'raw'),
+                ('lv_dot_debug_filtered_cloud_topic', 'filtered'),
+                (
+                    'camera_lidar_calibration_roi_topic',
+                    'calibration_roi',
+                ),
+            ):
+                self.create_subscription(
+                    PointCloud2,
+                    str(self.get_parameter(parameter_name).value),
+                    lambda message, cloud_layer=layer: (
+                        self._on_lv_dot_debug_cloud(message, cloud_layer)
+                    ),
+                    topdown_qos,
+                )
+            for parameter_name, layer in (
+                ('lv_dot_debug_clusters_topic', 'clusters'),
+                ('lv_dot_debug_bboxes_topic', 'bboxes'),
+                (
+                    'camera_lidar_lidar_only_bboxes_topic',
+                    'lidar_only_bboxes',
+                ),
+                (
+                    'camera_lidar_camera_only_bboxes_topic',
+                    'camera_only_bboxes',
+                ),
+                (
+                    'camera_lidar_fused_bboxes_topic',
+                    'camera_lidar_fused_bboxes',
+                ),
+                (
+                    'camera_lidar_camera_projection_topic',
+                    'camera_projection',
+                ),
+                (
+                    'camera_lidar_calibration_bbox_topic',
+                    'calibration_bbox',
+                ),
+            ):
+                self.create_subscription(
+                    MarkerArray,
+                    str(self.get_parameter(parameter_name).value),
+                    lambda message, marker_layer=layer: (
+                        self.lv_dot_debug_model.update_markers(
+                            marker_layer, message
+                        )
+                    ),
+                    topdown_qos,
+                )
+            for parameter_name, layer in (
+                ('lv_dot_debug_tracks_topic', 'tracks'),
+                ('lv_dot_debug_dynamic_topic', 'dynamic'),
+                ('lv_dot_debug_fusion_topic', 'fusion'),
+            ):
+                self.create_subscription(
+                    TrackedObjectArray,
+                    str(self.get_parameter(parameter_name).value),
+                    lambda message, track_layer=layer: (
+                        self.lv_dot_debug_model.update_tracks(
+                            track_layer, message
+                        )
+                    ),
+                    topdown_qos,
+                )
+            self.create_subscription(
+                String,
+                str(self.get_parameter('lv_dot_debug_status_topic').value),
+                self._on_lv_dot_debug_status,
+                10,
+            )
+            self.create_subscription(
+                String,
+                str(self.get_parameter('vision_guided_status_topic').value),
+                self._on_vision_guided_status,
+                10,
+            )
+            self.create_subscription(
+                String,
+                str(self.get_parameter('camera_detection_status_topic').value),
+                self._on_camera_detection_status,
+                10,
+            )
+            self.create_subscription(
+                String,
+                str(self.get_parameter('camera_lidar_status_topic').value),
+                self._on_camera_lidar_status,
+                10,
+            )
         self.create_subscription(
             CaptureState,
             self._topic(self.capture_namespace, '/capture/state'),
@@ -486,6 +774,98 @@ class BaseStationGuiNode(Node):
             'generation': int(msg.generation),
             'assignments': assignments,
         })
+        if self.enable_perception_topdown:
+            self.visualization_model.update_roles(assignments)
+
+    def _on_topdown_points(self, msg):
+        try:
+            xyz = point_cloud2.read_points_numpy(
+                msg, field_names=['x', 'y', 'z'], skip_nans=True
+            )
+            xyz = np.asarray(xyz, dtype=np.float32).reshape((-1, 3))
+        except (AssertionError, KeyError, TypeError, ValueError) as error:
+            self.get_logger().warning(
+                'Invalid top-down PointCloud2: %s' % error
+            )
+            return
+        self.visualization_model.update_point_array(xyz[:, :2], xyz[:, 2])
+
+    @staticmethod
+    def _pointcloud_xyz(msg):
+        values = point_cloud2.read_points_numpy(
+            msg, field_names=['x', 'y', 'z'], skip_nans=True
+        )
+        return np.asarray(values, dtype=np.float32).reshape((-1, 3))
+
+    def _on_lv_dot_debug_cloud(self, msg, layer):
+        try:
+            xyz = self._pointcloud_xyz(msg)
+        except (AssertionError, KeyError, TypeError, ValueError) as error:
+            self.get_logger().warning(
+                'Invalid LV-DOT debug PointCloud2: %s' % error
+            )
+            return
+        self.lv_dot_debug_model.update_cloud(layer, xyz)
+
+    def _on_lv_dot_debug_status(self, msg):
+        try:
+            status = json.loads(msg.data)
+        except (TypeError, ValueError):
+            self.get_logger().warning('Invalid LV-DOT debug status JSON')
+            return
+        if isinstance(status, dict):
+            self.lv_dot_debug_model.update_status(status)
+
+    def _on_camera_lidar_status(self, msg):
+        try:
+            status = json.loads(msg.data)
+        except (TypeError, ValueError):
+            self.get_logger().warning(
+                'Invalid camera-LiDAR fusion status JSON'
+            )
+            return
+        if isinstance(status, dict):
+            self.camera_lidar_status = status
+
+    def _on_vision_guided_status(self, msg):
+        try:
+            status = json.loads(msg.data)
+        except (TypeError, ValueError):
+            return
+        if isinstance(status, dict):
+            self.vision_guided_status = status
+
+    def _on_camera_detection_status(self, msg):
+        try:
+            status = json.loads(msg.data)
+        except (TypeError, ValueError):
+            return
+        if isinstance(status, dict):
+            self.camera_detection_status = status
+
+    def _update_lv_dot_debug_tf(self):
+        for key, frame_id in self.lv_dot_debug_frames.items():
+            try:
+                transform = self.lv_dot_tf_buffer.lookup_transform(
+                    self.lv_dot_debug_fixed_frame, frame_id, Time()
+                )
+            except TransformException:
+                continue
+            self.lv_dot_debug_model.update_frame(
+                key, frame_id, transform.transform
+            )
+
+    def _on_topdown_status(self, msg):
+        try:
+            status = json.loads(msg.data)
+        except (TypeError, ValueError):
+            self.get_logger().warning('Invalid top-down status JSON')
+            return
+        if isinstance(status, dict):
+            self.visualization_model.update_point_status(status)
+
+    def _on_topdown_lidar_bboxes(self, msg):
+        self.visualization_model.update_clusters(msg)
 
     def _on_capture_target(self, msg):
         self.signals.capture_target.emit({
@@ -969,6 +1349,7 @@ class DefenseMapWidget(QWidget):
                     for x, y in points
                 ])
                 painter.drawPolyline(polygon)
+
     def _draw_circle(self, painter, center, radius, fill, line, width, text):
         painter.setBrush(fill)
         painter.setPen(QPen(line, width))
@@ -1215,9 +1596,18 @@ class BaseStationWindow(QMainWindow):
         'uav_04': 7,
     }
 
-    def __init__(self, node, signals):
+    def __init__(
+        self, node, signals, visualization_model=None,
+        lv_dot_debug_model=None,
+    ):
         super().__init__()
         self.node = node
+        self.visualization_model = (
+            visualization_model or node.visualization_model
+        )
+        self.lv_dot_debug_model = (
+            lv_dot_debug_model or node.lv_dot_debug_model
+        )
         self.last_image_time = 0.0
         self.pending_images = {}
         self.sensor_rows = {}
@@ -1246,6 +1636,8 @@ class BaseStationWindow(QMainWindow):
         self.setWindowTitle('UAV-USV 集群基站')
         self.resize(1500, 900)
         self._build_ui()
+        self.status_timer.timeout.connect(self._refresh_topdown_status)
+        self.status_timer.timeout.connect(self._refresh_lv_dot_debug_status)
 
         signals.image.connect(self._queue_image)
         signals.scan.connect(self.radar.set_scan)
@@ -1319,11 +1711,11 @@ class BaseStationWindow(QMainWindow):
         perception_layout.setSpacing(10)
         tabs.addTab(perception_tab, '实时感知')
 
-        monitor_tab = QWidget()
-        monitor_layout = QVBoxLayout(monitor_tab)
-        monitor_layout.setContentsMargins(0, 0, 0, 0)
-        monitor_layout.setSpacing(10)
-        tabs.addTab(monitor_tab, 'Perception Monitor')
+        debug_tab = QWidget()
+        debug_layout = QVBoxLayout(debug_tab)
+        debug_layout.setContentsMargins(0, 0, 0, 0)
+        debug_layout.setSpacing(10)
+        tabs.addTab(debug_tab, 'Perception Monitor')
 
         control_tab = QWidget()
         control_layout = QVBoxLayout(control_tab)
@@ -1452,7 +1844,7 @@ class BaseStationWindow(QMainWindow):
         status_splitter.setSizes([760, 620])
         perception_layout.addWidget(status_splitter, 1)
 
-        self._build_perception_monitor(monitor_layout)
+        self._build_lv_dot_debug_panel(debug_layout)
 
         control_group = QGroupBox('基站控制')
         controls = QGridLayout(control_group)
@@ -1491,6 +1883,9 @@ class BaseStationWindow(QMainWindow):
 
         self._build_defense_tab(defense_layout)
         self._build_capture_tab(capture_layout)
+
+        if self.node.demo_mode:
+            tabs.setCurrentWidget(debug_tab)
 
         self.setCentralWidget(root)
         self.setStyleSheet(
@@ -1714,7 +2109,349 @@ class BaseStationWindow(QMainWindow):
         command_layout.addWidget(cancel_button, 1, 3)
         layout.addWidget(command_group)
 
+    def _build_topdown_panel(self, layout):
+        if not self.node.enable_perception_topdown:
+            disabled = QLabel('俯视感知画布已通过启动参数关闭')
+            disabled.setAlignment(Qt.AlignCenter)
+            layout.addWidget(disabled)
+            self.topdown_widget = None
+            return
+
+        splitter = QSplitter(Qt.Horizontal)
+        controls_group = QGroupBox('俯视显示控制')
+        controls_group.setMaximumWidth(255)
+        controls = QVBoxLayout(controls_group)
+        controls.addWidget(QLabel('固定坐标系：map'))
+        controls.addWidget(QLabel('视角：Z轴向下 / 正交投影'))
+
+        view_mode = QComboBox()
+        view_mode.addItem('Map俯视 2D', 'topdown')
+        view_mode.addItem('斜俯视 3D', 'oblique')
+
+        follow = QComboBox()
+        follow.addItem('自由视角', 'none')
+        follow.addItem('自动跟随目标', 'target')
+        follow.addItem('自动跟随USV', 'usv')
+        color_mode = QComboBox()
+        color_mode.addItem('固定白色', 'fixed')
+        color_mode.addItem('按高度着色', 'height')
+        controls.addWidget(QLabel('显示模式'))
+        controls.addWidget(view_mode)
+
+        controls.addWidget(QLabel('点云颜色'))
+        controls.addWidget(color_mode)
+        controls.addWidget(QLabel('视角跟随'))
+        controls.addWidget(follow)
+
+        self.topdown_layer_checks = {}
+        layer_definitions = (
+            ('点云', 'pointcloud'),
+            ('LiDAR聚类框', 'clusters'),
+            ('全部Track', 'tracks'),
+            ('动态Track', 'dynamic'),
+            ('融合目标', 'fusion'),
+            ('Ground Truth', 'ground_truth'),
+            ('UAV位置', 'uav'),
+            ('USV位置', 'usv'),
+            ('轨迹尾线', 'trails'),
+            ('速度箭头', 'velocity'),
+            ('标签', 'labels'),
+            ('网格', 'grid'),
+            ('船体TF', 'tf'),
+            ('相机画中画', 'camera'),
+        )
+        layer_grid = QGridLayout()
+        default_layers = {'pointcloud', 'clusters', 'grid', 'tf', 'camera'}
+        for index, (title, key) in enumerate(layer_definitions):
+            checkbox = QCheckBox(title)
+            checkbox.setChecked(key in default_layers)
+            self.topdown_layer_checks[key] = checkbox
+            layer_grid.addWidget(checkbox, index // 2, index % 2)
+        controls.addLayout(layer_grid)
+        target_cluster_only = QCheckBox('仅显示目标聚类3D框')
+        target_cluster_only.setChecked(True)
+        controls.addWidget(target_cluster_only)
+
+        def double_spin(minimum, maximum, value, suffix, step):
+            spin = QDoubleSpinBox()
+            spin.setRange(minimum, maximum)
+            spin.setValue(value)
+            spin.setSingleStep(step)
+            spin.setSuffix(suffix)
+            return spin
+
+        range_spin = double_spin(10.0, 500.0, 35.0, ' m', 5.0)
+        grid_spin = double_spin(1.0, 100.0, 10.0, ' m', 1.0)
+        point_spin = double_spin(1.0, 10.0, 3.5, ' px', 0.5)
+        max_points = QSpinBox()
+        max_points.setRange(100, 100000)
+        max_points.setSingleStep(500)
+        max_points.setValue(50000)
+        history = QSpinBox()
+        history.setRange(10, 500)
+        history.setValue(120)
+        history.setSuffix(' 点')
+        for title, control in (
+            ('半视野范围', range_spin),
+            ('网格间距', grid_spin),
+            ('点大小', point_spin),
+            ('最大显示点数', max_points),
+            ('轨迹长度', history),
+        ):
+            row = QHBoxLayout()
+            row.addWidget(QLabel(title))
+            row.addWidget(control)
+            controls.addLayout(row)
+
+        clear_button = QPushButton('清除轨迹')
+        reset_button = QPushButton('恢复默认视角')
+        controls.addWidget(clear_button)
+        controls.addWidget(reset_button)
+        controls.addStretch()
+        splitter.addWidget(controls_group)
+
+        plot_group = QGroupBox('Map俯视感知态势')
+        plot_layout = QVBoxLayout(plot_group)
+        self.topdown_widget = PerceptionTopDownWidget(
+            self.visualization_model
+        )
+        if not self.topdown_widget.opengl_available:
+            view_mode.model().item(1).setEnabled(False)
+            view_mode.setItemText(1, '斜俯视 3D（OpenGL不可用）')
+        plot_layout.addWidget(self.topdown_widget)
+        splitter.addWidget(plot_group)
+
+        details_group = QGroupBox('目标与点云信息')
+        details_group.setMaximumWidth(300)
+        details_layout = QVBoxLayout(details_group)
+        self.topdown_selected_detail = QLabel(
+            '未选择目标\n\n点击目标图标或聚类框中心查看详情。'
+        )
+        self.topdown_selected_detail.setWordWrap(True)
+        self.topdown_selected_detail.setObjectName('vehicleDetail')
+        self.topdown_point_status = QLabel('等待点云投影数据')
+        self.topdown_point_status.setWordWrap(True)
+        self.topdown_point_status.setObjectName('vehicleDetail')
+        camera_title = QLabel('UAV-01 感知相机')
+        camera_title.setObjectName('subtitle')
+        self.perception_camera = CameraInsetLabel('等待UAV-01相机数据')
+        details_layout.addWidget(camera_title)
+        details_layout.addWidget(self.perception_camera)
+        details_layout.addWidget(self.topdown_selected_detail)
+        details_layout.addWidget(self.topdown_point_status)
+        details_layout.addStretch()
+        splitter.addWidget(details_group)
+        splitter.setSizes([230, 930, 270])
+        layout.addWidget(splitter)
+
+        for key, checkbox in self.topdown_layer_checks.items():
+            if key == 'camera':
+                checkbox.toggled.connect(self.perception_camera.setVisible)
+                continue
+            callback = (
+                self.topdown_widget.set_grid_visible
+                if key == 'grid'
+                else lambda checked, layer=key: (
+                    self.topdown_widget.set_layer_visible(layer, checked)
+                )
+            )
+            checkbox.toggled.connect(callback)
+        target_cluster_only.toggled.connect(
+            self.topdown_widget.set_single_target_cluster
+        )
+        follow.currentIndexChanged.connect(
+            lambda _index: self.topdown_widget.set_follow_mode(
+                follow.currentData()
+            )
+        )
+        view_mode.currentIndexChanged.connect(
+            lambda _index: self.topdown_widget.set_view_mode(
+                view_mode.currentData()
+            )
+        )
+        if self.node.demo_mode and self.topdown_widget.opengl_available:
+            view_mode.setCurrentIndex(1)
+        color_mode.currentIndexChanged.connect(
+            lambda _index: self.topdown_widget.set_point_color_mode(
+                color_mode.currentData()
+            )
+        )
+        range_spin.valueChanged.connect(
+            self.topdown_widget.set_display_range
+        )
+        grid_spin.valueChanged.connect(
+            self.topdown_widget.set_grid_spacing
+        )
+        point_spin.valueChanged.connect(self.topdown_widget.set_point_size)
+        max_points.valueChanged.connect(
+            self.topdown_widget.set_max_display_points
+        )
+        history.valueChanged.connect(
+            self.topdown_widget.set_trajectory_length
+        )
+        clear_button.clicked.connect(
+            self.topdown_widget.clear_trajectories
+        )
+        reset_button.clicked.connect(self.topdown_widget.reset_view)
+        self.topdown_widget.selection_callback = (
+            self._update_topdown_selection
+        )
+        for checkbox in self.topdown_layer_checks.values():
+            checkbox.toggled.emit(checkbox.isChecked())
+        target_cluster_only.toggled.emit(target_cluster_only.isChecked())
+        if self.node.demo_mode:
+            follow.setCurrentIndex(1)
+
+    def _build_lv_dot_debug_panel(self, layout):
+        if not self.node.enable_lv_dot_debug:
+            label = QLabel('LV-DOT Debug Visualization 已关闭')
+            label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(label)
+            self.lv_dot_debug_widget = None
+            return
+
+        splitter = QSplitter(Qt.Horizontal)
+        controls_group = QGroupBox('感知图层')
+        controls_group.setMaximumWidth(245)
+        controls = QVBoxLayout(controls_group)
+        controls.addWidget(QLabel('Fixed Frame: map'))
+        controls.addWidget(QLabel('View: Top / Z轴向下'))
+        controls.addWidget(QLabel('SHADOW MODE（仅显示）'))
+
+        view_mode = QComboBox()
+        view_mode.addItem('斜俯视 3D', 'oblique')
+        view_mode.addItem('Map俯视 2D', 'topdown')
+        controls.addWidget(QLabel('显示模式'))
+        controls.addWidget(view_mode)
+
+        affiliation_color_mode = QComboBox()
+        affiliation_color_mode.addItem('Sensor Source Mode', 'sensor_source')
+        affiliation_color_mode.addItem('Affiliation Mode', 'affiliation')
+        if self.node.enable_affiliation_qt_mode:
+            affiliation_color_mode.setCurrentIndex(1)
+        controls.addWidget(QLabel('目标着色模式'))
+        controls.addWidget(affiliation_color_mode)
+        legend = QLabel(
+            '来源: LiDAR黄 / Camera蓝 / 融合绿\n'
+            '阵营: 友方青 / 敌方红 / 中立灰 / 未知黄'
+        )
+        legend.setWordWrap(True)
+        controls.addWidget(legend)
+
+        definitions = (
+            ('Mid360原始点云', 'raw', True),
+            ('过滤后点云', 'filtered', True),
+            ('DBSCAN Clusters', 'clusters', True),
+            ('原始3D BBox', 'bboxes', False),
+            ('LiDAR Only（黄）', 'lidar_only_bboxes', True),
+            ('Camera Only（蓝）', 'camera_only_bboxes', True),
+            (
+                'Camera+LiDAR（绿）',
+                'camera_lidar_fused_bboxes', True,
+            ),
+            ('标定：Camera投影（红）', 'camera_projection', True),
+            ('标定：LiDAR ROI点（绿）', 'calibration_roi', True),
+            ('标定：最终3D框（黄）', 'calibration_bbox', True),
+            ('Tracks + 轨迹', 'tracks', True),
+            ('Dynamic状态', 'dynamic', True),
+            ('Fusion Target', 'fusion', True),
+            ('船体 / Mid360 TF', 'tf', True),
+            ('Track标签', 'labels', True),
+            ('Map网格', 'grid', True),
+        )
+        self.lv_dot_debug_checks = {}
+        for title, layer, checked in definitions:
+            checkbox = QCheckBox(title)
+            checkbox.setChecked(checked)
+            checkbox.toggled.connect(
+                lambda checked, key=layer: (
+                    self.lv_dot_debug_widget.set_layer_visible(key, checked)
+                )
+            )
+            self.lv_dot_debug_checks[layer] = checkbox
+            controls.addWidget(checkbox)
+
+        max_points = QSpinBox()
+        max_points.setRange(1000, 100000)
+        max_points.setSingleStep(2000)
+        max_points.setValue(60000)
+        trail_length = QSpinBox()
+        trail_length.setRange(10, 500)
+        trail_length.setValue(100)
+        for title, control in (
+            ('每层最大点数', max_points),
+            ('轨迹历史长度', trail_length),
+        ):
+            row = QHBoxLayout()
+            row.addWidget(QLabel(title))
+            row.addWidget(control)
+            controls.addLayout(row)
+        clear_button = QPushButton('清除Track轨迹')
+        reset_button = QPushButton('恢复Map俯视')
+        controls.addWidget(clear_button)
+        controls.addWidget(reset_button)
+        controls.addStretch()
+        splitter.addWidget(controls_group)
+
+        canvas_group = QGroupBox('Map俯视感知态势')
+        canvas_layout = QVBoxLayout(canvas_group)
+        self.lv_dot_debug_widget = LvDotDebugWidget(
+            self.lv_dot_debug_model
+        )
+        canvas_layout.addWidget(self.lv_dot_debug_widget)
+        splitter.addWidget(canvas_group)
+
+        status_group = QGroupBox('目标、相机与点云信息')
+        status_group.setMaximumWidth(310)
+        status_layout = QVBoxLayout(status_group)
+        self.lv_dot_debug_status = QLabel('等待LV-DOT Debug数据')
+        self.lv_dot_debug_status.setWordWrap(True)
+        self.lv_dot_debug_status.setObjectName('vehicleDetail')
+        camera_title = QLabel('UAV-01 感知相机')
+        camera_title.setObjectName('subtitle')
+        self.perception_camera = CameraInsetLabel('等待UAV-01相机数据')
+        status_layout.addWidget(camera_title)
+        status_layout.addWidget(self.perception_camera)
+        status_layout.addWidget(self.lv_dot_debug_status)
+        status_layout.addStretch()
+        splitter.addWidget(status_group)
+        splitter.setSizes([220, 1000, 280])
+        layout.addWidget(splitter)
+
+        max_points.valueChanged.connect(
+            self.lv_dot_debug_widget.set_max_points
+        )
+        trail_length.valueChanged.connect(
+            self.lv_dot_debug_widget.set_trajectory_length
+        )
+        clear_button.clicked.connect(
+            self.lv_dot_debug_widget.clear_histories
+        )
+        reset_button.clicked.connect(self.lv_dot_debug_widget.reset_view)
+        view_mode.currentIndexChanged.connect(
+            lambda _index: self.lv_dot_debug_widget.set_view_mode(
+                view_mode.currentData()
+            )
+        )
+        affiliation_color_mode.currentIndexChanged.connect(
+            lambda _index: self.lv_dot_debug_widget.set_color_mode(
+                affiliation_color_mode.currentData()
+            )
+        )
+        for checkbox in self.lv_dot_debug_checks.values():
+            checkbox.toggled.emit(checkbox.isChecked())
+
     def _build_perception_monitor(self, layout):
+        splitter = QSplitter(Qt.Vertical)
+        topdown_container = QWidget()
+        topdown_layout = QVBoxLayout(topdown_container)
+        topdown_layout.setContentsMargins(0, 0, 0, 0)
+        self._build_topdown_panel(topdown_layout)
+        splitter.addWidget(topdown_container)
+
+        details_container = QWidget()
+        details_layout = QVBoxLayout(details_container)
+        details_layout.setContentsMargins(0, 0, 0, 0)
         status_group = QGroupBox('多源感知 Shadow Mode')
         status_layout = QGridLayout(status_group)
         self.perception_metric_labels = {}
@@ -1743,7 +2480,7 @@ class BaseStationWindow(QMainWindow):
             value.setObjectName('captureValue')
             status_layout.addWidget(value, row, column + 1)
             self.perception_metric_labels[key] = value
-        layout.addWidget(status_group)
+        details_layout.addWidget(status_group)
 
         comparison_group = QGroupBox('Sensor Layer')
         comparison_layout = QVBoxLayout(comparison_group)
@@ -1796,7 +2533,7 @@ class BaseStationWindow(QMainWindow):
         )
         self.perception_association_label.setObjectName('vehicleDetail')
         comparison_layout.addWidget(self.perception_association_label)
-        layout.addWidget(comparison_group)
+        details_layout.addWidget(comparison_group)
 
         flow_group = QGroupBox('Shadow Mode 数据流')
         flow_layout = QVBoxLayout(flow_group)
@@ -1807,8 +2544,192 @@ class BaseStationWindow(QMainWindow):
         )
         flow.setWordWrap(True)
         flow_layout.addWidget(flow)
-        layout.addWidget(flow_group)
-        layout.addStretch()
+        details_layout.addWidget(flow_group)
+        details_layout.addStretch()
+        splitter.addWidget(details_container)
+        splitter.setSizes([610, 310])
+        layout.addWidget(splitter)
+
+    def _update_topdown_selection(self, item):
+        age = max(0.0, time.monotonic() - item.get('received_at', 0.0))
+        dimensions = item.get('dimensions', (0.0, 0.0, 0.0))
+        confidence = item.get('confidence')
+        confidence_text = (
+            '-' if confidence is None else '%.1f %%' % (100.0 * confidence)
+        )
+        self.topdown_selected_detail.setText(
+            'ID：%s\n图层：%s\n来源：%s\n类别：%s\n'
+            '位置：(%.2f, %.2f, %.2f) m\n'
+            '速度：(%.2f, %.2f) m/s\n'
+            '尺寸：(%.2f, %.2f, %.2f) m\n'
+            '置信度：%s\n数据年龄：%.2f s\n'
+            '动态：%s\n融合：%s'
+            % (
+                item.get('track_id', '-'),
+                item.get('layer', '-'),
+                item.get('source', '-'),
+                item.get('classification_name', '-'),
+                item.get('x', 0.0),
+                item.get('y', 0.0),
+                item.get('z', 0.0),
+                item.get('vx', 0.0),
+                item.get('vy', 0.0),
+                dimensions[0], dimensions[1], dimensions[2],
+                confidence_text,
+                age,
+                '是' if item.get('dynamic') else '否',
+                '是' if item.get('fused') else '否',
+            )
+        )
+
+    def _refresh_topdown_status(self):
+        if not getattr(self, 'topdown_widget', None):
+            return
+        status = self.topdown_widget.point_status()
+        display = self.topdown_widget.display_statistics()
+        if not status:
+            self.topdown_point_status.setText('点云投影：等待数据')
+            return
+        age = max(
+            0.0, time.monotonic() - status.get('_received_at', 0.0)
+        )
+        online = age <= 2.5
+        latency = status.get('latency_ms')
+        latency_text = '-' if latency is None else '%.1f ms' % latency
+        self.topdown_point_status.setText(
+            '点云投影：%s\nFrame：%s\n输入：%d 点 @ %.1f Hz\n'
+            '绘制：%d 点\n处理：%.2f ms\n延迟：%s\n'
+            '画布：%.1f FPS / %.2f ms\n覆盖帧：%d\n'
+            'TF失败：%d\n数据年龄：%.2f s'
+            % (
+                'ONLINE' if online else 'STALE',
+                status.get('frame_id', '-'),
+                int(status.get('input_points', 0)),
+                float(status.get('input_rate_hz', 0.0)),
+                int(status.get('draw_points', 0)),
+                float(status.get('processing_ms', 0.0)),
+                latency_text,
+                float(display.get('render_rate_hz', 0.0)),
+                float(display.get('render_ms', 0.0)),
+                int(display.get('overwritten_point_frames', 0)),
+                int(status.get('tf_failure_count', 0)),
+                age,
+            )
+        )
+
+    def _refresh_lv_dot_debug_status(self):
+        widget = getattr(self, 'lv_dot_debug_widget', None)
+        label = getattr(self, 'lv_dot_debug_status', None)
+        if widget is None or label is None:
+            return
+        statistics = widget.statistics()
+        counts = statistics.get('counts', {})
+        status = statistics.get('status', {})
+        cloud = status.get('cloud', {})
+        cluster = status.get('clusters', {})
+        track = status.get('tracks', {})
+        dynamic = status.get('dynamic', {})
+        camera_lidar = dict(self.node.camera_lidar_status)
+        vision_guided = dict(self.node.vision_guided_status)
+        camera_detection = dict(self.node.camera_detection_status)
+        association = camera_lidar.get('last_counts', {})
+        ages = statistics.get('cloud_age', {})
+
+        def age_text(value):
+            return '-' if value is None else '%.2f s' % value
+
+        label.setText(
+            'MODE: SHADOW / DISPLAY ONLY\n'
+            'Fixed Frame: map\n\n'
+            '画布: %.1f FPS / %.2f ms\n'
+            'Raw: %d点  age=%s\n'
+            'Filtered: %d点  age=%s\n\n'
+            'LV-DOT cloud: %.1f Hz / %d点\n'
+            'DBSCAN: %.1f Hz / %d clusters\n'
+            'BBox: %d\n'
+            'LiDAR Only: %d（黄）\n'
+            'Camera Only: %d（蓝）\n'
+            'Camera+LiDAR: %d（绿）\n'
+            'Camera检测: %d  友/敌/中/未知=%d/%d/%d/%d\n'
+            '身份确认/切换: %d/%d\n'
+            'ROI提取: %d帧 / %.1f点\n'
+            'ROI 3D框: %d  rejected=%d\n'
+            'ROI耗时: %.2f ms  TF失败=%d\n'
+            '标定层: 红投影=%d  绿ROI=%d  黄框=%d\n'
+            '同步差: %s  ROI框内率: %s\n'
+            '重投影中心差: %s  深度: %s\n'
+            'TF查询: %s\n'
+            'Track: %.1f Hz / %d\n'
+            'Dynamic: %.1f Hz / %d\n'
+            'Fusion Target: %d\n'
+            'TF: %d frames (base + MID-360)\n\n'
+            '控制链连接: NO\n'
+            'perception_source: ground_truth'
+            % (
+                float(statistics.get('fps', 0.0)),
+                float(statistics.get('render_ms', 0.0)),
+                int(counts.get('raw', 0)), age_text(ages.get('raw')),
+                int(counts.get('filtered', 0)),
+                age_text(ages.get('filtered')),
+                float(cloud.get('rate_hz', 0.0)),
+                int(cloud.get('last_count', 0)),
+                float(cluster.get('rate_hz', 0.0)),
+                int(cluster.get('last_count', 0)),
+                int(counts.get('bboxes', 0)),
+                int(counts.get('lidar_only_bboxes', 0)),
+                int(counts.get('camera_only_bboxes', 0)),
+                int(counts.get('camera_lidar_fused_bboxes', 0)),
+                int(camera_detection.get('detections_last', 0)),
+                int(camera_detection.get('friendly_detections', 0)),
+                int(camera_detection.get('hostile_detections', 0)),
+                int(camera_detection.get('neutral_detections', 0)),
+                int(camera_detection.get('unknown_detections', 0)),
+                int(camera_detection.get('identity_confirmations', 0)),
+                int(camera_detection.get('identity_switches', 0)),
+                int(vision_guided.get('roi_extraction_frames', 0)),
+                float(vision_guided.get('roi_average_points', 0.0)),
+                int(vision_guided.get('valid_3d_bboxes', 0)),
+                int(vision_guided.get('rejected_3d_bboxes', 0)),
+                float(vision_guided.get('average_roi_processing_ms', 0.0)),
+                int(vision_guided.get('tf_failures', 0)),
+                int(counts.get('camera_projection', 0)),
+                int(counts.get('calibration_roi', 0)),
+                int(counts.get('calibration_bbox', 0)),
+                (
+                    '-' if vision_guided.get('average_sync_error_ms') is None
+                    else '%.1f ms' % float(
+                        vision_guided.get('average_sync_error_ms')
+                    )
+                ),
+                (
+                    '-' if vision_guided.get('roi_inside_ratio') is None
+                    else '%.1f%%' % (
+                        100.0 * float(vision_guided.get('roi_inside_ratio'))
+                    )
+                ),
+                (
+                    '-' if vision_guided.get(
+                        'reprojection_center_error_px'
+                    ) is None else '%.1f px' % float(
+                        vision_guided.get('reprojection_center_error_px')
+                    )
+                ),
+                (
+                    '-' if vision_guided.get(
+                        'camera_projection_depth_m'
+                    ) is None else '%.2f m' % float(
+                        vision_guided.get('camera_projection_depth_m')
+                    )
+                ),
+                vision_guided.get('tf_query_mode', '-'),
+                float(track.get('rate_hz', 0.0)),
+                int(track.get('last_count', 0)),
+                float(dynamic.get('rate_hz', 0.0)),
+                int(dynamic.get('last_count', 0)),
+                int(counts.get('fusion', 0)),
+                int(counts.get('tf', 0)),
+            )
+        )
 
     @staticmethod
     def _status_card(title, value):
@@ -1987,7 +2908,10 @@ class BaseStationWindow(QMainWindow):
 
     def _update_image(self, image, source=''):
         self.last_image_time = time.monotonic()
-        if source == 'defense':
+        if source == 'topdown_camera':
+            if hasattr(self, 'perception_camera'):
+                self.perception_camera.set_image(image)
+        elif source == 'defense':
             self.defense_camera.set_image(image)
         elif source == 'capture':
             self.capture_camera.set_image(image)
@@ -2604,7 +3528,11 @@ def main(args=None):
     app = QApplication(sys.argv)
     app.setApplicationName('UAV-USV Fleet Base Station')
     signals = GuiSignals()
-    node = BaseStationGuiNode(signals)
+    visualization_model = TopDownVisualizationModel()
+    lv_dot_debug_model = LvDotDebugModel()
+    node = BaseStationGuiNode(
+        signals, visualization_model, lv_dot_debug_model
+    )
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
     spin_thread = threading.Thread(
@@ -2612,7 +3540,9 @@ def main(args=None):
     )
     spin_thread.start()
 
-    window = BaseStationWindow(node, signals)
+    window = BaseStationWindow(
+        node, signals, visualization_model, lv_dot_debug_model
+    )
     window.show()
     signal.signal(signal.SIGINT, lambda *_args: app.quit())
     signal_timer = QTimer()

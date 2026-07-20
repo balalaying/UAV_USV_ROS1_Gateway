@@ -191,6 +191,13 @@ class GroundTruthAdapter(Node):
         tracked.last_update = state.last_update
         tracked.source_mask = self.source_mask
         tracked.classification = self.classification
+        tracked.class_name = (
+            'vessel'
+            if self.classification == TrackedObject.CLASS_VESSEL
+            else 'unknown'
+        )
+        tracked.class_confidence = 1.0
+        tracked.sensor_source = 'ground_truth'
         tracked.pose.pose.position.x = float(state.pose.position.x)
         tracked.pose.pose.position.y = float(state.pose.position.y)
         tracked.pose.pose.position.z = float(state.pose.position.z)

@@ -87,6 +87,16 @@ if(BUILD_TESTING)
     test/test_capture_algorithms.py
     APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
   )
+  ament_add_pytest_test(
+    perception_topdown
+    test/test_perception_topdown.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  ament_add_pytest_test(
+    lv_dot_debug_visualization
+    test/test_lv_dot_debug_model.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
+  )
 endif()
 
 ament_package()

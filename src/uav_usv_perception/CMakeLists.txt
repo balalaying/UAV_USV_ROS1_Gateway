@@ -23,21 +23,27 @@ install(PROGRAMS
   scripts/adapters/lv_dot_observation_adapter.py
   scripts/adapters/lv_dot_pose_adapter.py
   scripts/adapters/uav_visual_observation_node.py
+  scripts/adapters/usv_camera_detection_node.py
   scripts/evaluation/lv_dot_fusion_evaluator.py
   scripts/evaluation/lv_dot_shadow_evaluator.py
   scripts/evaluation/multisensor_validation_evaluator.py
   scripts/fusion/perception_fusion_node.py
   scripts/fusion/perception_source_mux.py
+  scripts/fusion/camera_lidar_association_node.py
+  scripts/fusion/vision_guided_lidar_roi_node.py
+  scripts/visualization/qt_pointcloud_projection_node.py
+  scripts/visualization/lv_dot_debug_visualization_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
 install(FILES
   scripts/tracking/track_association.py
+  scripts/vision_guided/vision_guided_core.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
 install(
-  DIRECTORY docs launch rviz
+  DIRECTORY config docs launch rviz
   DESTINATION share/${PROJECT_NAME}
   PATTERN "__pycache__" EXCLUDE
 )
@@ -69,6 +75,26 @@ if(BUILD_TESTING)
     test_perception_fusion_batching
     test/test_perception_fusion_batching.py
     APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/fusion:${CMAKE_CURRENT_SOURCE_DIR}/scripts/tracking
+  )
+  ament_add_pytest_test(
+    test_qt_pointcloud_projection
+    test/test_qt_pointcloud_projection.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/visualization
+  )
+  ament_add_pytest_test(
+    test_lv_dot_debug_visualization
+    test/test_lv_dot_debug_visualization.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/visualization
+  )
+  ament_add_pytest_test(
+    test_camera_lidar_fusion
+    test/test_camera_lidar_fusion.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/adapters:${CMAKE_CURRENT_SOURCE_DIR}/scripts/fusion:${CMAKE_CURRENT_SOURCE_DIR}/scripts/vision_guided
+  )
+  ament_add_pytest_test(
+    test_vision_guided_perception
+    test/test_vision_guided_perception.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/vision_guided:${CMAKE_CURRENT_SOURCE_DIR}/scripts/adapters:${CMAKE_CURRENT_SOURCE_DIR}/scripts/fusion
   )
 endif()
 

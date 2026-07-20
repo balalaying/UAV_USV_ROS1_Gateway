@@ -47,6 +47,7 @@ class GzSensorBridge(Node):
         self.declare_parameter('bridge_usv_scans', False)
         self.declare_parameter('bridge_base_radar', True)
         self.declare_parameter('camera_max_rate', 15.0)
+        self.declare_parameter('usv_camera_horizontal_fov', 1.047)
         world_name = str(self.get_parameter('world_name').value)
         uav_ids = [str(value) for value in self.get_parameter('uav_ids').value]
         uav_models = [
@@ -63,6 +64,10 @@ class GzSensorBridge(Node):
         camera_max_rate = max(
             0.0, float(self.get_parameter('camera_max_rate').value)
         )
+        usv_camera_horizontal_fov = max(
+            0.1,
+            float(self.get_parameter('usv_camera_horizontal_fov').value),
+        )
         camera_min_period = (
             1.0 / camera_max_rate if camera_max_rate > 0.0 else 0.0
         )
@@ -77,14 +82,16 @@ class GzSensorBridge(Node):
                 '/world/%s/model/%s/link/camera_link/'
                 'sensor/camera/camera_info' % (world_name, model_name),
                 '/fleet/uplink/%s/camera_info_raw' % vehicle_id,
+                False,
             ))
         for vehicle_id, source_name in zip(usv_ids, usv_sources):
             camera_topics.append((
                 '/defense/%s/front_camera' % source_name,
                 '/fleet/uplink/%s/camera' % vehicle_id,
-                vehicle_id + '_front_camera',
+                vehicle_id + '/camera_link',
                 '',
-                '',
+                '/fleet/uplink/%s/camera_info_raw' % vehicle_id,
+                True,
             ))
 
         self.sensor_publishers = {}
@@ -94,13 +101,24 @@ class GzSensorBridge(Node):
             frame_id,
             gz_info_topic,
             ros_info_topic,
+            synthesize_info,
         ) in camera_topics:
             publisher = self.create_publisher(
                 Image, ros_topic, qos_profile_sensor_data
             )
             self.sensor_publishers[ros_topic] = publisher
             callback = self._camera_callback(
-                publisher, frame_id, ros_topic, camera_min_period
+                publisher,
+                frame_id,
+                ros_topic,
+                camera_min_period,
+                (
+                    self.create_publisher(
+                        CameraInfo, ros_info_topic, qos_profile_sensor_data
+                    )
+                    if synthesize_info else None
+                ),
+                usv_camera_horizontal_fov,
             )
             if not self.gz_node.subscribe(GzImage, gz_topic, callback):
                 raise RuntimeError('Unable to subscribe to %s' % gz_topic)
@@ -158,7 +176,15 @@ class GzSensorBridge(Node):
             )
         )
 
-    def _camera_callback(self, publisher, frame_id, topic, min_period):
+    def _camera_callback(
+        self,
+        publisher,
+        frame_id,
+        topic,
+        min_period,
+        synthetic_info_publisher=None,
+        horizontal_fov=1.047,
+    ):
         last_publish = 0.0
 
         def callback(source):
@@ -209,11 +235,45 @@ class GzSensorBridge(Node):
                 msg.data = bytes(source.data)
             try:
                 publisher.publish(msg)
+                if synthetic_info_publisher is not None:
+                    synthetic_info_publisher.publish(
+                        self._camera_info_from_image(msg, horizontal_fov)
+                    )
             except Exception:
                 if not self.shutting_down and rclpy.ok():
                     raise
             self._count(topic)
         return callback
+
+    @staticmethod
+    def _camera_info_from_image(image, horizontal_fov):
+        width = max(1, int(image.width))
+        height = max(1, int(image.height))
+        focal = width / (2.0 * math.tan(0.5 * horizontal_fov))
+        center_x = 0.5 * (width - 1)
+        center_y = 0.5 * (height - 1)
+        info = CameraInfo()
+        info.header = image.header
+        info.width = width
+        info.height = height
+        info.distortion_model = 'plumb_bob'
+        info.d = [0.0] * 5
+        info.k = [
+            focal, 0.0, center_x,
+            0.0, focal, center_y,
+            0.0, 0.0, 1.0,
+        ]
+        info.r = [
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.0,
+            0.0, 0.0, 1.0,
+        ]
+        info.p = [
+            focal, 0.0, center_x, 0.0,
+            0.0, focal, center_y, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+        ]
+        return info
 
     def _camera_info_callback(self, publisher, frame_id, topic, min_period):
         distortion_models = {

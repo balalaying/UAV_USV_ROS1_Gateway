@@ -250,6 +250,17 @@
         </material>
       </visual>
 
+      <!-- Visual-only friendly identity plate. -->
+      <visual name="friendly_identity_roof">
+        <pose>0.2475 0 1.13 0 0 0</pose>
+        <geometry><box><size>1.20 0.92 0.08</size></box></geometry>
+        <material>
+          <ambient>0.01 0.18 0.85 1</ambient>
+          <diffuse>0.02 0.32 1.0 1</diffuse>
+          <emissive>0 0.05 0.30 1</emissive>
+        </material>
+      </visual>
+
       <collision name="landing_pad_collision">
         <pose>-1.518 0 0.45 0 0 0</pose>
         <geometry>

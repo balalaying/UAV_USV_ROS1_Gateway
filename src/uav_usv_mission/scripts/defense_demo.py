@@ -37,6 +37,7 @@ class DefenseDemo(Node):
 
     def __init__(self):
         super().__init__('defense_demo')
+        self.declare_parameter('topic_namespace', '')
         self.declare_parameter('base_x', 0.0)
         self.declare_parameter('base_y', 0.0)
         self.declare_parameter('own_count', 4)
@@ -84,6 +85,14 @@ class DefenseDemo(Node):
         self.last_rviz_marker_time = self.get_clock().now()
         self.last_gazebo_marker_time = self.get_clock().now()
         self.guard_assignments = {}
+        namespace = str(
+            self.get_parameter('topic_namespace').value
+        ).strip('/')
+        self._topic = (
+            (lambda name: '/%s%s' % (namespace, name))
+            if namespace
+            else (lambda name: name)
+        )
 
         self.gz_node = GzTransportNode()
         self.pose_topic = str(self.get_parameter('pose_topic').value)
@@ -97,16 +106,16 @@ class DefenseDemo(Node):
         self.marker_pub = self.gz_node.advertise('/marker', GzMarker)
 
         self.own_pose_pub = self.create_publisher(
-            PoseArray, '/defense/own_ships', 10
+            PoseArray, self._topic('/defense/own_ships'), 10
         )
         self.enemy_pose_pub = self.create_publisher(
-            PoseArray, '/defense/enemy_ships', 10
+            PoseArray, self._topic('/defense/enemy_ships'), 10
         )
         self.status_pub = self.create_publisher(
-            String, '/defense/status', 10
+            String, self._topic('/defense/status'), 10
         )
         self.rviz_marker_pub = self.create_publisher(
-            MarkerArray, '/defense/rviz_markers', 10
+            MarkerArray, self._topic('/defense/rviz_markers'), 10
         )
 
         update_rate = max(1.0, float(self.get_parameter('update_rate').value))

@@ -40,6 +40,11 @@ uav_usv_interfaces::msg::TrackedObjectArray to_ros_message(
     object.last_update = to_time(track.last_update_nanoseconds);
     object.source_mask = static_cast<std::uint8_t>(track.source);
     object.classification = static_cast<std::uint8_t>(track.classification);
+    object.class_name =
+      object.classification == 1U ? "vessel" : "unknown";
+    object.class_confidence =
+      object.classification == 0U ? 0.0F : track.confidence;
+    object.sensor_source = "lidar";
     object.pose.pose.position.x = track.position[0];
     object.pose.pose.position.y = track.position[1];
     object.pose.pose.position.z = track.position[2];

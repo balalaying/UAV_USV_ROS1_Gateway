@@ -10,7 +10,9 @@ import numpy as np
 import cv2
 import rclpy
 from rclpy.executors import ExternalShutdownException
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.qos import DurabilityPolicy
 from rclpy.qos import QoSProfile
 from rclpy.qos import ReliabilityPolicy
@@ -42,6 +44,7 @@ class FleetSimulatedAgent(Node):
 
     def __init__(self):
         super().__init__('fleet_simulated_agent')
+        self.declare_parameter('topic_namespace', '')
         self.declare_parameter(
             'vehicles',
             (
@@ -66,17 +69,25 @@ class FleetSimulatedAgent(Node):
         self.vehicles = self._parse_vehicles(
             self.get_parameter('vehicles').value
         )
+        namespace = str(
+            self.get_parameter('topic_namespace').value
+        ).strip('/')
+        self._topic = (
+            (lambda name: '/%s%s' % (namespace, name))
+            if namespace
+            else (lambda name: name)
+        )
         self.state_pub = self.create_publisher(
-            VehicleState, '/fleet/state', sensor_qos
+            VehicleState, self._topic('/fleet/state'), sensor_qos
         )
         self.ack_pub = self.create_publisher(
-            CommandAck, '/fleet/command_ack', 20
+            CommandAck, self._topic('/fleet/command_ack'), 20
         )
         self.image_pubs = {}
         self.scan_pubs = {}
         self.odom_pubs = {}
         for vehicle in self.vehicles.values():
-            prefix = '/fleet/uplink/%s' % vehicle.vehicle_id
+            prefix = self._topic('/fleet/uplink/%s' % vehicle.vehicle_id)
             self.image_pubs[vehicle.vehicle_id] = self.create_publisher(
                 Image, prefix + '/camera', sensor_qos
             )
@@ -89,13 +100,20 @@ class FleetSimulatedAgent(Node):
                 )
 
         self.create_subscription(
-            ControlLease, '/fleet/control_lease', self._on_lease, lease_qos
+            ControlLease,
+            self._topic('/fleet/control_lease'),
+            self._on_lease,
+            lease_qos,
         )
         self.create_subscription(
-            FleetCommand, '/fleet/command', self._on_command, 20
+            FleetCommand,
+            self._topic('/fleet/command'),
+            self._on_command,
+            20,
         )
 
         self.lock = threading.Lock()
+        self.sensor_callback_group = ReentrantCallbackGroup()
         self.gz_node = GzTransportNode()
         self.pose_topic = self.get_parameter('pose_topic').value
         self.publish_images = bool(self.get_parameter('publish_images').value)
@@ -107,10 +125,12 @@ class FleetSimulatedAgent(Node):
             self.create_timer(
                 1.0 / max(0.5, float(self.get_parameter('image_rate').value)),
                 self._publish_images,
+                callback_group=self.sensor_callback_group,
             )
         self.create_timer(
             1.0 / max(0.5, float(self.get_parameter('scan_rate').value)),
             self._publish_usv_sensors,
+            callback_group=self.sensor_callback_group,
         )
         self.get_logger().info(
             'Simulated fleet agent online for: %s'
@@ -442,11 +462,14 @@ class FleetSimulatedAgent(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = FleetSimulatedAgent()
+    executor = MultiThreadedExecutor(num_threads=8)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

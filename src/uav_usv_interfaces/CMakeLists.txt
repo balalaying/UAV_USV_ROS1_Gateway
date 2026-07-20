@@ -14,6 +14,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/AisContactArray.msg"
   "msg/TrackedObject.msg"
   "msg/TrackedObjectArray.msg"
+  "msg/AffiliatedDetection2D.msg"
+  "msg/AffiliatedDetection2DArray.msg"
   "msg/CollisionRisk.msg"
   "msg/ColregsDecision.msg"
   "msg/VehicleState.msg"

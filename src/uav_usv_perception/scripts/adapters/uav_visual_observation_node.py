@@ -111,6 +111,9 @@ def make_camera_observation(
     tracked.first_seen = deepcopy(first_seen)
     tracked.last_update = deepcopy(stamp)
     tracked.source_mask = TrackedObject.SOURCE_CAMERA
+    tracked.class_name = 'vessel'
+    tracked.class_confidence = min(1.0, max(0.0, float(confidence)))
+    tracked.sensor_source = 'camera'
     tracked.mmsi = 0
     for axis in ('x', 'y', 'z'):
         position = getattr(tracked.pose.pose.position, axis)
