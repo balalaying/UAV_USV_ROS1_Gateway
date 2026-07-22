@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "message_type": "fleet_snapshot",
+  "timestamp": 1784692800.0,
+  "sequence": 42,
+  "source": "uav_usv_fleet_gateway",
+  "data": {
+    "vehicles": [],
+    "targets": [],
+    "sensors": [],
+    "mission": {"state": "not_available"},
+    "gateway": {"connected_clients": 1, "websocket_running": true}
+  }
+}

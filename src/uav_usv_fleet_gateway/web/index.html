@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f4f7f9">
+  <title>舰队数据测试岸基站</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><h1>舰队数据测试岸基站</h1><small>只读局域网 Demo</small></div>
+    <span id="connectionBadge" class="badge offline">未连接</span>
+  </header>
+
+  <main>
+    <section class="panel connection-panel">
+      <div class="panel-title"><h2>连接</h2><span id="serverText">-</span></div>
+      <div class="connection-grid">
+        <label>WebSocket 地址<input id="wsUrl" autocomplete="url" inputmode="url"></label>
+        <div class="button-row">
+          <button id="connectButton" class="primary">连接</button>
+          <button id="disconnectButton">断开</button>
+          <button id="snapshotButton">请求快照</button>
+        </div>
+        <label class="toggle"><input id="autoReconnect" type="checkbox" checked>自动重连</label>
+      </div>
+    </section>
+
+    <section class="metric-grid" aria-label="系统摘要">
+      <div class="metric"><span>最后消息</span><strong id="lastMessage">--</strong></div>
+      <div class="metric"><span>消息数</span><strong id="messageCount">0</strong></div>
+      <div class="metric"><span>接收频率</span><strong id="receiveRate">0.0 Hz</strong></div>
+      <div class="metric"><span>在线载具</span><strong id="onlineCount">0</strong></div>
+      <div class="metric"><span>目标</span><strong id="targetCount">0</strong></div>
+    </section>
+
+    <section class="panel map-panel">
+      <div class="panel-title">
+        <h2>舰队俯视图</h2>
+        <div class="map-tools">
+          <label class="toggle"><input id="showGrid" type="checkbox" checked>网格</label>
+          <button id="zoomOut" title="缩小">−</button>
+          <button id="zoomIn" title="放大">＋</button>
+          <button id="resetView">重置</button>
+        </div>
+      </div>
+      <canvas id="fleetMap" aria-label="舰队俯视图"></canvas>
+      <div class="legend"><span class="uav">UAV</span><span class="usv">USV</span><span class="target">目标</span></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><h2>载具状态</h2><span id="vehicleSummary">0 艘/架</span></div>
+      <div id="vehicleCards" class="card-grid empty">等待载具状态</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><h2>感知目标</h2><span id="perceptionSource">source_mux</span></div>
+      <div id="targetCards" class="card-grid empty">等待目标数据</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><h2>传感器摘要</h2></div>
+      <div id="sensorCards" class="card-grid empty">等待传感器状态</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><h2>网关状态</h2></div>
+      <div id="gatewayGrid" class="details-grid"></div>
+    </section>
+
+    <details class="panel raw-panel">
+      <summary>最近一条原始 JSON</summary>
+      <div class="button-row raw-tools">
+        <button id="pauseJson">暂停</button><button id="clearJson">清空</button>
+        <label class="toggle"><input id="autoScroll" type="checkbox" checked>自动滚动</label>
+      </div>
+      <pre id="rawJson">等待消息</pre>
+    </details>
+  </main>
+  <footer>协议 v1.0 · 只读查看 · 不提供任何载具控制</footer>
+  <script src="app.js"></script>
+</body>
+</html>

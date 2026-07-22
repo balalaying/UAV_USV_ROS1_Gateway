@@ -1,0 +1,31 @@
+fleet_gateway:
+  ros__parameters:
+    gateway_name: uav_usv_fleet_gateway
+    fleet_id: demo
+    bind_address: 0.0.0.0
+
+    enable_websocket: true
+    websocket_port: 8765
+    websocket_path: /ws
+    enable_http_server: true
+    http_port: 8080
+
+    vehicle_publish_rate_hz: 10.0
+    target_publish_rate_hz: 10.0
+    snapshot_rate_hz: 1.0
+    diagnostics_rate_hz: 1.0
+    sensor_publish_rate_hz: 1.0
+
+    stale_timeout_sec: 3.0
+    remove_timeout_sec: 30.0
+    max_clients: 8
+    client_queue_size: 100
+    auto_remove_offline_vehicle: false
+    enable_mqtt: false
+
+    vehicle_state_topics:
+      - /fleet/state
+    perception_targets_topic: /fleet/perception/targets
+    sensor_status_topic: /fleet/sensor_status
+    mission_state_topic: /capture/state
+    perception_source_status_topic: /perception/source_status
