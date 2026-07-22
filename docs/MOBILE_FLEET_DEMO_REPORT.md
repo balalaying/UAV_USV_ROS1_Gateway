@@ -13,7 +13,9 @@ ROS 2 Topics
   -> 原生 HTML/CSS/JS 手机测试页
 ```
 
-HTTP 线程、WebSocket 线程和 ROS executor 相互独立。ROS 回调只更新最新值缓存，不处理网页布局，也不等待网络发送。
+HTTP 线程、WebSocket asyncio 事件循环、墙钟推送线程和 ROS executor 相互独立。ROS 回调只更新最新值缓存，不处理网页布局，也不等待网络发送。推送线程通过 `call_soon_threadsafe` 将消息交给 asyncio loop，再进入每个客户端独立的异步有界优先队列。
+
+周期推送使用墙钟而不是 ROS 仿真时钟，因此 `use_sim_time=true` 时，即使 Gazebo 暂停、`/clock` 尚未出现或临时中断，手机网页的快照、诊断和缓存状态仍会刷新。
 
 ## 仓库审计
 
@@ -110,6 +112,8 @@ sudo ufw allow 8765/tcp
 
 - 自动推断当前网页主机并生成 WebSocket 地址
 - 连接、断开、自动重连、请求完整快照
+- 无需点击按钮即可接收 10 Hz 载具状态、10 Hz 目标状态和 1 Hz 完整快照
+- 按消息类型显示最近 5 秒接收 Hz、累计数量和最后更新时间
 - 按 ID 更新 UAV/USV 卡片和目标卡片，不重复堆积
 - Canvas 俯视图：UAV 三角形、USV 船形、目标框、航向、速度向量、拖动与缩放
 - 传感器和网关健康摘要
@@ -122,7 +126,7 @@ sudo ufw allow 8765/tcp
 
 - Python 语法检查通过。
 - `colcon build --packages-select uav_usv_fleet_gateway` 通过。
-- 16 个自动测试通过，覆盖协议序号/null、姿态转换、注册表更新/超时、多目标、WebSocket 首帧/快照/ping/非法命令/断开、空闲连接、双客户端顺序、队列上限、HTTP 根路径与 health、手机页面依赖检查。
+- 18 个自动测试通过，覆盖协议序号/null、姿态转换、注册表更新/超时、多目标、WebSocket 首帧/快照/ping/非法命令/断开、空闲连接、双客户端顺序、异步队列新旧位置替换与告警保护、HTTP 根路径与 health、手机页面依赖检查。
 - 服务监听 `0.0.0.0:8080` 和 `0.0.0.0:8765`。
 - HTTP `/` 返回网页，`/health` 返回正常 JSON。
 - WebSocket 返回 `101 Switching Protocols`，随后按序发送 hello 和 snapshot。
@@ -132,6 +136,8 @@ sudo ufw allow 8765/tcp
 - 按用户要求执行 3 分钟稳定性测试：单客户端持续收到 2820 条消息，其中完整快照 181、载具状态 1361、目标状态 900、传感器状态 180、诊断 180、pong 17；sequence 无倒退，连接未中断。
 - 稳定性测试结束时进程 RSS 约 61.9 MB、CPU 约 3.1%，HTTP/WebSocket 保持正常；客户端断开后计数恢复为 0，节点继续运行。
 - 停止 `usv_01` 输入超过 3 秒后，快照正确显示 `online=false, stale=true`，同时 `uav_01` 保持在线。
+- 实时推送回归：在 `use_sim_time=true` 且 `/clock` 发布者为 0 的条件下，不发送 `request_snapshot`，2 秒内收到 vehicle_state 21 条、perception_targets 20 条、fleet_snapshot 3 条和 diagnostics 2 条。
+- 动态更新回归：同一 WebSocket 长连接中，将 `uav_01.position.x` 从 10 更新为 50，浏览器侧自动依次收到 `[10.0, 50.0]`，无需请求快照或刷新页面。
 
 未实测：
 

@@ -1,4 +1,5 @@
 import base64
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,7 @@ from urllib.request import urlopen
 
 from uav_usv_fleet_gateway.http_server import FleetHttpServer
 from uav_usv_fleet_gateway.protocol import ProtocolEncoder
-from uav_usv_fleet_gateway.websocket_server import BoundedMessageQueue
+from uav_usv_fleet_gateway.websocket_server import AsyncClientQueue
 from uav_usv_fleet_gateway.websocket_server import FleetWebSocketServer
 
 
@@ -45,19 +46,48 @@ def _connect(port):
         % key
     )
     sock.sendall(request.encode('ascii'))
-    response = sock.recv(4096)
+    response = bytearray()
+    while not response.endswith(b'\r\n\r\n'):
+        response.extend(sock.recv(1))
     assert b'101 Switching Protocols' in response
     return sock
 
 
 def test_bounded_queue_drops_oldest_normal_message():
-    queue = BoundedMessageQueue(2)
-    queue.put('old')
-    queue.put('middle')
-    queue.put('important', priority=2)
-    assert queue.dropped == 1
-    assert queue.get() == 'middle'
-    assert queue.get() == 'important'
+    async def scenario():
+        queue = AsyncClientQueue(2)
+        queue.put_nowait('old')
+        queue.put_nowait('middle')
+        queue.put_nowait('important', priority=2)
+        assert queue.dropped == 1
+        assert await queue.get() == (0x1, 'important')
+        assert await queue.get() == (0x1, 'middle')
+
+    asyncio.run(scenario())
+
+
+def test_async_queue_preserves_alert_when_position_queue_is_full():
+    async def scenario():
+        queue = AsyncClientQueue(2)
+        queue.put_nowait('warning', priority=2)
+        queue.put_nowait('snapshot', priority=1)
+        assert queue.put_nowait('position', priority=0) is False
+        assert await queue.get() == (0x1, 'warning')
+        assert await queue.get() == (0x1, 'snapshot')
+
+    asyncio.run(scenario())
+
+
+def test_async_queue_replaces_old_position_with_latest_position():
+    async def scenario():
+        queue = AsyncClientQueue(2)
+        queue.put_nowait('position-oldest', priority=0)
+        queue.put_nowait('position-old', priority=0)
+        assert queue.put_nowait('position-latest', priority=0) is True
+        assert await queue.get() == (0x1, 'position-old')
+        assert await queue.get() == (0x1, 'position-latest')
+
+    asyncio.run(scenario())
 
 
 def test_websocket_hello_snapshot_ping_and_invalid_json():

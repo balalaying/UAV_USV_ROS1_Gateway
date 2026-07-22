@@ -41,10 +41,20 @@ hostname -I
 1. 浏览器连接 `/ws`。
 2. 网关发送 `gateway_hello`。
 3. 网关立即发送 `fleet_snapshot`。
-4. 后续发送增量状态和 1 Hz 完整快照。
+4. 后续自动发送增量状态和 1 Hz 完整快照，不需要客户端轮询。
 5. 断线重连后重复上述流程，前端应按 ID 覆盖旧数据。
 
 推荐重连间隔从 2 秒开始，并设置上限；当前测试页固定使用 2 秒。
+
+默认实时频率：
+
+- 每个已注册载具的 `vehicle_state`：10 Hz
+- `perception_targets`：10 Hz
+- `fleet_snapshot`：1 Hz
+- `gateway_diagnostics`：1 Hz
+- `sensor_status`：1 Hz
+
+频率由网关墙钟推送线程控制，不依赖 `/clock`。客户端应按 ID 覆盖本地对象，不应把每条状态追加成新的载具卡片。
 
 ## 消息类型
 

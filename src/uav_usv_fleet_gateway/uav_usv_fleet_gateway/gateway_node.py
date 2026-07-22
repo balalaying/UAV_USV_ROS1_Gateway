@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import socket
 import subprocess
+import threading
 import time
 
 from ament_index_python.packages import get_package_share_directory
@@ -74,15 +75,16 @@ class FleetGatewayNode(Node):
         )
         self.latest_vehicles = LatestValueStore()
         self.latest_sensors = LatestValueStore()
-        self.target_dirty = False
         self.target_frame = ''
         self.perception_source = 'source_mux'
         self.websocket = None
         self.http = None
+        self._push_stop = threading.Event()
+        self._push_thread = None
         self._gateway_subscriptions = []
         self._create_subscriptions()
         self._start_transports()
-        self._create_timers()
+        self._start_push_loop()
         self._print_startup()
 
     def _declare_parameters(self):
@@ -189,14 +191,55 @@ class FleetGatewayNode(Node):
                 self.get_logger().error(
                     'HTTP server disabled after startup failure: %s' % error)
 
-    def _create_timers(self):
-        def timer(rate, callback):
-            self.create_timer(1.0 / max(0.1, self._float(rate)), callback)
-        timer('vehicle_publish_rate_hz', self._publish_vehicle_updates)
-        timer('target_publish_rate_hz', self._publish_target_updates)
-        timer('sensor_publish_rate_hz', self._publish_sensor_updates)
-        timer('snapshot_rate_hz', self._publish_snapshot)
-        timer('diagnostics_rate_hz', self._publish_diagnostics)
+    def _start_push_loop(self):
+        """Run WebSocket publication on wall time, independent of /clock."""
+        self._push_stop.clear()
+        self._push_thread = threading.Thread(
+            target=self._push_loop,
+            name='fleet-gateway-publisher',
+            daemon=True,
+        )
+        self._push_thread.start()
+
+    def _push_loop(self):
+        tasks = {
+            'vehicle': [
+                1.0 / max(0.1, self._float('vehicle_publish_rate_hz')),
+                self.broadcast_vehicle_state,
+            ],
+            'targets': [
+                1.0 / max(0.1, self._float('target_publish_rate_hz')),
+                self.broadcast_targets,
+            ],
+            'sensors': [
+                1.0 / max(0.1, self._float('sensor_publish_rate_hz')),
+                self._broadcast_sensor_status,
+            ],
+            'snapshot': [
+                1.0 / max(0.1, self._float('snapshot_rate_hz')),
+                self.broadcast_snapshot,
+            ],
+            'diagnostics': [
+                1.0 / max(0.1, self._float('diagnostics_rate_hz')),
+                self._broadcast_diagnostics,
+            ],
+        }
+        now = time.monotonic()
+        deadlines = {name: now for name in tasks}
+        while not self._push_stop.is_set():
+            now = time.monotonic()
+            for name, (interval, callback) in tasks.items():
+                if now < deadlines[name]:
+                    continue
+                try:
+                    callback()
+                except Exception as error:  # Keep other streams alive.
+                    self.get_logger().error(
+                        'Gateway push %s failed: %s' % (name, error))
+                deadlines[name] = now + interval
+            next_deadline = min(deadlines.values())
+            self._push_stop.wait(max(
+                0.001, min(0.02, next_deadline - time.monotonic())))
 
     def _on_vehicle(self, message):
         now = time.monotonic()
@@ -212,7 +255,6 @@ class FleetGatewayNode(Node):
             for item in message.objects]
         self.registry.update_targets(models)
         self.target_frame = str(message.header.frame_id)
-        self.target_dirty = True
         self.health.increment('received_messages')
 
     def _on_sensor(self, message):
@@ -245,14 +287,15 @@ class FleetGatewayNode(Node):
         self.websocket.broadcast(
             self.protocol.dumps(message_type, data), priority=priority)
 
-    def _publish_vehicle_updates(self):
-        for value in self.latest_vehicles.pop_dirty():
-            self._broadcast('vehicle_state', value)
+    def broadcast_vehicle_state(self):
+        """Broadcast the latest state of every registered vehicle at 10 Hz."""
+        for value in self.registry.vehicles():
+            alert = value.get('stale') or not value.get('online')
+            priority = 2 if alert else 0
+            self._broadcast('vehicle_state', value, priority=priority)
 
-    def _publish_target_updates(self):
-        if not self.target_dirty:
-            return
-        self.target_dirty = False
+    def broadcast_targets(self):
+        """Broadcast the latest formal perception target set at 10 Hz."""
         self._broadcast('perception_targets', {
             'frame_id': self.target_frame,
             'source': 'source_mux',
@@ -260,14 +303,16 @@ class FleetGatewayNode(Node):
             'targets': self.registry.targets(),
         })
 
-    def _publish_sensor_updates(self):
-        for value in self.latest_sensors.pop_dirty():
-            self._broadcast('sensor_status', value)
+    def _broadcast_sensor_status(self):
+        for value in self.latest_sensors.values():
+            priority = 2 if not value.get('online') else 1
+            self._broadcast('sensor_status', value, priority=priority)
 
-    def _publish_snapshot(self):
+    def broadcast_snapshot(self):
+        """Broadcast a complete recovery snapshot at 1 Hz."""
         self._broadcast('fleet_snapshot', self._snapshot(), priority=1)
 
-    def _publish_diagnostics(self):
+    def _broadcast_diagnostics(self):
         self._broadcast(
             'gateway_diagnostics', self._diagnostics(), priority=1)
 
@@ -322,6 +367,10 @@ class FleetGatewayNode(Node):
                         address, self.websocket.port, self.websocket.path))
 
     def destroy_node(self):
+        self._push_stop.set()
+        if self._push_thread is not None:
+            self._push_thread.join(timeout=2.0)
+            self._push_thread = None
         if self.http is not None:
             self.http.stop()
         if self.websocket is not None:
