@@ -81,7 +81,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'minimum_association_score', default_value='0.08'
         ),
-        DeclareLaunchArgument('association_pixel_gate', default_value='32.0'),
+        DeclareLaunchArgument('association_pixel_gate', default_value='80.0'),
         DeclareLaunchArgument(
             'minimum_lidar_xy_extent', default_value='0.20'
         ),

@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="Shore_Command_Base">
+    <static>true</static>
+    <link name="base_link">
+      <!-- 山坡架空基础、控制楼与屋顶。 -->
+      <collision name="foundation_collision"><pose>0 0 0.5 0 0 0</pose><geometry><box><size>28 20 1</size></box></geometry></collision>
+      <visual name="foundation"><pose>0 0 0.5 0 0 0</pose><geometry><box><size>28 20 1</size></box></geometry><material><ambient>0.16 0.17 0.17 1</ambient><diffuse>0.34 0.36 0.36 1</diffuse></material></visual>
+      <collision name="control_building_collision"><pose>0 0 4.2 0 0 0</pose><geometry><box><size>20 14 7.2</size></box></geometry></collision>
+      <visual name="control_building"><pose>0 0 4.2 0 0 0</pose><geometry><box><size>20 14 7.2</size></box></geometry><material><ambient>0.52 0.56 0.58 1</ambient><diffuse>0.78 0.82 0.84 1</diffuse><specular>0.25 0.28 0.30 1</specular></material></visual>
+      <collision name="roof_collision"><pose>0 0 8 0 0 0</pose><geometry><box><size>22 16 0.5</size></box></geometry></collision>
+      <visual name="roof"><pose>0 0 8 0 0 0</pose><geometry><box><size>22 16 0.5</size></box></geometry><material><ambient>0.10 0.11 0.12 1</ambient><diffuse>0.22 0.24 0.25 1</diffuse></material></visual>
+
+      <!-- UAV-USV BASE 标牌用发光面板表示。 -->
+      <visual name="UAV_USV_BASE_sign"><pose>-10.15 0 5 0 0 0</pose><geometry><box><size>0.22 8 2.1</size></box></geometry><material><ambient>0.02 0.18 0.30 1</ambient><diffuse>0.04 0.38 0.60 1</diffuse><emissive>0.01 0.12 0.25 1</emissive></material></visual>
+      <visual name="window_front"><pose>-10.18 -4 4.2 0 0 0</pose><geometry><box><size>0.12 2.5 2.2</size></box></geometry><material><ambient>0.02 0.10 0.16 1</ambient><diffuse>0.03 0.23 0.36 1</diffuse><specular>0.55 0.65 0.75 1</specular></material></visual>
+      <visual name="window_rear"><pose>-10.18 4 4.2 0 0 0</pose><geometry><box><size>0.12 2.5 2.2</size></box></geometry><material><ambient>0.02 0.10 0.16 1</ambient><diffuse>0.03 0.23 0.36 1</diffuse></material></visual>
+
+      <!-- 通信塔、天线和雷达盘均带简化碰撞。 -->
+      <collision name="tower_collision"><pose>3 0 13 0 0 0</pose><geometry><cylinder><radius>0.5</radius><length>10</length></cylinder></geometry></collision>
+      <visual name="tower"><pose>3 0 13 0 0 0</pose><geometry><cylinder><radius>0.5</radius><length>10</length></cylinder></geometry><material><ambient>0.22 0.23 0.23 1</ambient><diffuse>0.55 0.57 0.57 1</diffuse></material></visual>
+      <collision name="antenna_collision"><pose>3 0 19.5 0 0 0</pose><geometry><cylinder><radius>0.12</radius><length>3</length></cylinder></geometry></collision>
+      <visual name="antenna"><pose>3 0 19.5 0 0 0</pose><geometry><cylinder><radius>0.12</radius><length>3</length></cylinder></geometry><material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.12 0.12 0.12 1</diffuse></material></visual>
+      <collision name="radar_dish_collision"><pose>2.3 0 16.2 0 1.2 0</pose><geometry><cylinder><radius>1.5</radius><length>0.25</length></cylinder></geometry></collision>
+      <visual name="radar_dish"><pose>2.3 0 16.2 0 1.2 0</pose><geometry><cylinder><radius>1.5</radius><length>0.25</length></cylinder></geometry><material><ambient>0.68 0.69 0.67 1</ambient><diffuse>0.90 0.91 0.88 1</diffuse></material></visual>
+
+      <!-- 电源箱、通信柜和控制设备。 -->
+      <collision name="power_box_collision"><pose>-7 -8 1.8 0 0 0</pose><geometry><box><size>3 2.5 2.6</size></box></geometry></collision>
+      <visual name="power_box"><pose>-7 -8 1.8 0 0 0</pose><geometry><box><size>3 2.5 2.6</size></box></geometry><material><ambient>0.18 0.20 0.17 1</ambient><diffuse>0.38 0.43 0.34 1</diffuse></material></visual>
+      <collision name="communication_cabinet_collision"><pose>0 -8 1.7 0 0 0</pose><geometry><box><size>3 2.2 2.4</size></box></geometry></collision>
+      <visual name="communication_cabinet"><pose>0 -8 1.7 0 0 0</pose><geometry><box><size>3 2.2 2.4</size></box></geometry><material><ambient>0.12 0.15 0.18 1</ambient><diffuse>0.26 0.32 0.38 1</diffuse></material></visual>
+
+      <!-- 连接基地基础与三层平台顶层的缓坡金属栈桥。 -->
+      <collision name="platform_bridge_collision"><pose>-24 0 -1.5 0 -0.06 0</pose><geometry><box><size>50 5 0.5</size></box></geometry></collision>
+      <visual name="platform_bridge"><pose>-24 0 -1.5 0 -0.06 0</pose><geometry><box><size>50 5 0.5</size></box></geometry><material><ambient>0.14 0.15 0.15 1</ambient><diffuse>0.31 0.33 0.34 1</diffuse><specular>0.4 0.42 0.44 1</specular></material></visual>
+      <visual name="bridge_warning_left"><pose>-24 2.25 -1.18 0 -0.06 0</pose><geometry><box><size>49 0.20 0.08</size></box></geometry><material><ambient>0.9 0.58 0.02 1</ambient><diffuse>1 0.78 0.04 1</diffuse></material></visual>
+      <visual name="bridge_warning_right"><pose>-24 -2.25 -1.18 0 -0.06 0</pose><geometry><box><size>49 0.20 0.08</size></box></geometry><material><ambient>0.9 0.58 0.02 1</ambient><diffuse>1 0.78 0.04 1</diffuse></material></visual>
+
+      <collision name="security_fence_collision"><pose>8 9.4 2 0 0 0</pose><geometry><box><size>11 0.2 3</size></box></geometry></collision>
+      <visual name="security_fence"><pose>8 9.4 2 0 0 0</pose><geometry><box><size>11 0.2 3</size></box></geometry><material><ambient>0.34 0.35 0.35 1</ambient><diffuse>0.68 0.70 0.70 1</diffuse></material></visual>
+      <collision name="security_fence_south_collision"><pose>8 -9.4 2 0 0 0</pose><geometry><box><size>11 0.2 3</size></box></geometry></collision>
+      <visual name="security_fence_south"><pose>8 -9.4 2 0 0 0</pose><geometry><box><size>11 0.2 3</size></box></geometry><material><ambient>0.34 0.35 0.35 1</ambient><diffuse>0.68 0.70 0.70 1</diffuse></material></visual>
+
+      <!-- 卫星锅、阵列天线和备用电源使基站具备完整通信调度外观。 -->
+      <collision name="satellite_mast_collision"><pose>-4 2 10.2 0 0 0</pose><geometry><cylinder><radius>0.18</radius><length>4</length></cylinder></geometry></collision>
+      <visual name="satellite_mast"><pose>-4 2 10.2 0 0 0</pose><geometry><cylinder><radius>0.18</radius><length>4</length></cylinder></geometry><material><ambient>0.30 0.31 0.31 1</ambient><diffuse>0.66 0.68 0.68 1</diffuse><specular>0.7 0.7 0.7 1</specular></material></visual>
+      <collision name="satellite_dish_collision"><pose>-4 2 12.0 0 1.05 0.4</pose><geometry><cylinder><radius>1.35</radius><length>0.22</length></cylinder></geometry></collision>
+      <visual name="satellite_dish"><pose>-4 2 12.0 0 1.05 0.4</pose><geometry><cylinder><radius>1.35</radius><length>0.22</length></cylinder></geometry><material><ambient>0.70 0.72 0.72 1</ambient><diffuse>0.92 0.94 0.94 1</diffuse><specular>0.75 0.78 0.80 1</specular></material></visual>
+      <collision name="antenna_array_collision"><pose>7 3 10.8 0 0 0</pose><geometry><box><size>0.35 3.6 4.2</size></box></geometry></collision>
+      <visual name="Antenna_Array"><pose>7 3 10.8 0 0 0</pose><geometry><box><size>0.35 3.6 4.2</size></box></geometry><material><ambient>0.42 0.43 0.43 1</ambient><diffuse>0.82 0.84 0.84 1</diffuse><specular>0.7 0.72 0.74 1</specular></material></visual>
+      <collision name="backup_generator_collision"><pose>7 -7 2.0 0 0 0</pose><geometry><box><size>4.5 3.0 3.0</size></box></geometry></collision>
+      <visual name="backup_generator"><pose>7 -7 2.0 0 0 0</pose><geometry><box><size>4.5 3.0 3.0</size></box></geometry><material><ambient>0.20 0.16 0.06 1</ambient><diffuse>0.42 0.34 0.12 1</diffuse></material></visual>
+      <collision name="outside_control_console_collision"><pose>-7 7 1.7 0 0 0</pose><geometry><box><size>3.4 1.8 2.4</size></box></geometry></collision>
+      <visual name="outside_control_console"><pose>-7 7 1.7 0 0 0</pose><geometry><box><size>3.4 1.8 2.4</size></box></geometry><material><ambient>0.08 0.16 0.22 1</ambient><diffuse>0.14 0.30 0.42 1</diffuse><specular>0.35 0.40 0.45 1</specular></material></visual>
+      <collision name="shore_access_road_collision"><pose>23 0 0.3 0 0 0</pose><geometry><box><size>18 8 0.35</size></box></geometry></collision>
+      <visual name="shore_access_road"><pose>23 0 0.3 0 0 0</pose><geometry><box><size>18 8 0.35</size></box></geometry><material><ambient>0.10 0.10 0.10 1</ambient><diffuse>0.20 0.21 0.21 1</diffuse></material></visual>
+      <visual name="base_signal_red"><pose>12 8.5 3.8 0 0 0</pose><geometry><sphere><radius>0.32</radius></sphere></geometry><material><ambient>0.8 0.01 0.01 1</ambient><diffuse>1 0.02 0.02 1</diffuse><emissive>1 0.01 0.01 1</emissive></material></visual>
+      <visual name="base_signal_green"><pose>12 -8.5 3.8 0 0 0</pose><geometry><sphere><radius>0.32</radius></sphere></geometry><material><ambient>0.01 0.7 0.04 1</ambient><diffuse>0.02 1 0.08 1</diffuse><emissive>0.01 0.9 0.04 1</emissive></material></visual>
+      <light name="base_signal_light" type="point"><pose>3 0 21.5 0 0 0</pose><cast_shadows>false</cast_shadows><intensity>2</intensity><diffuse>1 0.04 0.03 1</diffuse><attenuation><range>90</range><constant>0.7</constant><linear>0.025</linear><quadratic>0.001</quadratic></attenuation></light>
+      <light name="base_flood_light" type="point"><pose>-8 0 9.5 0 0 0</pose><cast_shadows>false</cast_shadows><intensity>1.8</intensity><diffuse>0.92 0.96 1 1</diffuse><attenuation><range>65</range><constant>0.8</constant><linear>0.035</linear><quadratic>0.0015</quadratic></attenuation></light>
+    </link>
+  </model>
+</sdf>

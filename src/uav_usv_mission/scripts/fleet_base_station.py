@@ -8,6 +8,9 @@ import cv2
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 import numpy as np
+from PIL import Image as PilImage
+from PIL import ImageDraw
+from PIL import ImageFont
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -56,6 +59,15 @@ class SensorTracker:
 
 class FleetBaseStation(Node):
     """Fleet command authority and visible sensor-data termination point."""
+
+    VEHICLE_DISPLAY_NAMES = {
+        'usv_01': '我方船一号（蓝色）',
+        'usv_02': '我方船二号（绿色）',
+        'usv_03': '我方船三号（青色）',
+        'uav_01': '我方无人机一号',
+        'uav_02': '我方无人机二号',
+        'uav_03': '我方无人机三号',
+    }
 
     def __init__(self):
         super().__init__('fleet_base_station')
@@ -172,6 +184,7 @@ class FleetBaseStation(Node):
         self.decoded_camera_versions = {}
         self.camera_frame_version = 0
         self.last_mosaic_version = -1
+        self.title_font = self._load_title_font()
         self.camera_lock = threading.Lock()
         self.vehicle_states = {}
         self.command_status = {}
@@ -535,6 +548,43 @@ class FleetBaseStation(Node):
             return cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
         return image.copy()
 
+    @staticmethod
+    def _load_title_font():
+        for path in (
+            '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+            '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        ):
+            try:
+                return ImageFont.truetype(path, 11)
+            except OSError:
+                continue
+        return ImageFont.load_default()
+
+    def _draw_panel_title(self, panel, title, rate_hz):
+        text = '%s  %.1f FPS' % (title, rate_hz)
+        try:
+            rgb = cv2.cvtColor(panel, cv2.COLOR_BGR2RGB)
+            image = PilImage.fromarray(rgb)
+            draw = ImageDraw.Draw(image)
+            draw.text((6, 3), text, font=self.title_font,
+                      fill=(70, 255, 90))
+            panel[:, :] = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
+        except Exception:
+            cv2.putText(
+                panel,
+                text.encode('ascii', errors='ignore').decode('ascii'),
+                (6, 15),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.26,
+                (70, 255, 90),
+                1,
+                cv2.LINE_AA,
+            )
+
+    def _vehicle_display_name(self, vehicle_id):
+        return self.VEHICLE_DISPLAY_NAMES.get(vehicle_id, vehicle_id)
+
     def _camera_panel(self, frame, title, tracker):
         width, height = 240, 135
         if frame is None:
@@ -552,17 +602,8 @@ class FleetBaseStation(Node):
         else:
             panel = frame.copy()
         cv2.rectangle(panel, (0, 0), (width, 22), (0, 0, 0), -1)
-        cv2.putText(
-            panel,
-            '%s  %.1f FPS' % (title, tracker.rate_hz),
-            (6, 15),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.26,
-            (70, 255, 90),
-            1,
-            cv2.LINE_AA,
-        )
-        if title.startswith('PRIMARY PERCEPTION'):
+        self._draw_panel_title(panel, title, tracker.rate_hz)
+        if '主感知' in title or title.startswith('PRIMARY PERCEPTION'):
             cv2.rectangle(
                 panel, (1, 1), (width - 2, height - 2),
                 (0, 210, 255), 3,
@@ -586,7 +627,7 @@ class FleetBaseStation(Node):
                 panels.append(
                     self._camera_panel(
                         self.camera_frames.get(usv_id),
-                        '%s FRONT CAMERA' % usv_id.upper(),
+                        '%s 前视相机' % self._vehicle_display_name(usv_id),
                         tracker,
                     )
                 )
@@ -596,9 +637,11 @@ class FleetBaseStation(Node):
                         '/fleet/uplink/%s/camera/image_raw' % uav_id
                     )
                 ]
-                title = '%s DOWN CAMERA' % uav_id.upper()
+                title = '%s 下视相机' % self._vehicle_display_name(uav_id)
                 if uav_id == 'uav_01':
-                    title = 'PRIMARY PERCEPTION UAV / PX4'
+                    title = '%s 主感知相机（PX4）' % (
+                        self._vehicle_display_name(uav_id)
+                    )
                 panels.append(
                     self._camera_panel(
                         self.camera_frames.get(uav_id),

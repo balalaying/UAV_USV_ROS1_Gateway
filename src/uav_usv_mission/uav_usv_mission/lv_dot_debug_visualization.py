@@ -263,6 +263,9 @@ class LvDotDebugWidget(QWidget):
         self.last_counts = {}
         self.labels = []
         self.color_mode = 'sensor_source'
+        self.view_mode = 'oblique'
+        self.view_center = np.zeros(3, dtype=np.float32)
+        self.auto_center_pending = True
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -576,6 +579,12 @@ class LvDotDebugWidget(QWidget):
                 layer, snapshot['tracks'][layer], snapshot['histories'], now
             )
         counts['tf'] = self._update_tf(snapshot['frames'], now)
+        if self.auto_center_pending:
+            center = self._initial_view_center(snapshot, now)
+            if center is not None:
+                self.view_center = center
+                self._apply_camera_position()
+                self.auto_center_pending = False
         self.items['grid'].setVisible(self.visibility['grid'])
         self.last_counts = counts
         if self.last_render_at:
@@ -611,14 +620,34 @@ class LvDotDebugWidget(QWidget):
         self.model.clear_histories()
 
     def reset_view(self):
-        self.set_view_mode('oblique')
+        self.auto_center_pending = True
+        self.set_view_mode(self.view_mode)
 
     def set_view_mode(self, mode):
-        elevation = 89.0 if mode == 'topdown' else 36.0
+        self.view_mode = 'topdown' if mode == 'topdown' else 'oblique'
+        self._apply_camera_position()
+
+    def _apply_camera_position(self):
+        elevation = 89.0 if self.view_mode == 'topdown' else 36.0
         self.view.setCameraPosition(
-            pos=pg.Vector(0.0, 0.0, 0.0),
+            pos=pg.Vector(*self.view_center),
             distance=115.0, elevation=elevation, azimuth=-90.0,
         )
+
+    @staticmethod
+    def _initial_view_center(snapshot, now):
+        base = snapshot['frames'].get('base')
+        if base and now - base.get('received_at', 0.0) < 2.0:
+            return np.asarray(
+                (base['x'], base['y'], base['z']), dtype=np.float32
+            )
+        for layer in ('filtered', 'raw'):
+            if now - snapshot['cloud_received'][layer] >= 2.0:
+                continue
+            points = snapshot['clouds'][layer]
+            if len(points):
+                return np.median(points, axis=0).astype(np.float32)
+        return None
 
     def statistics(self):
         intervals = [value for value in self.render_intervals if value > 0]

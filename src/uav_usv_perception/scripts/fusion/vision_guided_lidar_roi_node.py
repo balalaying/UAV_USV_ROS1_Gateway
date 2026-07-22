@@ -116,6 +116,8 @@ class VisionGuidedLidarRoiNode(Node):
         self.declare_parameter('shadow_mode', True)
         numeric = {
             'sync_slop_seconds': 0.20, 'roi_expand_pixels': 14.0,
+            'minimum_roi_width_pixels': 70.0,
+            'minimum_roi_height_pixels': 44.0,
             'minimum_roi_points': 8, 'maximum_roi_points': 600,
             'minimum_depth': 1.0, 'maximum_depth': 90.0,
             'depth_percentile_low': 5.0, 'depth_percentile_high': 92.0,
@@ -138,6 +140,12 @@ class VisionGuidedLidarRoiNode(Node):
         self.shadow_mode = bool(self.get_parameter('shadow_mode').value)
         self.sync_slop = float(self.get_parameter('sync_slop_seconds').value)
         self.expand = float(self.get_parameter('roi_expand_pixels').value)
+        self.minimum_roi_width = float(
+            self.get_parameter('minimum_roi_width_pixels').value
+        )
+        self.minimum_roi_height = float(
+            self.get_parameter('minimum_roi_height_pixels').value
+        )
         self.min_points = int(self.get_parameter('minimum_roi_points').value)
         self.max_points = int(self.get_parameter('maximum_roi_points').value)
         self.min_depth = float(self.get_parameter('minimum_depth').value)
@@ -265,6 +273,11 @@ class VisionGuidedLidarRoiNode(Node):
             self.stats['tf_failures'] += 1
             return None
 
+    def _active_camera_frame(self):
+        if self.camera_info is not None and self.camera_info.header.frame_id:
+            return self.camera_info.header.frame_id
+        return self.camera_frame
+
     def _nearest_track(self, center):
         best, distance_best = None, self.track_gate
         if self.tracks is None:
@@ -283,6 +296,26 @@ class VisionGuidedLidarRoiNode(Node):
             detection.center_y - 0.5 * detection.size_y,
             detection.center_x + 0.5 * detection.size_x,
             detection.center_y + 0.5 * detection.size_y,
+        )
+
+    def _expanded_roi_rectangle(self, detection):
+        """Use visual detections as seeds, then search a vessel-sized ROI.
+
+        The camera detector often sees only a small coloured target marker at
+        long range. A LiDAR ROI built from that tiny box misses the target hull,
+        producing separate Camera Only and LiDAR Only boxes. Expanding around
+        the same visual centre keeps the match camera-led while collecting
+        enough Mid-360 points for a real 3D box.
+        """
+        center_x = float(detection.center_x)
+        center_y = float(detection.center_y)
+        width = max(float(detection.size_x), self.minimum_roi_width)
+        height = max(float(detection.size_y), self.minimum_roi_height)
+        return (
+            center_x - 0.5 * width,
+            center_y - 0.5 * height,
+            center_x + 0.5 * width,
+            center_y + 0.5 * height,
         )
 
     def _camera_only(self, detection, map_from_camera, stamp):
@@ -384,11 +417,10 @@ class VisionGuidedLidarRoiNode(Node):
 
     @staticmethod
     def _camera_projection_marker(
-        header, detection, depth, intrinsics, map_from_camera, marker_id
+        header, detection, depth, rectangle, intrinsics, map_from_camera,
+        marker_id
     ):
-        left, top, right, bottom = VisionGuidedLidarRoiNode._rectangle(
-            detection
-        )
+        left, top, right, bottom = rectangle
         pixels = np.asarray((
             (left, top), (right, top), (right, bottom), (left, bottom),
             (left, top),
@@ -432,14 +464,15 @@ class VisionGuidedLidarRoiNode(Node):
         map_from_cloud = self._lookup(
             self.output_frame, message.header.frame_id, message.header.stamp
         )
+        active_camera_frame = self._active_camera_frame()
         map_from_camera = self._lookup(
-            self.output_frame, self.camera_frame, detection_stamp
+            self.output_frame, active_camera_frame, detection_stamp
         )
         camera_from_map = self._lookup(
-            self.camera_frame, self.output_frame, detection_stamp
+            active_camera_frame, self.output_frame, detection_stamp
         )
         camera_from_lidar = self._lookup(
-            self.camera_frame, message.header.frame_id, detection_stamp
+            active_camera_frame, message.header.frame_id, detection_stamp
         )
         if any(value is None for value in (
             map_from_cloud, map_from_camera, camera_from_map,
@@ -472,7 +505,7 @@ class VisionGuidedLidarRoiNode(Node):
                 float(camera_from_lidar.rotation.w),
             ],
             'source_frame': message.header.frame_id,
-            'target_frame': self.camera_frame,
+            'target_frame': active_camera_frame,
         }
         valid = np.isfinite(points_cloud).all(axis=1)
         valid &= points_camera[:, 0] >= self.min_depth
@@ -497,8 +530,9 @@ class VisionGuidedLidarRoiNode(Node):
         projection_depths = []
         roi_started = time.perf_counter()
         for detection_index, detection in enumerate(detections.detections):
+            roi_rectangle = self._expanded_roi_rectangle(detection)
             indices = roi_indices(
-                pixels, self._rectangle(detection), self.expand, available
+                pixels, roi_rectangle, self.expand, available
             )
             if len(indices) > self.max_points:
                 selection = np.linspace(0, len(indices) - 1, self.max_points, dtype=int)
@@ -584,7 +618,7 @@ class VisionGuidedLidarRoiNode(Node):
                 output.header, tracked, detection_index
             ))
             selected_pixels = pixels[selected_indices]
-            rectangle = self._rectangle(detection)
+            rectangle = roi_rectangle
             inside = (
                 (selected_pixels[:, 0] >= rectangle[0])
                 & (selected_pixels[:, 0] <= rectangle[2])
@@ -606,6 +640,7 @@ class VisionGuidedLidarRoiNode(Node):
             camera_projection_markers.markers.append(
                 self._camera_projection_marker(
                     output.header, detection, projection_depth,
+                    roi_rectangle,
                     (
                         self.camera_info.k[0], self.camera_info.k[4],
                         self.camera_info.k[2], self.camera_info.k[5],
@@ -665,7 +700,8 @@ class VisionGuidedLidarRoiNode(Node):
             'camera_projection_depth_m': self.last[
                 'camera_projection_depth_m'
             ],
-            'camera_frame': self.camera_frame,
+            'camera_frame': self._active_camera_frame(),
+            'configured_camera_frame': self.camera_frame,
             'camera_info_frame': (
                 self.camera_info.header.frame_id if self.camera_info else ''
             ),

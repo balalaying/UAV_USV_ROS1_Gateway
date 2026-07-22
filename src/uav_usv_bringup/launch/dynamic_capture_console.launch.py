@@ -144,8 +144,8 @@ def generate_launch_description():
                 'owner_id': 'dynamic_capture_console',
                 'uav_id': 'uav_01',
                 'usv_id': 'usv_01',
-                'uav_ids': 'uav_01,uav_02,uav_03,uav_04',
-                'usv_ids': 'usv_01,usv_02',
+                'uav_ids': 'uav_01,uav_02,uav_03',
+                'usv_ids': 'usv_01,usv_02,usv_03',
             }],
         ),
         Node(

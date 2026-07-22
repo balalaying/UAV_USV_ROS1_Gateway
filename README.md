@@ -17,6 +17,92 @@
 原始完整功能保留在 `uav_usv_sim`，不会在拆包过程中删除。其他 ROS 2 包用于
 把仿真、模型、控制、感知和导航分开，方便多人同时开发。
 
+## 团队统一主世界
+
+从当前 `main` 开始，团队集成、感知联调和舰队演示统一使用：
+
+```text
+Gazebo世界：heterogeneous_332
+世界文件：src/uav_usv_gazebo/worlds/heterogeneous_332.sdf
+主启动：fleet_dynamic_capture_live_perception.launch.py
+```
+
+`332`表示当前标准场景包含3架无人机、3艘无人船和2艘任务船：
+
+| 展示名称 | Gazebo实体/ROS ID | 作用 |
+|---|---|---|
+| 我方无人机一号至三号 | `uav_01` ~ `uav_03` | PX4 instance 0~2，初始位于岛上三联停机坪 |
+| 我方船一号（蓝色） | `usv_01` | Nav2控制，搭载主线Mid-360和船载相机 |
+| 我方船二号（绿色） | `usv_02` | Nav2控制，保留相机和状态链路 |
+| 我方船三号（青色） | `usv_03` | Nav2控制，保留相机和状态链路 |
+| 保护船 | `friendly_ship` | 红黄大型任务船 |
+| 敌方船 | `enemy_ship` | 黑白敌方目标，执行随机航行 |
+
+统一世界保留Catalina岛屿、岸基指挥站、三联停机坪、动态海浪和上述任务载具，
+不加载灯塔、航标、浮标、任务点或额外避障物。Qt、target tracker、capture manager、
+Nav2地图和Gazebo实体名称已经同步到该坐标系。
+
+### 主线感知边界
+
+Qt会显示3架UAV和3艘USV的载具状态与相机画面，但当前真实融合只使用我方船一号：
+
+```text
+USV_01 Mid-360 -> mid360_preprocessor -> LV-DOT
+USV_01 Camera + LV-DOT BBox/Track -> Camera-LiDAR Association
+                                      -> Qt Perception Monitor
+```
+
+`usv_02`、`usv_03`目前不启动LV-DOT实例，也不参与Camera-LiDAR融合。成员开发时不得
+自行改成02/03或创建重复实例；需要扩展多船感知时先修改接口文档并提交独立PR。
+`perception_source`默认仍为`ground_truth`，真实感知保持Shadow模式，不接管任务控制。
+
+### 统一启动方式
+
+完整主线：
+
+```bash
+cd <你的UAV_USV工作区>
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+export PX4_DIR=<你的PX4-Autopilot路径>
+
+ros2 launch uav_usv_bringup \
+  fleet_dynamic_capture_live_perception.launch.py \
+  px4_dir:="$PX4_DIR"
+```
+
+只检查统一Gazebo世界，不启动PX4、Nav2和感知：
+
+```bash
+ros2 launch uav_usv_bringup simulation_332_scenario.launch.py
+```
+
+检查完整USV与感知链，但暂时不启动PX4：
+
+```bash
+ros2 launch uav_usv_bringup \
+  fleet_dynamic_capture_live_perception.launch.py \
+  start_px4:=false start_dds_agent:=false
+```
+
+详细坐标、模型、Topic、TF和测试结果见
+[332异构协同仿真场景报告](docs/SIMULATION_332_SCENARIO_REPORT.md)。
+
+### 成员同步要求
+
+开始新功能前必须先同步最新主世界：
+
+```bash
+git switch main
+git fetch upstream
+git merge --ff-only upstream/main
+git switch -c feature/你的模块-功能名
+```
+
+成员不得在自己的功能分支复制世界文件或修改统一实体名称。环境成员修改
+`heterogeneous_332.sdf`，模型成员修改对应`sim332_*`模型，感知成员通过launch参数
+和标准Topic接入；涉及出生点、namespace、frame_id或传感器归属的修改必须在PR中说明。
+
 ## 并行开发方式
 
 项目采用 **一个公开主仓库 + 每人一个 Fork + Pull Request** 的方式协作：
@@ -176,7 +262,9 @@ export PX4_DIR="$PWD/third_party/PX4-Autopilot"
 该命令会调用 PX4 自带的 Ubuntu 依赖安装脚本，可能需要输入 sudo 密码。
 `third_party/PX4-Autopilot` 已加入 `.gitignore`，不会被提交到本仓库。
 
-### 3. 启动海面世界
+### 3. 启动旧版海面世界
+
+以下是`uav_usv_sim`保留的旧版兼容流程，不作为团队当前集成主世界：
 
 ```bash
 ros2 launch uav_usv_sim uav_usv_world_keyboard.launch.py

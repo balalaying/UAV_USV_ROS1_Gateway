@@ -21,17 +21,18 @@ from nav2_common.launch import ReplaceString
 
 
 UAV_CONFIG = (
-    ('uav_01', 1, -45.0, -34.0),
-    ('uav_02', 2, -35.0, -34.0),
-    ('uav_03', 3, -25.0, -34.0),
-    ('uav_04', 4, -15.0, -34.0),
+    ('uav_01', 1, -86.86, -222.43, 19.75),
+    ('uav_02', 2, -75.00, -215.00, 19.75),
+    ('uav_03', 3, -63.14, -207.57, 19.75),
 )
 USV_CONFIG = (
     ('usv_01', 'own_01'),
     ('usv_02', 'own_02'),
+    ('usv_03', 'own_03'),
 )
 USV_IDS = tuple(item[0] for item in USV_CONFIG)
-WORLD_NAME = 'fleet_dynamic_capture'
+WORLD_NAME = 'heterogeneous_332'
+TARGET_ID = 'enemy_ship'
 
 
 def _launch_bool(context, name):
@@ -190,6 +191,19 @@ def _fleet_runtime_actions(
             additional_env=environment,
         ))
 
+    actions.append(Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='fleet_usv_01_camera_mount_tf',
+        output='screen',
+        arguments=[
+            '--x', '3.24', '--y', '0.0', '--z', '1.55',
+            '--roll', '0.0', '--pitch', '0.0', '--yaw', '0.0',
+            '--frame-id', 'usv_01/base_link',
+            '--child-frame-id', 'usv_01/camera_link',
+        ],
+    ))
+
     if enable_mid360:
         actions.extend([
             Node(
@@ -233,18 +247,6 @@ def _fleet_runtime_actions(
                     '--roll', '0.0', '--pitch', '0.0', '--yaw', '0.0',
                     '--frame-id', vehicle_id + '/base_link',
                     '--child-frame-id', frame_id,
-                ],
-            ),
-            Node(
-                package='tf2_ros',
-                executable='static_transform_publisher',
-                name='fleet_usv_01_camera_mount_tf',
-                output='screen',
-                arguments=[
-                    '--x', '3.24', '--y', '0.0', '--z', '1.55',
-                    '--roll', '0.0', '--pitch', '0.0', '--yaw', '0.0',
-                    '--frame-id', 'usv_01/base_link',
-                    '--child-frame-id', 'usv_01/camera_link',
                 ],
             ),
             Node(
@@ -296,7 +298,7 @@ def _px4_command(px4_dir, px4_rcs, instance):
 
 
 def _dds_agent_command(
-    px4_ros_ws, executable, vehicle_id, system_id, home_x, home_y
+    px4_ros_ws, executable, vehicle_id, system_id, home_x, home_y, home_z
 ):
     return [
         'bash',
@@ -307,7 +309,7 @@ def _dds_agent_command(
             ' --ros-args -r __node:=%s_dds_agent '
             '-p use_sim_time:=false -p vehicle_id:=%s '
             '-p px4_namespace:=/%s -p px4_system_id:=%d '
-            '-p home_x:=%.3f -p home_y:=%.3f -p home_z:=1.35'
+            '-p home_x:=%.3f -p home_y:=%.3f -p home_z:=%.3f'
             % (
                 vehicle_id,
                 vehicle_id,
@@ -315,6 +317,7 @@ def _dds_agent_command(
                 system_id,
                 home_x,
                 home_y,
+                home_z,
             ),
         ],
     ]
@@ -362,8 +365,8 @@ def _boat_interface(vehicle_id, model_control_name, use_sim_time, nav_params):
                 'scan_range_topic': 'scan_range',
                 'marker_topic': 'reference_markers',
                 'publish_empty_map': True,
-                'map_width': 500.0,
-                'map_height': 500.0,
+                'map_width': 1050.0,
+                'map_height': 900.0,
                 'enable_lidar_safety': False,
             },
         ],
@@ -469,7 +472,7 @@ def generate_launch_description():
         gazebo_prefix, 'lib', 'uav_usv_gazebo', 'prepare_fleet_mid360.py'
     )
     world = os.path.join(
-        gazebo_share, 'worlds', 'fleet_dynamic_capture.sdf'
+        gazebo_share, 'worlds', 'heterogeneous_332.sdf'
     )
     standard_rviz_config = os.path.join(
         bringup_share, 'rviz', 'minimal_dynamic_capture.rviz'
@@ -599,12 +602,18 @@ def generate_launch_description():
                 ),
             ])],
         ))
-    actions.append(_usv_agent('usv_01', 'own_01', use_sim_time))
-    actions.append(_usv_agent(
-        'usv_02', 'own_02', use_sim_time, simulate_usv_02_unreachable
-    ))
+    for vehicle_id, model_control_name in USV_CONFIG:
+        unreachable = (
+            simulate_usv_02_unreachable
+            if vehicle_id == 'usv_02' else False
+        )
+        actions.append(_usv_agent(
+            vehicle_id, model_control_name, use_sim_time, unreachable
+        ))
 
-    for instance, (vehicle_id, system_id, home_x, home_y) in enumerate(
+    for instance, (
+        vehicle_id, system_id, home_x, home_y, home_z
+    ) in enumerate(
         UAV_CONFIG
     ):
         actions.append(ExecuteProcess(
@@ -615,6 +624,7 @@ def generate_launch_description():
                 system_id,
                 home_x,
                 home_y,
+                home_z,
             ),
             output='screen',
             condition=IfCondition(start_dds_agent),
@@ -646,27 +656,7 @@ def generate_launch_description():
             parameters=[{
                 'use_sim_time': False,
                 'pose_topic': '/world/%s/pose/info' % WORLD_NAME,
-                'track_id': 'enemy_target',
-            }],
-        ),
-        Node(
-            package='uav_usv_mission',
-            executable='capture_target_motion',
-            name='capture_target_motion',
-            output='screen',
-            parameters=[{
-                'use_sim_time': False,
-                'command_topic': '/model/target_vessel/cmd_vel',
-                'enable_sudden_turn': ParameterValue(
-                    enable_sudden_turn, value_type=bool
-                ),
-                'sudden_turn_time': ParameterValue(
-                    sudden_turn_time, value_type=float
-                ),
-                'speed': ParameterValue(target_speed, value_type=float),
-                'nominal_turn_rate': ParameterValue(
-                    target_nominal_turn_rate, value_type=float
-                ),
+                'track_id': TARGET_ID,
             }],
         ),
         Node(
@@ -678,10 +668,10 @@ def generate_launch_description():
                 'use_sim_time': False,
                 'uav_ids': [item[0] for item in UAV_CONFIG],
                 'usv_ids': list(USV_IDS),
-                'target_id': 'enemy_target',
-                'uav_home_z': 1.35,
+                'target_id': TARGET_ID,
+                'uav_home_z': 19.75,
                 'takeoff_altitude': 18.0,
-                'observation_altitude': 24.0,
+                'observation_altitude': 42.0,
                 'capture_radius': 28.0,
                 'prediction_horizon': 16.0,
                 'command_period': 4.0,

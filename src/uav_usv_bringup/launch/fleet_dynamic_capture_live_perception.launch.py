@@ -153,7 +153,8 @@ def generate_launch_description():
             parameters=[{
                 'use_sim_time': use_sim_time,
                 'vehicle_ids': [
-                    'uav_01', 'uav_02', 'uav_03', 'uav_04', 'usv_01'
+                    'uav_01', 'uav_02', 'uav_03',
+                    'usv_01', 'usv_02', 'usv_03',
                 ],
                 'expected_rate_hz': LaunchConfiguration('uav_camera_rate'),
             }],

@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <model name="sim332_enemy_ship">
+    <include merge="true"><uri>model://scalable_capture_usv</uri></include>
+    <link name="identity_shell">
+      <visual name="black_deck"><pose>-0.25 0 0.62 0 0 0</pose><geometry><box><size>7.1 2.85 0.12</size></box></geometry><material><ambient>0.01 0.01 0.012 1</ambient><diffuse>0.025 0.025 0.03 1</diffuse></material></visual>
+      <visual name="white_port"><pose>0 1.64 0.02 0 0 0</pose><geometry><box><size>6.8 0.08 0.55</size></box></geometry><material><ambient>0.8 0.8 0.8 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="white_starboard"><pose>0 -1.64 0.02 0 0 0</pose><geometry><box><size>6.8 0.08 0.55</size></box></geometry><material><ambient>0.8 0.8 0.8 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="hostile_identity_panel"><pose>-1.1 0 2.12 0 0 0</pose><geometry><box><size>1.5 2.25 0.20</size></box></geometry><material><ambient>0.55 0.01 0.01 1</ambient><diffuse>0.95 0.02 0.02 1</diffuse><emissive>0.12 0 0 1</emissive></material></visual>
+    </link>
+    <joint name="identity_joint" type="fixed"><parent>hull</parent><child>identity_shell</child></joint>
+    <plugin filename="libRandomVesselMotion.so" name="gz::sim::systems::RandomVesselMotion">
+      <command_topic>cmd_vel</command_topic>
+      <seed>332</seed>
+      <min_speed>0.35</min_speed><max_speed>1.15</max_speed>
+      <min_cruise_seconds>5</min_cruise_seconds><max_cruise_seconds>14</max_cruise_seconds>
+      <min_stop_seconds>2</min_stop_seconds><max_stop_seconds>6</max_stop_seconds>
+      <stop_probability>0.28</stop_probability>
+      <max_heading_change>1.75</max_heading_change><turn_rate>0.22</turn_rate>
+      <operating_radius>400</operating_radius><boundary_margin>35</boundary_margin>
+    </plugin>
+  </model>
+</sdf>

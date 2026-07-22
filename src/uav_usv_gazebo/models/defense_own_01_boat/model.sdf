@@ -490,7 +490,7 @@
           <image>
             <width>240</width>
             <height>135</height>
-            <format>B8G8R8</format>
+            <format>R8G8B8</format>
           </image>
           <clip>
             <near>0.05</near>

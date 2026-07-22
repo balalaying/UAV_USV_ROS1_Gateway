@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="Shore_Collision_Boundary">
+    <static>true</static>
+    <link name="boundary_link">
+      <!-- 四段外海边界只限制驶出地图，不覆盖可航行海面。 -->
+      <collision name="North_Shore_Collision">
+        <pose>0 448 15 0 0 0</pose>
+        <geometry><box><size>1050 6 30</size></box></geometry>
+      </collision>
+      <collision name="South_Shore_Collision">
+        <pose>0 -448 15 0 0 0</pose>
+        <geometry><box><size>1050 6 30</size></box></geometry>
+      </collision>
+      <collision name="East_Shore_Collision">
+        <pose>523 0 15 0 0 0</pose>
+        <geometry><box><size>6 900 30</size></box></geometry>
+      </collision>
+      <collision name="West_Shore_Collision">
+        <pose>-523 0 15 0 0 0</pose>
+        <geometry><box><size>6 900 30</size></box></geometry>
+      </collision>
+
+      <!-- 基地背后的山坡补充碰撞；Catalina 地形网格仍提供精细地表碰撞。 -->
+      <collision name="Mountain_Side_Collision">
+        <pose>-5 -160 22 0 0 0.56</pose>
+        <geometry><box><size>72 28 44</size></box></geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>

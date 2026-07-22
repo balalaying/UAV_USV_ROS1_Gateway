@@ -38,11 +38,13 @@ endfunction()
 add_gz_system_plugin(BoatWaveFollower plugins/BoatWaveFollower.cc)
 add_gz_system_plugin(DroneDeckFollower plugins/DroneDeckFollower.cc)
 add_gz_system_plugin(VisualPoseFollower plugins/VisualPoseFollower.cc)
+add_gz_system_plugin(RandomVesselMotion plugins/RandomVesselMotion.cc)
 
 install(TARGETS
   BoatWaveFollower
   DroneDeckFollower
   VisualPoseFollower
+  RandomVesselMotion
   LIBRARY DESTINATION lib/${PROJECT_NAME}/plugins
 )
 

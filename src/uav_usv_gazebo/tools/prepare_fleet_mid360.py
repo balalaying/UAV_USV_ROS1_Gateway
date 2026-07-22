@@ -142,6 +142,44 @@ def _append_mid360(
     _element(plugin, 'pattern_preset', 'Livox Mid360')
 
 
+def _load_model(model_dir):
+    model_path = os.path.join(model_dir, 'model.sdf')
+    if not os.path.isfile(model_path):
+        raise RuntimeError('USV model SDF not found: %s' % model_path)
+    tree = ET.parse(model_path)
+    model = tree.getroot().find('model')
+    if model is None:
+        raise RuntimeError('No <model> element in %s' % model_path)
+    return tree, model
+
+
+def _merged_link_source(model, models_dir, link_name):
+    """Return the merged child model that physically declares link_name."""
+    if model.find("link[@name='%s']" % link_name) is not None:
+        return None
+    for include in model.findall('include'):
+        if include.get('merge', '').strip().lower() != 'true':
+            continue
+        uri = include.findtext('uri', '').strip()
+        if not uri.startswith('model://'):
+            continue
+        child_name = uri[len('model://'):]
+        child_dir = os.path.join(models_dir, child_name)
+        child_tree, child_model = _load_model(child_dir)
+        if child_model.find("link[@name='%s']" % link_name) is not None:
+            return include, child_name, child_dir, child_tree, child_model
+    return None
+
+
+def _copy_model_tree(source_dir, output_dir, tree):
+    shutil.copytree(source_dir, output_dir, dirs_exist_ok=True)
+    tree.write(
+        os.path.join(output_dir, 'model.sdf'),
+        encoding='utf-8',
+        xml_declaration=True,
+    )
+
+
 def prepare(args):
     world_tree = ET.parse(args.world)
     world_root = world_tree.getroot()
@@ -153,18 +191,17 @@ def prepare(args):
         world, args.vehicle_id
     )
     source_model_dir = os.path.join(args.models_dir, model_name)
-    source_model = os.path.join(source_model_dir, 'model.sdf')
-    if not os.path.isfile(source_model):
-        raise RuntimeError('USV model SDF not found: %s' % source_model)
-
-    model_tree = ET.parse(source_model)
-    model = model_tree.getroot().find('model')
-    if model is None:
-        raise RuntimeError('No <model> element in %s' % source_model)
+    model_tree, model = _load_model(source_model_dir)
+    sensor_model = model
+    merged_source = _merged_link_source(
+        model, args.models_dir, args.link_name
+    )
+    if merged_source is not None:
+        _, _, _, _, sensor_model = merged_source
 
     _append_manager(world)
     _append_mid360(
-        model=model,
+        model=sensor_model,
         link_name=args.link_name,
         mount_pose=args.mount_pose,
         raw_topic=args.raw_topic,
@@ -183,14 +220,16 @@ def prepare(args):
     os.makedirs(output_model_dir, exist_ok=True)
     os.makedirs(output_world_dir, exist_ok=True)
 
-    config = os.path.join(source_model_dir, 'model.config')
-    if os.path.isfile(config):
-        shutil.copy2(config, os.path.join(output_model_dir, 'model.config'))
-    model_tree.write(
-        os.path.join(output_model_dir, 'model.sdf'),
-        encoding='utf-8',
-        xml_declaration=True,
-    )
+    if merged_source is not None:
+        include, child_name, child_dir, child_tree, _ = merged_source
+        child_runtime_name = child_name + '_mid360_runtime'
+        child_output_dir = os.path.join(
+            args.output_root, 'models', child_runtime_name
+        )
+        _copy_model_tree(child_dir, child_output_dir, child_tree)
+        include.find('uri').text = 'model://' + child_runtime_name
+
+    _copy_model_tree(source_model_dir, output_model_dir, model_tree)
     vehicle_include.find('uri').text = 'model://' + runtime_model_name
     output_world = os.path.join(
         output_world_dir, os.path.basename(args.world)

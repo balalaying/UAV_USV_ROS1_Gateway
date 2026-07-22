@@ -155,14 +155,12 @@ class CameraInsetLabel(QLabel):
 
 class BaseStationGuiNode(Node):
     VEHICLE_NAMES = {
-        'uav_01': '主感知无人机01（PX4）',
-        'uav_02': '无人机02（PX4）',
-        'uav_03': '无人机03（PX4）',
-        'uav_04': '无人机04（PX4）',
-        'usv_01': '船01',
-        'usv_02': '船02',
-        'usv_03': '船03',
-        'usv_04': '船04',
+        'uav_01': '我方无人机一号',
+        'uav_02': '我方无人机二号',
+        'uav_03': '我方无人机三号',
+        'usv_01': '我方船一号（蓝色）',
+        'usv_02': '我方船二号（绿色）',
+        'usv_03': '我方船三号（青色）',
     }
 
     def __init__(
@@ -400,6 +398,41 @@ class BaseStationGuiNode(Node):
                 ),
                 image_qos,
             )
+        if self.enable_perception_topdown:
+            self.create_subscription(
+                PointCloud2,
+                str(self.get_parameter('topdown_points_topic').value),
+                self._on_topdown_points,
+                topdown_qos,
+            )
+            self.create_subscription(
+                String,
+                str(self.get_parameter('topdown_status_topic').value),
+                self._on_topdown_status,
+                10,
+            )
+            self.create_subscription(
+                MarkerArray,
+                str(self.get_parameter('topdown_lidar_bboxes_topic').value),
+                self._on_topdown_lidar_bboxes,
+                topdown_qos,
+            )
+            for parameter_name, layer in (
+                ('topdown_tracks_topic', 'tracks'),
+                ('topdown_dynamic_tracks_topic', 'dynamic'),
+                ('topdown_fused_tracks_topic', 'fusion'),
+                ('topdown_ground_truth_topic', 'ground_truth'),
+            ):
+                self.create_subscription(
+                    TrackedObjectArray,
+                    str(self.get_parameter(parameter_name).value),
+                    lambda message, track_layer=layer: (
+                        self.visualization_model.update_tracks(
+                            track_layer, message
+                        )
+                    ),
+                    topdown_qos,
+                )
         if self.enable_lv_dot_debug:
             self.lv_dot_tf_buffer = Buffer()
             self.lv_dot_tf_listener = TransformListener(
@@ -669,6 +702,8 @@ class BaseStationGuiNode(Node):
         future.add_done_callback(finished)
 
     def _on_vehicle(self, msg):
+        if self.enable_perception_topdown:
+            self.visualization_model.update_vehicle(msg)
         self.signals.vehicle.emit(
             (
                 msg.vehicle_id,
@@ -713,6 +748,8 @@ class BaseStationGuiNode(Node):
         )
 
     def _on_capture_targets(self, msg):
+        if self.enable_perception_topdown:
+            self.visualization_model.update_tracks('ground_truth', msg)
         targets = []
         for obj in msg.objects:
             targets.append(
@@ -1526,7 +1563,7 @@ class CaptureMapWidget(DefenseMapWidget):
             painter.setPen(QPen(QColor('#8d1714'), 2))
             painter.drawEllipse(point, 9, 9)
             painter.drawText(point + QPointF(12, -10),
-                             self.target.get('track_id', 'enemy_target'))
+                             self.target.get('track_id', 'enemy_ship'))
 
         for vehicle_id, state in sorted(self.vehicles.items()):
             point = self._world_to_screen(state['x'], state['y'], center, scale)
@@ -1567,14 +1604,12 @@ class CaptureMapWidget(DefenseMapWidget):
 
 class BaseStationWindow(QMainWindow):
     VEHICLE_NAMES = {
-        'uav_01': '主感知无人机01（PX4）',
-        'uav_02': '无人机02',
-        'uav_03': '无人机03',
-        'uav_04': '无人机04',
-        'usv_01': '船01',
-        'usv_02': '船02',
-        'usv_03': '船03',
-        'usv_04': '船04',
+        'uav_01': '我方无人机一号',
+        'uav_02': '我方无人机二号',
+        'uav_03': '我方无人机三号',
+        'usv_01': '我方船一号（蓝色）',
+        'usv_02': '我方船二号（绿色）',
+        'usv_03': '我方船三号（青色）',
     }
     SENSOR_NAMES = {
         'down_camera': '下视相机',
@@ -1592,8 +1627,6 @@ class BaseStationWindow(QMainWindow):
         'uav_02': 3,
         'usv_03': 4,
         'uav_03': 5,
-        'usv_04': 6,
-        'uav_04': 7,
     }
 
     def __init__(
@@ -1774,9 +1807,9 @@ class BaseStationWindow(QMainWindow):
         self.demo_summary.setAlignment(Qt.AlignCenter)
         mission_layout.addWidget(self.demo_summary)
         for label, action, danger in (
-            ('启动围捕', 'CAPTURE:enemy_target', False),
+            ('启动围捕', 'CAPTURE:enemy_ship', False),
             ('暂停任务', 'HOLD_ALL', False),
-            ('继续任务', 'CAPTURE:enemy_target', False),
+            ('继续任务', 'CAPTURE:enemy_ship', False),
             ('停止任务', 'CANCEL_CAPTURE', True),
             ('复位显示', 'RESET_VIEW', False),
         ):
@@ -2232,9 +2265,11 @@ class BaseStationWindow(QMainWindow):
         self.topdown_point_status = QLabel('等待点云投影数据')
         self.topdown_point_status.setWordWrap(True)
         self.topdown_point_status.setObjectName('vehicleDetail')
-        camera_title = QLabel('UAV-01 感知相机')
+        camera_title = QLabel('我方船一号（蓝色）融合相机')
         camera_title.setObjectName('subtitle')
-        self.perception_camera = CameraInsetLabel('等待UAV-01相机数据')
+        self.perception_camera = CameraInsetLabel(
+            '等待我方船一号相机数据'
+        )
         details_layout.addWidget(camera_title)
         details_layout.addWidget(self.perception_camera)
         details_layout.addWidget(self.topdown_selected_detail)
@@ -2407,9 +2442,11 @@ class BaseStationWindow(QMainWindow):
         self.lv_dot_debug_status = QLabel('等待LV-DOT Debug数据')
         self.lv_dot_debug_status.setWordWrap(True)
         self.lv_dot_debug_status.setObjectName('vehicleDetail')
-        camera_title = QLabel('UAV-01 感知相机')
+        camera_title = QLabel('我方船一号（蓝色）融合相机')
         camera_title.setObjectName('subtitle')
-        self.perception_camera = CameraInsetLabel('等待UAV-01相机数据')
+        self.perception_camera = CameraInsetLabel(
+            '等待我方船一号相机数据'
+        )
         status_layout.addWidget(camera_title)
         status_layout.addWidget(self.perception_camera)
         status_layout.addWidget(self.lv_dot_debug_status)
@@ -2890,6 +2927,14 @@ class BaseStationWindow(QMainWindow):
             item.setFont(font)
         return item
 
+    def _vehicle_item(self, vehicle_id, color=None):
+        item = self._item(
+            self.VEHICLE_NAMES.get(vehicle_id, vehicle_id), color
+        )
+        item.setData(Qt.UserRole, vehicle_id)
+        item.setToolTip(vehicle_id)
+        return item
+
     def _queue_image(self, data):
         self._touch_ros()
         if isinstance(data, tuple):
@@ -2961,7 +3006,12 @@ class BaseStationWindow(QMainWindow):
             '正常' if tf_available else '缺失',
         ]
         for column, value in enumerate(values):
-            self.sensor_table.setItem(row, column, self._item(value))
+            if column == 0:
+                self.sensor_table.setItem(
+                    row, column, self._vehicle_item(vehicle)
+                )
+            else:
+                self.sensor_table.setItem(row, column, self._item(value))
         self.sensor_table.setItem(
             row,
             10,
@@ -3177,16 +3227,21 @@ class BaseStationWindow(QMainWindow):
             color = None
             if column == 1:
                 color = '#16834a' if online else '#b63737'
-            self.vehicle_table.setItem(
-                row, column, self._item(value, color)
-            )
+            if column == 0:
+                self.vehicle_table.setItem(
+                    row, column, self._vehicle_item(vehicle)
+                )
+            else:
+                self.vehicle_table.setItem(
+                    row, column, self._item(value, color)
+                )
         self.vehicle_table.setToolTip('%s: %s' % (vehicle, status))
         role = self.capture_roles_cache.get(vehicle, {})
         fleet_row = self._fleet_row(vehicle)
         control = 'PX4 / %s' % mode if vehicle.startswith('uav_') \
             else 'Nav2 / %s' % mode
         fleet_values = [
-            vehicle.upper(),
+            self.VEHICLE_NAMES.get(vehicle, vehicle),
             role.get('role_name', 'Standby'),
             'ONLINE' if online else 'OFFLINE',
             control,
@@ -3195,9 +3250,14 @@ class BaseStationWindow(QMainWindow):
             color = '#16834a' if column == 2 and online else None
             if column == 2 and not online:
                 color = '#b63737'
-            self.fleet_table.setItem(
-                fleet_row, column, self._item(value, color)
-            )
+            if column == 0:
+                self.fleet_table.setItem(
+                    fleet_row, column, self._vehicle_item(vehicle)
+                )
+            else:
+                self.fleet_table.setItem(
+                    fleet_row, column, self._item(value, color)
+                )
         self.capture_overview_map.set_vehicle(state)
         self.capture_detail_map.set_vehicle(state)
         self._refresh_fleet_summary()
@@ -3321,7 +3381,7 @@ class BaseStationWindow(QMainWindow):
         self.capture_overview_map.set_capture_state(state)
         self.capture_detail_map.set_capture_state(state)
         state_name = state.get('state_name', 'SEARCH')
-        target_id = state.get('target_id') or 'enemy_target'
+        target_id = state.get('target_id') or 'enemy_ship'
         self.mission_state_label.setText('MISSION\n%s' % state_name)
         self.target_state_label.setText('TARGET\n%s' % target_id)
         active = state.get('active_uavs', 0) + state.get('active_usvs', 0)
@@ -3392,7 +3452,7 @@ class BaseStationWindow(QMainWindow):
         self.capture_overview_map.set_target(target)
         self.capture_detail_map.set_target(target)
         values = {
-            'target': target.get('track_id', 'enemy_target'),
+            'target': target.get('track_id', 'enemy_ship'),
             'position': '(%.1f, %.1f, %.1f) m' % (
                 target.get('x', 0.0), target.get('y', 0.0),
                 target.get('z', 0.0),
@@ -3409,7 +3469,7 @@ class BaseStationWindow(QMainWindow):
         for key, value in values.items():
             self.capture_target_labels[key].setText(value)
         self.target_state_label.setText(
-            'TARGET\n%s' % target.get('track_id', 'enemy_target')
+            'TARGET\n%s' % target.get('track_id', 'enemy_ship')
         )
         if first_track and target.get('tracked'):
             self._append_log('Target detected: %s' % target.get('track_id'))
@@ -3461,7 +3521,7 @@ class BaseStationWindow(QMainWindow):
         item = self.fleet_table.item(row, 0)
         if item is None:
             return
-        vehicle_id = item.text().lower()
+        vehicle_id = item.data(Qt.UserRole) or item.text().lower()
         state = self.vehicle_cache.get(vehicle_id)
         if state is None:
             return
@@ -3470,7 +3530,8 @@ class BaseStationWindow(QMainWindow):
         self.vehicle_detail.setText(
             '%s\nRole: %s\n%s: %s\nMode: %s\nPosition: (%.1f, %.1f, %.1f)\nStatus: %s'
             % (
-                vehicle_id.upper(), role.get('role_name', 'Standby'),
+                self.VEHICLE_NAMES.get(vehicle_id, vehicle_id),
+                role.get('role_name', 'Standby'),
                 control, 'CONNECTED' if state['online'] else 'OFFLINE',
                 state['mode'], state['x'], state['y'], state['z'],
                 state['status'],

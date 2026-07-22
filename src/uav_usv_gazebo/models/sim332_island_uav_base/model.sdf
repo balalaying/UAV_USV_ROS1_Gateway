@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="sim332_island_uav_base">
+    <static>true</static>
+    <link name="base_link">
+      <collision name="foundation_collision"><pose>0 0 1.5 0 0 0</pose><geometry><box><size>44 15 3</size></box></geometry></collision>
+      <visual name="foundation"><pose>0 0 1.5 0 0 0</pose><geometry><box><size>44 15 3</size></box></geometry><material><ambient>0.12 0.14 0.16 1</ambient><diffuse>0.24 0.28 0.32 1</diffuse></material></visual>
+
+      <collision name="deck_collision"><pose>0 0 19.0 0 0 0</pose><geometry><box><size>44 15 1.0</size></box></geometry></collision>
+      <visual name="deck"><pose>0 0 19.0 0 0 0</pose><geometry><box><size>44 15 1.0</size></box></geometry><material><ambient>0.18 0.20 0.22 1</ambient><diffuse>0.34 0.38 0.42 1</diffuse><specular>0.45 0.48 0.50 1</specular></material></visual>
+
+      <collision name="column_01_collision"><pose>-18 -5 10.6 0 0 0</pose><geometry><box><size>1.2 1.2 16.8</size></box></geometry></collision>
+      <collision name="column_02_collision"><pose>-18 5 10.6 0 0 0</pose><geometry><box><size>1.2 1.2 16.8</size></box></geometry></collision>
+      <collision name="column_03_collision"><pose>0 -5 10.6 0 0 0</pose><geometry><box><size>1.2 1.2 16.8</size></box></geometry></collision>
+      <collision name="column_04_collision"><pose>0 5 10.6 0 0 0</pose><geometry><box><size>1.2 1.2 16.8</size></box></geometry></collision>
+      <collision name="column_05_collision"><pose>18 -5 10.6 0 0 0</pose><geometry><box><size>1.2 1.2 16.8</size></box></geometry></collision>
+      <collision name="column_06_collision"><pose>18 5 10.6 0 0 0</pose><geometry><box><size>1.2 1.2 16.8</size></box></geometry></collision>
+
+      <visual name="column_01"><pose>-18 -5 10.6 0 0 0</pose><geometry><box><size>1.2 1.2 16.8</size></box></geometry><material><ambient>0.28 0.30 0.32 1</ambient><diffuse>0.50 0.53 0.56 1</diffuse></material></visual>
+      <visual name="column_02"><pose>-18 5 10.6 0 0 0</pose><geometry><box><size>1.2 1.2 16.8</size></box></geometry><material><ambient>0.28 0.30 0.32 1</ambient><diffuse>0.50 0.53 0.56 1</diffuse></material></visual>
+      <visual name="column_03"><pose>0 -5 10.6 0 0 0</pose><geometry><box><size>1.2 1.2 16.8</size></box></geometry><material><ambient>0.28 0.30 0.32 1</ambient><diffuse>0.50 0.53 0.56 1</diffuse></material></visual>
+      <visual name="column_04"><pose>0 5 10.6 0 0 0</pose><geometry><box><size>1.2 1.2 16.8</size></box></geometry><material><ambient>0.28 0.30 0.32 1</ambient><diffuse>0.50 0.53 0.56 1</diffuse></material></visual>
+      <visual name="column_05"><pose>18 -5 10.6 0 0 0</pose><geometry><box><size>1.2 1.2 16.8</size></box></geometry><material><ambient>0.28 0.30 0.32 1</ambient><diffuse>0.50 0.53 0.56 1</diffuse></material></visual>
+      <visual name="column_06"><pose>18 5 10.6 0 0 0</pose><geometry><box><size>1.2 1.2 16.8</size></box></geometry><material><ambient>0.28 0.30 0.32 1</ambient><diffuse>0.50 0.53 0.56 1</diffuse></material></visual>
+
+      <collision name="pad_01_collision"><pose>-14 0 19.54 0 0 0</pose><geometry><cylinder><radius>5.5</radius><length>0.08</length></cylinder></geometry></collision>
+      <collision name="pad_02_collision"><pose>0 0 19.54 0 0 0</pose><geometry><cylinder><radius>5.5</radius><length>0.08</length></cylinder></geometry></collision>
+      <collision name="pad_03_collision"><pose>14 0 19.54 0 0 0</pose><geometry><cylinder><radius>5.5</radius><length>0.08</length></cylinder></geometry></collision>
+      <visual name="pad_01"><pose>-14 0 19.54 0 0 0</pose><geometry><cylinder><radius>5.5</radius><length>0.08</length></cylinder></geometry><material><ambient>0.08 0.09 0.10 1</ambient><diffuse>0.13 0.15 0.17 1</diffuse></material></visual>
+      <visual name="pad_02"><pose>0 0 19.54 0 0 0</pose><geometry><cylinder><radius>5.5</radius><length>0.08</length></cylinder></geometry><material><ambient>0.08 0.09 0.10 1</ambient><diffuse>0.13 0.15 0.17 1</diffuse></material></visual>
+      <visual name="pad_03"><pose>14 0 19.54 0 0 0</pose><geometry><cylinder><radius>5.5</radius><length>0.08</length></cylinder></geometry><material><ambient>0.08 0.09 0.10 1</ambient><diffuse>0.13 0.15 0.17 1</diffuse></material></visual>
+
+      <visual name="h01_left"><pose>-15.8 0 19.60 0 0 0</pose><geometry><box><size>0.8 5.0 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="h01_right"><pose>-12.2 0 19.60 0 0 0</pose><geometry><box><size>0.8 5.0 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="h01_cross"><pose>-14 0 19.60 0 0 0</pose><geometry><box><size>3.6 0.8 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="h02_left"><pose>-1.8 0 19.60 0 0 0</pose><geometry><box><size>0.8 5.0 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="h02_right"><pose>1.8 0 19.60 0 0 0</pose><geometry><box><size>0.8 5.0 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="h02_cross"><pose>0 0 19.60 0 0 0</pose><geometry><box><size>3.6 0.8 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="h03_left"><pose>12.2 0 19.60 0 0 0</pose><geometry><box><size>0.8 5.0 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="h03_right"><pose>15.8 0 19.60 0 0 0</pose><geometry><box><size>0.8 5.0 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="h03_cross"><pose>14 0 19.60 0 0 0</pose><geometry><box><size>3.6 0.8 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+    </link>
+  </model>
+</sdf>

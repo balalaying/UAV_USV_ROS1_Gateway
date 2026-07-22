@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <model name="sim332_usv_cyan">
+    <include merge="true"><uri>model://defense_own_03_boat</uri></include>
+    <link name="identity_shell">
+      <visual name="port_band"><pose>0 1.53 0.12 0 0 0</pose><geometry><box><size>4.5 0.06 0.52</size></box></geometry><material><ambient>0.01 0.42 0.48 1</ambient><diffuse>0.02 0.88 0.96 1</diffuse><emissive>0 0.10 0.12 1</emissive></material></visual>
+      <visual name="starboard_band"><pose>0 -1.53 0.12 0 0 0</pose><geometry><box><size>4.5 0.06 0.52</size></box></geometry><material><ambient>0.01 0.42 0.48 1</ambient><diffuse>0.02 0.88 0.96 1</diffuse><emissive>0 0.10 0.12 1</emissive></material></visual>
+      <visual name="roof_id"><pose>-0.55 0 1.62 0 0 0</pose><geometry><box><size>1.5 1.5 0.08</size></box></geometry><material><ambient>0.01 0.42 0.48 1</ambient><diffuse>0.02 0.88 0.96 1</diffuse></material></visual>
+    </link>
+    <joint name="identity_joint" type="fixed"><parent>hull</parent><child>identity_shell</child></joint>
+  </model>
+</sdf>

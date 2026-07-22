@@ -122,10 +122,12 @@ def project_box(box, transform, camera_info):
     )
 
 
-def detection_rect(detection):
+def detection_rect(detection, minimum_width=0.0, minimum_height=0.0):
     center = detection.bbox.center.position
-    half_x = 0.5 * float(detection.bbox.size_x)
-    half_y = 0.5 * float(detection.bbox.size_y)
+    width = max(float(detection.bbox.size_x), float(minimum_width))
+    height = max(float(detection.bbox.size_y), float(minimum_height))
+    half_x = 0.5 * width
+    half_y = 0.5 * height
     return (
         float(center.x) - half_x, float(center.y) - half_y,
         float(center.x) + half_x, float(center.y) + half_y,
@@ -142,8 +144,11 @@ def rectangle_iou(left, right):
     return intersection / union if union > 1e-9 else 0.0
 
 
-def association_score(detection, projection, pixel_gate=28.0):
-    rectangle = detection_rect(detection)
+def association_score(
+    detection, projection, pixel_gate=28.0,
+    minimum_width=0.0, minimum_height=0.0,
+):
+    rectangle = detection_rect(detection, minimum_width, minimum_height)
     iou = rectangle_iou(rectangle, projection)
     center_x = 0.5 * (rectangle[0] + rectangle[2])
     center_y = 0.5 * (rectangle[1] + rectangle[3])
@@ -210,6 +215,8 @@ class CameraLidarAssociationNode(Node):
         self.declare_parameter('minimum_camera_depth', 4.0)
         self.declare_parameter('maximum_camera_depth', 120.0)
         self.declare_parameter('minimum_lidar_xy_extent', 0.20)
+        self.declare_parameter('minimum_roi_width_pixels', 70.0)
+        self.declare_parameter('minimum_roi_height_pixels', 44.0)
         self.declare_parameter('vision_guided_max_age_seconds', 0.35)
         self.declare_parameter('vision_guided_lidar_gate', 5.0)
         self.declare_parameter('enable_global_lidar_fallback', True)
@@ -237,6 +244,14 @@ class CameraLidarAssociationNode(Node):
         self.minimum_lidar_xy_extent = max(
             0.0,
             float(self.get_parameter('minimum_lidar_xy_extent').value),
+        )
+        self.minimum_roi_width = max(
+            0.0,
+            float(self.get_parameter('minimum_roi_width_pixels').value),
+        )
+        self.minimum_roi_height = max(
+            0.0,
+            float(self.get_parameter('minimum_roi_height_pixels').value),
         )
         self.tf_buffer = Buffer(cache_time=Duration(seconds=5.0))
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -396,6 +411,11 @@ class CameraLidarAssociationNode(Node):
         except TransformException:
             self.tf_failures += 1
             return None
+
+    def _active_camera_frame(self):
+        if self.camera_info is not None and self.camera_info.header.frame_id:
+            return self.camera_info.header.frame_id
+        return self.camera_frame
 
     def _nearest_track(self, center):
         if self.latest_tracks is None:
@@ -736,11 +756,12 @@ class CameraLidarAssociationNode(Node):
         camera_transform = None
         map_transform = None
         if self.camera_info is not None:
+            active_camera_frame = self._active_camera_frame()
             camera_transform = self._lookup(
-                self.camera_frame, header.frame_id, header.stamp
+                active_camera_frame, header.frame_id, header.stamp
             )
             map_transform = self._lookup(
-                self.output_frame, self.camera_frame, header.stamp
+                self.output_frame, active_camera_frame, header.stamp
             )
         candidates = []
         projected_boxes = 0
@@ -754,7 +775,8 @@ class CameraLidarAssociationNode(Node):
                 projected_boxes += 1
                 for detection_index, detection in enumerate(detections):
                     score = association_score(
-                        detection, projection, self.pixel_gate
+                        detection, projection, self.pixel_gate,
+                        self.minimum_roi_width, self.minimum_roi_height,
                     )
                     if score >= self.minimum_score:
                         candidates.append((score, box_index, detection_index))
@@ -835,6 +857,8 @@ class CameraLidarAssociationNode(Node):
             'matched_total': self.matched_total,
             'tf_failures': self.tf_failures,
             'camera_info_online': self.camera_info is not None,
+            'camera_frame': self._active_camera_frame(),
+            'configured_camera_frame': self.camera_frame,
             'queued_detection_frames': len(self.detection_queue),
             'sync_error_ms': self.last_sync_error_ms,
             'projected_lidar_boxes': self.last_projected_boxes,

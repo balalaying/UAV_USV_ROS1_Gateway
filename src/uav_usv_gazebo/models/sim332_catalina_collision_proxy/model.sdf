@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="sim332_catalina_collision_proxy">
+    <static>true</static>
+    <link name="shoreline_proxy">
+      <!-- Low compound hull: blocks surface vessels without creating a tall
+           invisible obstacle for UAVs flying over the island. -->
+      <collision name="west_tip"><pose>-340 -112 1.0 0 0 0.18</pose><geometry><box><size>190 78 4</size></box></geometry></collision>
+      <collision name="west_body"><pose>-225 -72 1.0 0 0 0.18</pose><geometry><box><size>230 125 4</size></box></geometry></collision>
+      <collision name="central_body"><pose>-35 0 1.0 0 0 0.16</pose><geometry><box><size>330 185 4</size></box></geometry></collision>
+      <collision name="east_body"><pose>190 70 1.0 0 0 0.16</pose><geometry><box><size>300 160 4</size></box></geometry></collision>
+      <collision name="east_tip"><pose>355 122 1.0 0 0 0.12</pose><geometry><box><size>150 90 4</size></box></geometry></collision>
+    </link>
+  </model>
+</sdf>
