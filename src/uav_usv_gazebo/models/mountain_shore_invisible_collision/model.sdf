@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="Mountain_Shore_Invisible_Collision">
+    <static>true</static>
+    <link name="mountain_shore_boundary">
+      <!--
+        The boxes follow the Catalina land-cutout contour and are offset about
+        4 m toward the sea. Their vertical range is z=-2..10 m. Adjacent boxes
+        overlap, and cylinders close every shoreline turn. No visuals are
+        defined, so the boundary is invisible during normal simulation.
+      -->
+      <collision name="Mountain_Shore_Collision_01"><pose>-332.08 -241.36 4 0 0 0.0677</pose><geometry><box><size>146.34 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_02"><pose>-244.89 -242.84 4 0 0 -0.3117</pose><geometry><box><size>49.34 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_03"><pose>-191.88 -216.61 4 0 0 0.8234</pose><geometry><box><size>93.85 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_04"><pose>-145.65 -179.86 4 0 0 0.3268</pose><geometry><box><size>47.49 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_05"><pose>-126.27 -149.94 4 0 0 1.2692</pose><geometry><box><size>46.96 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_06"><pose>-91.87 -147.04 4 0 0 -0.3897</pose><geometry><box><size>64.89 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_07"><pose>-19.09 -126.09 4 0 0 0.6336</pose><geometry><box><size>113.66 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_08"><pose>54.42 -92.67 4 0 0 0.0881</pose><geometry><box><size>74.16 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_09"><pose>155.82 -61.20 4 0 0 0.3979</pose><geometry><box><size>153.89 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_10"><pose>228.66 2.89 4 0 0 1.4737</pose><geometry><box><size>73.35 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_11"><pose>290.07 97.94 4 0 0 0.8303</pose><geometry><box><size>183.69 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_12"><pose>343.00 173.03 4 0 0 2.4954</pose><geometry><box><size>22.50 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_13"><pose>360.34 185.13 4 0 0 0.5488</pose><geometry><box><size>62.97 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_14"><pose>392.71 224.76 4 0 0 1.2687</pose><geometry><box><size>56.32 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_15"><pose>399.96 271.69 4 0 0 1.5762</pose><geometry><box><size>53.30 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_16"><pose>367.74 312.46 4 0 0 2.6881</pose><geometry><box><size>74.41 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_17"><pose>264.69 290.91 4 0 0 -2.6637</pose><geometry><box><size>164.81 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_18"><pose>135.92 261.72 4 0 0 3.0370</pose><geometry><box><size>131.47 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_19"><pose>20.50 254.76 4 0 0 -2.8941</pose><geometry><box><size>116.56 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_20"><pose>-65.82 190.91 4 0 0 -2.1409</pose><geometry><box><size>124.02 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_21"><pose>-87.88 102.00 4 0 0 -1.3125</pose><geometry><box><size>84.31 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_22"><pose>-61.73 62.98 4 0 0 -0.5611</pose><geometry><box><size>32.60 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_23"><pose>-73.05 26.77 4 0 0 -2.0897</pose><geometry><box><size>73.09 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_24"><pose>-92.87 -31.93 4 0 0 -1.6800</pose><geometry><box><size>66.12 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_25"><pose>-114.19 -73.24 4 0 0 -2.8049</pose><geometry><box><size>57.69 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_26"><pose>-142.10 -92.96 4 0 0 -1.5143</pose><geometry><box><size>38.18 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_27"><pose>-151.46 -90.64 4 0 0 2.0818</pose><geometry><box><size>51.84 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_28"><pose>-174.88 -80.84 4 0 0 -2.3288</pose><geometry><box><size>46.63 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_29"><pose>-201.18 -98.86 4 0 0 2.9660</pose><geometry><box><size>38.93 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_30"><pose>-223.18 -99.83 4 0 0 -1.9625</pose><geometry><box><size>27.79 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_31"><pose>-258.70 -113.46 4 0 0 3.1122</pose><geometry><box><size>78.69 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_32"><pose>-309.91 -114.00 4 0 0 -2.5678</pose><geometry><box><size>40.93 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_33"><pose>-324.77 -139.32 4 0 0 -1.5089</pose><geometry><box><size>33.61 5 12</size></box></geometry></collision>
+      <collision name="Mountain_Shore_Collision_34"><pose>-363.64 -194.27 4 0 0 -2.3049</pose><geometry><box><size>129.48 5 12</size></box></geometry></collision>
+
+      <!-- Cylinder joins bridge the different sea-side offsets at every turn. -->
+      <collision name="Mountain_Shore_Join_01"><pose>-401.36 -242.05 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_02"><pose>-263.34 -232.70 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_03"><pose>-223.99 -245.37 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_04"><pose>-165.64 -182.41 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_05"><pose>-128.24 -169.73 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_06"><pose>-116.66 -132.53 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_07"><pose>-64.04 -154.14 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_08"><pose>21.12 -91.59 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_09"><pose>87.02 -85.77 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_10"><pose>221.51 -29.25 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_11"><pose>227.85 35.80 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_12"><pose>346.38 165.47 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_13"><pose>334.81 174.20 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_14"><pose>381.71 202.88 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_15"><pose>396.08 249.01 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_16"><pose>395.84 294.32 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_17"><pose>336.15 323.41 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_18"><pose>196.90 251.30 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_19"><pose>74.11 264.18 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_20"><pose>-31.15 237.58 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_21"><pose>-93.76 139.91 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_22"><pose>-74.27 66.14 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_23"><pose>-53.44 53.05 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_24"><pose>-85.72 -3.48 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_25"><pose>-92.06 -61.25 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_26"><pose>-138.96 -77.67 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_27"><pose>-137.25 -107.80 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_28"><pose>-158.69 -69.56 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_29"><pose>-185.25 -97.62 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_30"><pose>-215.71 -92.22 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_31"><pose>-223.26 -110.50 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_32"><pose>-293.91 -108.42 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_33"><pose>-321.57 -126.30 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+      <collision name="Mountain_Shore_Join_34"><pose>-319.98 -151.86 4 0 0 0</pose><geometry><cylinder><radius>7</radius><length>12</length></cylinder></geometry></collision>
+    </link>
+  </model>
+</sdf>

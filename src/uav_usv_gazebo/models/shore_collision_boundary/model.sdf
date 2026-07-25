@@ -5,26 +5,34 @@
     <link name="boundary_link">
       <!-- 四段外海边界只限制驶出地图，不覆盖可航行海面。 -->
       <collision name="North_Shore_Collision">
-        <pose>0 448 15 0 0 0</pose>
-        <geometry><box><size>1050 6 30</size></box></geometry>
+        <pose>0 448 3 0 0 0</pose>
+        <geometry><box><size>1050 8 8</size></box></geometry>
       </collision>
       <collision name="South_Shore_Collision">
-        <pose>0 -448 15 0 0 0</pose>
-        <geometry><box><size>1050 6 30</size></box></geometry>
+        <pose>0 -448 3 0 0 0</pose>
+        <geometry><box><size>1050 8 8</size></box></geometry>
       </collision>
       <collision name="East_Shore_Collision">
-        <pose>523 0 15 0 0 0</pose>
-        <geometry><box><size>6 900 30</size></box></geometry>
+        <pose>523 0 3 0 0 0</pose>
+        <geometry><box><size>8 900 8</size></box></geometry>
       </collision>
       <collision name="West_Shore_Collision">
-        <pose>-523 0 15 0 0 0</pose>
-        <geometry><box><size>6 900 30</size></box></geometry>
+        <pose>-523 0 3 0 0 0</pose>
+        <geometry><box><size>8 900 8</size></box></geometry>
       </collision>
 
-      <!-- 基地背后的山坡补充碰撞；Catalina 地形网格仍提供精细地表碰撞。 -->
-      <collision name="Mountain_Side_Collision">
-        <pose>-5 -160 22 0 0 0.56</pose>
-        <geometry><box><size>72 28 44</size></box></geometry>
+      <!-- 基地背后的山坡补充碰撞，分段贴近山沿且不使用复杂 mesh。 -->
+      <collision name="Mountain_Edge_Collision_01">
+        <pose>-25.3 -172.7 3 0 0 0.56</pose>
+        <geometry><box><size>30 12 8</size></box></geometry>
+      </collision>
+      <collision name="Mountain_Edge_Collision_02">
+        <pose>-5 -160 3 0 0 0.56</pose>
+        <geometry><box><size>30 12 8</size></box></geometry>
+      </collision>
+      <collision name="Mountain_Edge_Collision_03">
+        <pose>15.3 -147.3 3 0 0 0.56</pose>
+        <geometry><box><size>30 12 8</size></box></geometry>
       </collision>
     </link>
   </model>
