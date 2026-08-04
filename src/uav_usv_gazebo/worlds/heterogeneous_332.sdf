@@ -47,6 +47,9 @@
     <include><uri>model://catalina_island</uri><name>catalina_island_terrain</name><pose>0 0 -0.8 0 0 0</pose></include>
     <include><uri>model://shore_collision_boundary</uri><name>shore_collision_boundary</name><pose>0 0 0 0 0 0</pose></include>
     <include><uri>model://sim332_catalina_collision_proxy</uri><name>catalina_collision_proxy</name><pose>0 0 0 0 0 0</pose></include>
+    <!-- Mirror the source texture's V axis into Gazebo Y while preserving the
+         collision ring's z=-2..10 m range (roll pi around a z=4 m centre). -->
+    <include><uri>model://mountain_shore_invisible_collision</uri><name>mountain_shore_invisible_collision</name><pose>0 0 8 3.141592653589793 0 0</pose></include>
     <include><uri>model://sim332_island_uav_base</uri><name>island_uav_base</name><pose>-75 -215 0 0 0 0.559</pose></include>
     <include><uri>model://mountain_shore_command_base</uri><name>shore_command_base</name><pose>-35 -190 17.5 0 0 0.559</pose></include>
 
