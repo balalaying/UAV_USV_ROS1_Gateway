@@ -1,0 +1,15 @@
+base_station_service:
+  ros__parameters:
+    # The 332 demonstration base is the house above the UAV landing pads.
+    base_station_id: base_station
+    map_frame: map
+    base_station_x: -35.0
+    base_station_y: -190.0
+    base_station_z: 17.5
+    base_station_roll: 0.0
+    base_station_pitch: 0.0
+    base_station_yaw: 0.559
+    radar_display_range_m: 300.0
+    communication_status: LOCAL_SIMULATION
+    target_history_length: 120
+    event_history_length: 100

@@ -12,12 +12,23 @@
     <plugin filename="libRandomVesselMotion.so" name="gz::sim::systems::RandomVesselMotion">
       <command_topic>cmd_vel</command_topic>
       <seed>332</seed>
-      <min_speed>0.35</min_speed><max_speed>1.15</max_speed>
-      <min_cruise_seconds>5</min_cruise_seconds><max_cruise_seconds>14</max_cruise_seconds>
-      <min_stop_seconds>2</min_stop_seconds><max_stop_seconds>6</max_stop_seconds>
-      <stop_probability>0.28</stop_probability>
-      <max_heading_change>1.75</max_heading_change><turn_rate>0.22</turn_rate>
-      <operating_radius>400</operating_radius><boundary_margin>35</boundary_margin>
+      <min_speed>8.0</min_speed><max_speed>12.0</max_speed>
+      <min_cruise_seconds>3</min_cruise_seconds><max_cruise_seconds>8</max_cruise_seconds>
+      <min_stop_seconds>0.5</min_stop_seconds><max_stop_seconds>1.5</max_stop_seconds>
+      <stop_probability>0.12</stop_probability>
+      <max_heading_change>1.75</max_heading_change><turn_rate>0.45</turn_rate>
+      <!-- Keep the random target around the physical shore base so it stays
+           inside the 300 m base-station demonstration radar. -->
+      <operating_center_x>-35</operating_center_x>
+      <operating_center_y>-190</operating_center_y>
+      <operating_radius>210</operating_radius><boundary_margin>35</boundary_margin>
+      <!-- Active geofence: keep the high-speed target in the open water south
+           of Catalina.  Four-second prediction starts the turn before the
+           velocity controller can tunnel into the shoreline collision. -->
+      <patrol_min_x>-240</patrol_min_x><patrol_max_x>170</patrol_max_x>
+      <patrol_min_y>-400</patrol_min_y><patrol_max_y>-245</patrol_max_y>
+      <patrol_lookahead_seconds>4.0</patrol_lookahead_seconds>
+      <patrol_boundary_margin>12</patrol_boundary_margin>
     </plugin>
   </model>
 </sdf>

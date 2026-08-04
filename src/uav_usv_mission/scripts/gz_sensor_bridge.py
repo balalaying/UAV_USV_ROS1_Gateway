@@ -45,6 +45,7 @@ class GzSensorBridge(Node):
             'usv_source_names', ['own_01', 'own_02', 'own_03', 'own_04']
         )
         self.declare_parameter('bridge_usv_scans', False)
+        self.declare_parameter('bridge_usv_depth', True)
         self.declare_parameter('bridge_base_radar', True)
         self.declare_parameter('camera_max_rate', 15.0)
         self.declare_parameter('usv_camera_horizontal_fov', 1.047)
@@ -73,6 +74,7 @@ class GzSensorBridge(Node):
         )
 
         camera_topics = []
+        depth_topics = []
         for vehicle_id, model_name in zip(uav_ids, uav_models):
             camera_topics.append((
                 '/world/%s/model/%s/link/camera_link/'
@@ -93,6 +95,13 @@ class GzSensorBridge(Node):
                 '/fleet/uplink/%s/camera_info_raw' % vehicle_id,
                 True,
             ))
+            if bool(self.get_parameter('bridge_usv_depth').value):
+                depth_topics.append((
+                    '/defense/%s/depth_camera' % source_name,
+                    '/fleet/uplink/%s/depth/image_raw' % vehicle_id,
+                    vehicle_id + '/depth_camera_link',
+                    '/fleet/uplink/%s/depth/camera_info' % vehicle_id,
+                ))
 
         self.sensor_publishers = {}
         for (
@@ -137,6 +146,31 @@ class GzSensorBridge(Node):
                         'Unable to subscribe to %s' % gz_info_topic
                     )
 
+        for (
+            gz_topic,
+            ros_topic,
+            frame_id,
+            ros_info_topic,
+        ) in depth_topics:
+            publisher = self.create_publisher(
+                Image, ros_topic, qos_profile_sensor_data
+            )
+            info_publisher = self.create_publisher(
+                CameraInfo, ros_info_topic, qos_profile_sensor_data
+            )
+            self.sensor_publishers[ros_topic] = publisher
+            self.sensor_publishers[ros_info_topic] = info_publisher
+            callback = self._camera_callback(
+                publisher,
+                frame_id,
+                ros_topic,
+                camera_min_period,
+                info_publisher,
+                usv_camera_horizontal_fov,
+            )
+            if not self.gz_node.subscribe(GzImage, gz_topic, callback):
+                raise RuntimeError('Unable to subscribe to %s' % gz_topic)
+
         if bool(self.get_parameter('bridge_usv_scans').value):
             for vehicle_id, source_name in zip(usv_ids, usv_sources):
                 gz_topic = '/defense/%s/scan' % source_name
@@ -168,9 +202,11 @@ class GzSensorBridge(Node):
 
         self.create_timer(5.0, self._report)
         self.get_logger().info(
-            'Gazebo sensor bridge ready: %d cameras, %d USV scans, radar=%s'
+            'Gazebo sensor bridge ready: %d RGB cameras, %d depth cameras, '
+            '%d USV scans, radar=%s'
             % (
                 len(camera_topics),
+                len(depth_topics),
                 len(usv_ids) if self.get_parameter('bridge_usv_scans').value else 0,
                 self.get_parameter('bridge_base_radar').value,
             )
@@ -203,6 +239,7 @@ class GzSensorBridge(Node):
                 5: ('bgra8', 4, False),
                 8: ('bgr8', 3, False),
                 9: ('bgr8', 3, True),
+                13: ('32FC1', 4, False),
                 15: ('bayer_rggb8', 1, False),
                 16: ('bayer_bggr8', 1, False),
                 17: ('bayer_gbrg8', 1, False),

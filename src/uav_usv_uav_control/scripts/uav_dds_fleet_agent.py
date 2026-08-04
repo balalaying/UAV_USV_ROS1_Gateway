@@ -12,6 +12,7 @@ from px4_msgs.msg import VehicleCommandAck
 from px4_msgs.msg import VehicleLocalPosition
 from px4_msgs.msg import VehicleStatus
 from rclpy.executors import ExternalShutdownException
+from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from uav_usv_interfaces.msg import CommandAck
@@ -35,6 +36,10 @@ class UavDdsFleetAgent(Node):
         self.declare_parameter('navigation_tolerance', 1.8)
         self.declare_parameter('prestream_seconds', 1.5)
         self.declare_parameter('arming_timeout', 10.0)
+        # Zero means direct target setpoints, preserving the original PX4
+        # control path.  A positive value enables an agent-side setpoint slew
+        # limit configured by the Qt base station.
+        self.declare_parameter('flight_speed_limit_mps', 0.0)
 
         self.vehicle_id = str(self.get_parameter('vehicle_id').value)
         self.namespace = str(self.get_parameter('px4_namespace').value).rstrip('/')
@@ -56,6 +61,11 @@ class UavDdsFleetAgent(Node):
         self.arming_timeout = float(
             self.get_parameter('arming_timeout').value
         )
+        self.flight_speed_limit_mps = max(
+            0.0,
+            float(self.get_parameter('flight_speed_limit_mps').value),
+        )
+        self.add_on_set_parameters_callback(self._on_parameters)
 
         px4_qos = QoSProfile(depth=1)
         px4_qos.reliability = ReliabilityPolicy.BEST_EFFORT
@@ -118,6 +128,8 @@ class UavDdsFleetAgent(Node):
         self.status = None
         self.lease = None
         self.setpoint = None
+        self.target_setpoint = None
+        self.last_setpoint_update = time.monotonic()
         self.operation = 'waiting_dds'
         self.command_id = ''
         self.operation_started = 0.0
@@ -145,6 +157,7 @@ class UavDdsFleetAgent(Node):
         self.local = msg
         if self.setpoint is None and msg.xy_valid and msg.z_valid:
             self.setpoint = [float(msg.x), float(msg.y), float(msg.z)]
+            self.target_setpoint = list(self.setpoint)
             self.operation = 'idle'
 
     def _on_vehicle_status(self, msg):
@@ -201,6 +214,7 @@ class UavDdsFleetAgent(Node):
                 return
             altitude = float(msg.parameters[0]) if msg.parameters else 15.0
             self.setpoint = [self.local.x, self.local.y, self.local.z]
+            self.target_setpoint = list(self.setpoint)
             self.operation = 'prestream_takeoff'
             self.operation_started = time.monotonic()
             self.last_arm_request = 0.0
@@ -219,7 +233,7 @@ class UavDdsFleetAgent(Node):
             ):
                 self._reject(msg, 'PX4 must be armed before navigation')
                 return
-            self.setpoint = self._world_to_ned(
+            self.target_setpoint = self._world_to_ned(
                 msg.target_pose.position.x,
                 msg.target_pose.position.y,
                 msg.target_pose.position.z,
@@ -238,6 +252,7 @@ class UavDdsFleetAgent(Node):
             FleetCommand.COMMAND_EMERGENCY_STOP,
         ):
             self.setpoint = [self.local.x, self.local.y, self.local.z]
+            self.target_setpoint = list(self.setpoint)
             self.operation = 'hold'
             self.command_id = ''
             self._publish_ack(
@@ -313,11 +328,47 @@ class UavDdsFleetAgent(Node):
         trajectory.yawspeed = math.nan
         self.setpoint_pub.publish(trajectory)
 
+    def _on_parameters(self, parameters):
+        for parameter in parameters:
+            if parameter.name != 'flight_speed_limit_mps':
+                continue
+            value = float(parameter.value)
+            if value < 0.0 or value > 20.0:
+                return SetParametersResult(
+                    successful=False,
+                    reason='flight_speed_limit_mps must be in [0, 20]',
+                )
+            self.flight_speed_limit_mps = value
+        return SetParametersResult(successful=True)
+
+    def _advance_setpoint(self, now):
+        if self.setpoint is None or self.target_setpoint is None:
+            return
+        dt = max(0.0, min(0.2, now - self.last_setpoint_update))
+        self.last_setpoint_update = now
+        speed = self.flight_speed_limit_mps
+        if speed <= 0.0:
+            self.setpoint = list(self.target_setpoint)
+            return
+        delta = [
+            target - current
+            for current, target in zip(self.setpoint, self.target_setpoint)
+        ]
+        distance = math.sqrt(sum(value * value for value in delta))
+        if distance <= 1e-6:
+            return
+        step = min(distance, speed * dt)
+        self.setpoint = [
+            current + value * step / distance
+            for current, value in zip(self.setpoint, delta)
+        ]
+
     def _update_offboard(self):
         if self.setpoint is None:
             return
-        self._publish_offboard_setpoint()
         now = time.monotonic()
+        self._advance_setpoint(now)
+        self._publish_offboard_setpoint()
 
         if self.operation == 'prestream_takeoff':
             if now - self.operation_started < self.prestream_seconds:
@@ -329,7 +380,7 @@ class UavDdsFleetAgent(Node):
                 self.status.arming_state == VehicleStatus.ARMING_STATE_ARMED
                 and self.status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD
             ):
-                self.setpoint[2] = self.takeoff_target_z
+                self.target_setpoint[2] = self.takeoff_target_z
                 self.operation = 'takeoff'
                 self.operation_started = now
                 self._publish_ack(

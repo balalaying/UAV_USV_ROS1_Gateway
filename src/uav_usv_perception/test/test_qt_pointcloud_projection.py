@@ -32,6 +32,27 @@ def test_projection_transforms_filters_and_limits_points():
     assert np.allclose(result[1], [11.0, -2.0, 1.0])
 
 
+def test_projection_rejects_distant_display_clutter_before_map_transform():
+    points = np.array([
+        [4.0, 0.0, 1.0],
+        [45.0, 0.0, 1.0],
+        [8.0, 0.0, -0.5],
+    ])
+
+    result = project_points(
+        points,
+        np.eye(3),
+        np.zeros(3),
+        min_z=0.0,
+        max_z=3.0,
+        voxel_size=0.0,
+        max_points=10,
+        max_range=20.0,
+    )
+
+    assert np.allclose(result, [[4.0, 0.0, 1.0]])
+
+
 def test_quaternion_rotation_matrix_rotates_xy_ninety_degrees():
     quaternion = SimpleNamespace(
         x=0.0,

@@ -13,6 +13,7 @@ import rclpy
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 from tf2_ros import Buffer, TransformException, TransformListener
 from uav_usv_interfaces.msg import TrackedObject
@@ -167,6 +168,7 @@ class PerceptionFusionNode(Node):
         self.declare_parameter(
             'output_topic', '/perception/fused/tracks'
         )
+        self.declare_parameter('output_alias_topics', [''])
         self.declare_parameter('target_frame', 'map')
         self.declare_parameter('publish_rate_hz', 10.0)
         self.declare_parameter('max_input_age_seconds', 1.0)
@@ -195,6 +197,12 @@ class PerceptionFusionNode(Node):
         if not self.input_topics:
             raise ValueError('input_topics must contain at least one topic')
         self.output_topic = str(self.get_parameter('output_topic').value)
+        self.output_alias_topics = tuple(dict.fromkeys(
+            str(value).strip()
+            for value in self.get_parameter('output_alias_topics').value
+            if str(value).strip()
+            and str(value).strip() != self.output_topic
+        ))
         self.target_frame = str(self.get_parameter('target_frame').value)
         self.max_input_age = max(
             0.05, float(
@@ -255,6 +263,10 @@ class PerceptionFusionNode(Node):
         self.publisher = self.create_publisher(
             TrackedObjectArray, self.output_topic, 10
         )
+        self.alias_publishers = [
+            self.create_publisher(TrackedObjectArray, topic, 10)
+            for topic in self.output_alias_topics
+        ]
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.pending = []
@@ -272,12 +284,16 @@ class PerceptionFusionNode(Node):
                 lambda message, source_topic=topic: self._on_observations(
                     source_topic, message
                 ),
-                10,
+                qos_profile_sensor_data,
             )
         self.create_timer(1.0 / publish_rate, self._process_and_publish)
         self.get_logger().info(
-            'Fusion %s -> %s in %s'
+            'Fusion %s -> %s%s in %s'
             % (', '.join(self.input_topics), self.output_topic,
+               (
+                   ' (aliases: %s)' % ', '.join(self.output_alias_topics)
+                   if self.output_alias_topics else ''
+               ),
                self.target_frame)
         )
 
@@ -730,6 +746,8 @@ class PerceptionFusionNode(Node):
             tracked.confidence *= math.exp(-self.confidence_decay * age)
             output.objects.append(tracked)
         self.publisher.publish(output)
+        for publisher in self.alias_publishers:
+            publisher.publish(output)
 
 
 def main(args=None):

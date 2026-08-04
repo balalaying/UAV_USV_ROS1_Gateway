@@ -87,6 +87,12 @@ install(PROGRAMS
 )
 
 install(PROGRAMS
+  scripts/fleet_pose_tf_publisher.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME fleet_pose_tf_publisher
+)
+
+install(PROGRAMS
   scripts/nav_goal_marker_relay.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME nav_goal_marker_relay

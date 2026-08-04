@@ -21,3 +21,14 @@ def test_mobile_page_has_small_screen_breakpoints_and_no_framework():
     assert 'vue' not in html.lower()
     assert 'react' not in html.lower()
     assert 'three.js' not in html.lower()
+
+
+def test_remote_dashboard_has_sensor_and_fusion_views():
+    html = (WEB / 'index.html').read_text()
+    javascript = (WEB / 'app.js').read_text()
+    assert 'cameraImage' in html
+    assert 'perceptionCanvas' in html
+    assert 'camera_frame' in javascript
+    assert 'pointcloud_frame' in javascript
+    assert 'fusion_debug' in javascript
+    assert ':9765/ws' in javascript

@@ -66,6 +66,155 @@ def source_name(mask):
     return '+'.join(names) if names else SOURCE_NAMES.get(mask, 'unknown')
 
 
+def _vector_from_dict(value):
+    value = value or {}
+    return {
+        'x': _finite(value.get('x')),
+        'y': _finite(value.get('y')),
+        'z': _finite(value.get('z')),
+    }
+
+
+def _stamp_seconds(value):
+    value = value or {}
+    if 'seconds' in value:
+        return _finite(value.get('seconds')) or 0.0
+    return (
+        float(value.get('sec', 0) or 0)
+        + float(value.get('nanosec', 0) or 0) * 1e-9
+    )
+
+
+def vehicle_from_world_model(item, received_at):
+    pose = item.get('pose') or {}
+    position = _vector_from_dict(pose.get('position'))
+    orientation = pose.get('orientation') or {}
+    qx = _finite(orientation.get('x')) or 0.0
+    qy = _finite(orientation.get('y')) or 0.0
+    qz = _finite(orientation.get('z')) or 0.0
+    qw = _finite(orientation.get('w')) or 1.0
+    roll, pitch, yaw = quaternion_to_euler(qx, qy, qz, qw)
+    velocity = item.get('velocity') or {}
+    linear = _vector_from_dict(velocity.get('linear'))
+    angular = _vector_from_dict(velocity.get('angular'))
+    vehicle_id = str(item.get('id') or '')
+    health = dict(item.get('health') or {})
+    health['state_source'] = str(item.get('state_source') or 'world_model')
+    header = item.get('header') or {}
+    stamp = (header.get('stamp') or item.get('last_update') or {})
+    speed = item.get('speed_mps')
+    if speed is None:
+        vx = linear.get('x') or 0.0
+        vy = linear.get('y') or 0.0
+        vz = linear.get('z') or 0.0
+        speed = math.sqrt(vx * vx + vy * vy + vz * vz)
+    return VehicleModel(
+        id=vehicle_id,
+        type=str(item.get('type') or 'UNKNOWN'),
+        namespace='/' + vehicle_id.strip('/'),
+        online=bool(item.get('online')),
+        stale=bool(item.get('stale')),
+        last_update=_stamp_seconds(stamp),
+        frame_id=str(header.get('frame_id') or 'map'),
+        position=position,
+        orientation={
+            'roll': roll, 'pitch': pitch, 'yaw': yaw,
+            'qx': qx, 'qy': qy, 'qz': qz, 'qw': qw,
+        },
+        linear_velocity=linear,
+        angular_velocity=angular,
+        speed=_finite(speed),
+        battery={
+            'percentage': _finite(item.get('battery_percent'), True),
+            'voltage': None,
+        },
+        mode=str(item.get('mode') or '') or None,
+        armed=(
+            bool(item.get('armed'))
+            if item.get('armed') is not None else None
+        ),
+        health=health,
+        state_source=str(item.get('state_source') or 'world_model'),
+        received_at=float(received_at),
+    )
+
+
+def target_from_world_model(item, received_at, formal_source='world_model'):
+    pose = item.get('pose') or {}
+    position = _vector_from_dict(pose.get('position'))
+    orientation = pose.get('orientation') or {}
+    _, _, yaw = quaternion_to_euler(
+        _finite(orientation.get('x')) or 0.0,
+        _finite(orientation.get('y')) or 0.0,
+        _finite(orientation.get('z')) or 0.0,
+        _finite(orientation.get('w')) or 1.0,
+    )
+    velocity = _vector_from_dict(
+        (item.get('velocity') or {}).get('linear')
+    )
+    dimensions = item.get('dimensions') or {}
+    header = item.get('header') or {}
+    stamp = (
+        item.get('last_update')
+        or item.get('header_stamp')
+        or header.get('stamp')
+        or {}
+    )
+    source = item.get('source')
+    if isinstance(source, list):
+        sensor_source = '+'.join(str(value) for value in source)
+    else:
+        sensor_source = str(
+            item.get('sensor_source') or source or formal_source
+        )
+    return TargetModel(
+        track_id=str(
+            item.get('id') or item.get('track_id') or item.get('uuid') or ''
+        ),
+        class_name=str(
+            item.get('class') or item.get('classification') or ''
+        ) or None,
+        confidence=_finite(item.get('confidence')),
+        timestamp=_stamp_seconds(stamp),
+        stamp={
+            'sec': int((stamp or {}).get('sec', 0) or 0),
+            'nanosec': int((stamp or {}).get('nanosec', 0) or 0),
+            'seconds': _stamp_seconds(stamp),
+        },
+        frame_id=str(header.get('frame_id') or item.get('frame_id') or 'map'),
+        source=str(formal_source),
+        sensor_source=sensor_source,
+        position=position,
+        velocity=velocity,
+        bbox={
+            'length': _finite(dimensions.get('x')),
+            'width': _finite(dimensions.get('y')),
+            'height': _finite(dimensions.get('z')),
+            'yaw': yaw,
+        },
+        received_at=float(received_at),
+    )
+
+
+def sensor_from_world_model(item, received_at):
+    last_stamp = item.get('last_message_time') or {}
+    return SensorModel(
+        vehicle_id=str(item.get('vehicle_id') or ''),
+        sensor_id=str(item.get('sensor_id') or ''),
+        sensor_type=str(item.get('message_type') or 'unknown').lower(),
+        online=bool(item.get('healthy')) and not bool(item.get('timed_out')),
+        frequency_hz=_finite(item.get('rate_hz')),
+        last_update=_stamp_seconds(last_stamp),
+        frame_id=str(item.get('frame_id') or ''),
+        status='OK' if item.get('healthy') else 'ERROR',
+        topic=str(item.get('uplink_topic') or '') or None,
+        latency_sec=_finite(item.get('latency_seconds')),
+        point_count=int(item.get('point_count') or 0) or None,
+        dropped_messages=int(item.get('dropped_messages') or 0),
+        received_at=float(received_at),
+    )
+
+
 def vehicle_from_ros(message, received_at):
     pose = message.pose
     twist = message.twist

@@ -50,8 +50,18 @@ class RandomVesselMotion
     this->ReadParameter(_sdf, "stop_probability", this->stopProbability);
     this->ReadParameter(_sdf, "max_heading_change", this->maxHeadingChange);
     this->ReadParameter(_sdf, "turn_rate", this->turnRate);
+    this->ReadParameter(_sdf, "operating_center_x", this->operatingCenterX);
+    this->ReadParameter(_sdf, "operating_center_y", this->operatingCenterY);
     this->ReadParameter(_sdf, "operating_radius", this->operatingRadius);
     this->ReadParameter(_sdf, "boundary_margin", this->boundaryMargin);
+    this->ReadParameter(_sdf, "patrol_min_x", this->patrolMinX);
+    this->ReadParameter(_sdf, "patrol_max_x", this->patrolMaxX);
+    this->ReadParameter(_sdf, "patrol_min_y", this->patrolMinY);
+    this->ReadParameter(_sdf, "patrol_max_y", this->patrolMaxY);
+    this->ReadParameter(_sdf, "patrol_lookahead_seconds",
+        this->patrolLookaheadSeconds);
+    this->ReadParameter(_sdf, "patrol_boundary_margin",
+        this->patrolBoundaryMargin);
 
     std::uint32_t seed = 332U;
     if (_sdf->HasElement("seed"))
@@ -86,16 +96,50 @@ class RandomVesselMotion
     {
       const double x = pose->Data().Pos().X();
       const double y = pose->Data().Pos().Y();
-      const double distance = std::hypot(x, y);
+      const double relativeX = x - this->operatingCenterX;
+      const double relativeY = y - this->operatingCenterY;
+      const double distance = std::hypot(relativeX, relativeY);
       if (distance > this->operatingRadius - this->boundaryMargin)
       {
-        const double desiredYaw = std::atan2(-y, -x);
+        const double desiredYaw = std::atan2(-relativeY, -relativeX);
         const double rawError = desiredYaw - pose->Data().Rot().Yaw();
         const double error = std::atan2(
             std::sin(rawError), std::cos(rawError));
         speed = std::max(this->minSpeed, 0.55 * this->maxSpeed);
         yawRate = std::clamp(
             0.8 * error, -this->turnRate, this->turnRate);
+      }
+
+      // A velocity-controlled vessel can tunnel through a thin collision at
+      // high speed.  Keep it in a configured water corridor proactively,
+      // using a future position so the turn begins before reaching shore.
+      // The physical island collision remains a secondary safety barrier.
+      if (this->patrolMinX < this->patrolMaxX &&
+          this->patrolMinY < this->patrolMaxY)
+      {
+        const double yaw = pose->Data().Rot().Yaw();
+        const double lookahead = std::max(0.0, this->patrolLookaheadSeconds);
+        const double projectedSpeed = std::max(speed, this->minSpeed);
+        const double futureX = x + projectedSpeed * lookahead * std::cos(yaw);
+        const double futureY = y + projectedSpeed * lookahead * std::sin(yaw);
+        const double margin = std::max(0.0, this->patrolBoundaryMargin);
+        const bool approachingBoundary =
+            futureX < this->patrolMinX + margin ||
+            futureX > this->patrolMaxX - margin ||
+            futureY < this->patrolMinY + margin ||
+            futureY > this->patrolMaxY - margin;
+        if (approachingBoundary)
+        {
+          const double targetX = 0.5 * (this->patrolMinX + this->patrolMaxX);
+          const double targetY = 0.5 * (this->patrolMinY + this->patrolMaxY);
+          const double desiredYaw = std::atan2(targetY - y, targetX - x);
+          const double rawError = desiredYaw - yaw;
+          const double error = std::atan2(
+              std::sin(rawError), std::cos(rawError));
+          speed = std::max(this->minSpeed, 0.55 * this->maxSpeed);
+          yawRate = std::clamp(
+              1.2 * error, -this->turnRate, this->turnRate);
+        }
       }
     }
 
@@ -178,8 +222,16 @@ class RandomVesselMotion
   private: double stopProbability{0.28};
   private: double maxHeadingChange{1.75};
   private: double turnRate{0.22};
+  private: double operatingCenterX{0.0};
+  private: double operatingCenterY{0.0};
   private: double operatingRadius{155.0};
   private: double boundaryMargin{18.0};
+  private: double patrolMinX{0.0};
+  private: double patrolMaxX{0.0};
+  private: double patrolMinY{0.0};
+  private: double patrolMaxY{0.0};
+  private: double patrolLookaheadSeconds{4.0};
+  private: double patrolBoundaryMargin{12.0};
   private: double commandedSpeed{0.0};
   private: double commandedYawRate{0.0};
   private: double stateDeadline{0.0};

@@ -10,6 +10,7 @@ import time
 import numpy as np
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
+from PyQt5.QtCore import QEvent
 from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QVBoxLayout
@@ -74,6 +75,13 @@ class LvDotDebugModel:
         self._cloud_received = {
             'raw': 0.0, 'filtered': 0.0, 'calibration_roi': 0.0,
         }
+        # This is shared with the ROS callback path.  Do not spend CPU
+        # decoding and transforming a high-rate cloud which is hidden in Qt.
+        self._cloud_layers_enabled = {
+            'raw': False,
+            'filtered': True,
+            'calibration_roi': False,
+        }
         self._clusters = {}
         self._bboxes = {}
         self._association_bboxes = {
@@ -96,9 +104,21 @@ class LvDotDebugModel:
             return
         values = np.asarray(points, dtype=np.float32).reshape((-1, 3))
         with self._lock:
+            if not self._cloud_layers_enabled.get(layer, False):
+                return
             self._clouds[layer] = values
             self._cloud_received[layer] = time.monotonic()
             self._generation += 1
+
+    def set_cloud_layer_enabled(self, layer, enabled):
+        if layer not in self._clouds:
+            return
+        with self._lock:
+            self._cloud_layers_enabled[layer] = bool(enabled)
+
+    def cloud_layer_enabled(self, layer):
+        with self._lock:
+            return bool(self._cloud_layers_enabled.get(layer, False))
 
     def update_markers(self, layer, message, frame_id='map'):
         if layer not in (
@@ -213,24 +233,62 @@ class LvDotDebugModel:
             self._histories.clear()
             self._generation += 1
 
-    def snapshot(self):
+    def snapshot(
+        self, cloud_layers=None, marker_layers=None, track_layers=None,
+        include_frames=True,
+    ):
+        """Return one immutable display snapshot.
+
+        Hidden cloud layers are intentionally not copied.  Raw Mid-360 clouds
+        are the largest objects in this model, and copying them for a disabled
+        layer was the main avoidable Qt/OpenGL refresh cost.
+        """
+        active_cloud_layers = set(
+            self._clouds if cloud_layers is None else cloud_layers
+        )
+        active_marker_layers = set(
+            ('clusters', 'bboxes', *self._association_bboxes)
+            if marker_layers is None else marker_layers
+        )
+        active_track_layers = set(
+            self._tracks if track_layers is None else track_layers
+        )
         with self._lock:
             return {
                 'generation': self._generation,
                 'clouds': {
-                    key: value.copy() for key, value in self._clouds.items()
+                    key: (
+                        value.copy() if key in active_cloud_layers
+                        else np.empty((0, 3), dtype=np.float32)
+                    )
+                    for key, value in self._clouds.items()
                 },
                 'cloud_received': dict(self._cloud_received),
-                'clusters': deepcopy(list(self._clusters.values())),
-                'bboxes': deepcopy(list(self._bboxes.values())),
+                'clusters': (
+                    deepcopy(list(self._clusters.values()))
+                    if 'clusters' in active_marker_layers else []
+                ),
+                'bboxes': (
+                    deepcopy(list(self._bboxes.values()))
+                    if 'bboxes' in active_marker_layers else []
+                ),
                 'association_bboxes': {
-                    key: deepcopy(list(value.values()))
+                    key: (
+                        deepcopy(list(value.values()))
+                        if key in active_marker_layers else []
+                    )
                     for key, value in self._association_bboxes.items()
                 },
-                'tracks': deepcopy(self._tracks),
-                'frames': deepcopy(self._frames),
+                'tracks': {
+                    key: (
+                        deepcopy(value) if key in active_track_layers else {}
+                    )
+                    for key, value in self._tracks.items()
+                },
+                'frames': deepcopy(self._frames) if include_frames else {},
                 'histories': {
                     key: list(value) for key, value in self._histories.items()
+                    if key[0] in active_track_layers
                 },
                 'status': deepcopy(self._status),
             }
@@ -242,40 +300,59 @@ class LvDotDebugWidget(QWidget):
     def __init__(self, model, parent=None):
         super().__init__(parent)
         self.model = model
+        # Match the web situation view by default: one recent LiDAR frame,
+        # final fusion results, and the sensor pose.  The other stages remain
+        # available as opt-in diagnostics instead of obscuring the target.
         self.visibility = {
-            key: True for key in (
-                'raw', 'filtered', 'clusters', 'bboxes',
-                'lidar_only_bboxes', 'camera_only_bboxes',
-                'camera_lidar_fused_bboxes', 'calibration_roi',
-                'camera_projection', 'calibration_bbox',
-                'tracks', 'dynamic', 'fusion', 'labels', 'grid',
-                'tf',
-            )
+            'raw': False,
+            'filtered': True,
+            'clusters': False,
+            'bboxes': False,
+            'lidar_only_bboxes': False,
+            'camera_only_bboxes': False,
+            'camera_lidar_fused_bboxes': True,
+            'calibration_roi': False,
+            'camera_projection': False,
+            'calibration_bbox': False,
+            'tracks': False,
+            'dynamic': False,
+            'fusion': True,
+            'labels': True,
+            'grid': True,
+            'tf': True,
         }
         self.max_points = {
             'raw': 60000, 'filtered': 60000, 'calibration_roi': 10000,
         }
-        self.trajectory_length = 100
+        self.trajectory_length = 60
         self.last_generation = -1
         self.last_render_at = 0.0
         self.render_intervals = deque(maxlen=100)
         self.last_render_ms = 0.0
         self.last_counts = {}
         self.labels = []
+        self._drawing_labels = False
+        self._labels_dirty = True
+        self._last_labels_update = 0.0
         self.color_mode = 'sensor_source'
         self.view_mode = 'oblique'
         self.view_center = np.zeros(3, dtype=np.float32)
         self.auto_center_pending = True
+        self.follow_sensor = True
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.view = gl.GLViewWidget()
         self.view.setBackgroundColor('#05090d')
+        # A wheel or drag is an explicit user camera choice.  Without this
+        # event filter the moving USV TF re-applies the default camera
+        # distance on every incoming point-cloud frame.
+        self.view.installEventFilter(self)
         layout.addWidget(self.view)
 
         self.items = {}
         grid = gl.GLGridItem()
-        grid.setSize(160.0, 160.0)
+        grid.setSize(180.0, 180.0)
         grid.setSpacing(10.0, 10.0)
         grid.setColor((70, 88, 102, 150))
         self.view.addItem(grid)
@@ -343,7 +420,9 @@ class LvDotDebugWidget(QWidget):
             self.view.addItem(point)
         self.reset_view()
         self.timer = QTimer(self)
-        self.timer.setInterval(40)
+        # Rendering is decoupled from the ~17-20 Hz sensor stream.  A timer
+        # tick without a new cloud simply repaints the already-uploaded scene.
+        self.timer.setInterval(33)
         self.timer.timeout.connect(self.refresh)
         self.timer.start()
 
@@ -360,7 +439,7 @@ class LvDotDebugWidget(QWidget):
         self.labels.clear()
 
     def _label(self, item, text, color):
-        if not self.visibility['labels']:
+        if not self.visibility['labels'] or not self._drawing_labels:
             return
         label = gl.GLTextItem(
             pos=(item['x'] + 0.4, item['y'] + 0.4, item['z'] + 0.8),
@@ -464,7 +543,11 @@ class LvDotDebugWidget(QWidget):
                 label_item['y'] -= 0.8
             self._label(
                 label_item,
-                'MID-360 TF' if key == 'radar' else 'USV-01 base TF',
+                (
+                    frame.get('frame_id', 'MID-360 TF')
+                    if key == 'radar'
+                    else frame.get('frame_id', 'USV base TF')
+                ),
                 (0.92, 0.96, 1.0, 1.0),
             )
         for axis, points in axis_lines.items():
@@ -475,12 +558,41 @@ class LvDotDebugWidget(QWidget):
 
     def refresh(self):
         started = time.perf_counter()
-        snapshot = self.model.snapshot()
+        visible_cloud_layers = [
+            layer for layer in ('raw', 'filtered', 'calibration_roi')
+            if self.visibility[layer]
+        ]
+        visible_marker_layers = {
+            layer for layer in (
+                'clusters', 'bboxes', 'lidar_only_bboxes',
+                'camera_only_bboxes', 'camera_lidar_fused_bboxes',
+                'camera_projection', 'calibration_bbox',
+            ) if self.visibility[layer]
+        }
+        visible_track_layers = {
+            layer for layer in ('tracks', 'dynamic', 'fusion')
+            if self.visibility[layer]
+        }
+        snapshot = self.model.snapshot(
+            cloud_layers=visible_cloud_layers,
+            marker_layers=visible_marker_layers,
+            track_layers=visible_track_layers,
+            include_frames=(self.visibility['tf'] or self.follow_sensor),
+        )
+        now = time.monotonic()
         if snapshot['generation'] == self.last_generation:
+            self.view.update()
+            self._record_render(now, started)
             return
         self.last_generation = snapshot['generation']
-        now = time.monotonic()
-        self._clear_labels()
+        self._drawing_labels = bool(
+            self.visibility['labels'] and (
+                self._labels_dirty
+                or now - self._last_labels_update >= 0.25
+            )
+        )
+        if self._drawing_labels:
+            self._clear_labels()
 
         counts = {}
         for layer in ('raw', 'filtered', 'calibration_roi'):
@@ -541,24 +653,21 @@ class LvDotDebugWidget(QWidget):
                     AFFILIATION_COLORS.get(affiliation, AFFILIATION_COLORS[0])
                 ] * len(segment_points))
                 metadata = item.get('metadata', {})
-                if metadata and item['segments']:
+                # Candidate-stage labels make a dense scan unreadable.  Keep
+                # labels for the final 3D fused result only, like the web view.
+                if (
+                    layer == 'camera_lidar_fused_bboxes'
+                    and metadata and item['segments']
+                ):
                     anchor = item['segments'][0][0]
                     label_item = {
                         'x': anchor[0], 'y': anchor[1], 'z': anchor[2],
                     }
-                    names = ('UNKNOWN', 'FRIENDLY', 'HOSTILE', 'NEUTRAL')
-                    self._label(label_item, '%s %s %s %.2f %s v=%.1f a=%.2f n=%d' % (
-                        metadata.get('track_id', '-'),
-                        metadata.get('class_name', 'unknown'),
-                        names[affiliation] if 0 <= affiliation < 4 else 'UNKNOWN',
-                        float(metadata.get('affiliation_confidence', 0.0)),
-                        metadata.get('sensor_source', '-'),
-                        float(metadata.get('speed', 0.0)),
-                        float(metadata.get('association_score', 0.0)),
-                        int(metadata.get('bbox_point_count', 0)),
-                    ), AFFILIATION_COLORS.get(
-                        affiliation, DEBUG_STYLE[layer]['color']
-                    ))
+                    self._label(
+                        label_item,
+                        'FUSION %s' % metadata.get('track_id', item['id']),
+                        DEBUG_STYLE[layer]['color'],
+                    )
             positions = np.asarray(lines, dtype=np.float32).reshape((-1, 3))
             if (
                 layer not in ('camera_projection', 'calibration_bbox')
@@ -579,23 +688,69 @@ class LvDotDebugWidget(QWidget):
                 layer, snapshot['tracks'][layer], snapshot['histories'], now
             )
         counts['tf'] = self._update_tf(snapshot['frames'], now)
-        if self.auto_center_pending:
+        if self.auto_center_pending or self.follow_sensor:
             center = self._initial_view_center(snapshot, now)
             if center is not None:
-                self.view_center = center
-                self._apply_camera_position()
+                if (
+                    self.auto_center_pending
+                    or np.linalg.norm(center - self.view_center) > 0.02
+                ):
+                    self.view_center = center
+                    self._apply_camera_position()
                 self.auto_center_pending = False
+        self._position_grid()
         self.items['grid'].setVisible(self.visibility['grid'])
         self.last_counts = counts
+        if self._drawing_labels:
+            self._last_labels_update = now
+            self._labels_dirty = False
+        self._drawing_labels = False
+        self._record_render(now, started)
+
+    def _record_render(self, now, started):
         if self.last_render_at:
             self.render_intervals.append(now - self.last_render_at)
         self.last_render_at = now
         self.last_render_ms = (time.perf_counter() - started) * 1000.0
 
+    def _position_grid(self):
+        """Keep the map grid under the selected USV instead of map origin."""
+        grid = self.items['grid']
+        grid.resetTransform()
+        grid.translate(
+            float(self.view_center[0]), float(self.view_center[1]), 0.0
+        )
+
+    def eventFilter(self, watched, event):
+        if watched is self.view and event.type() in (
+            QEvent.Wheel,
+            QEvent.MouseButtonPress,
+        ):
+            self.follow_sensor = False
+            self.auto_center_pending = False
+        return super().eventFilter(watched, event)
+
     def set_layer_visible(self, layer, visible):
         if layer in self.visibility:
             self.visibility[layer] = bool(visible)
+            if layer in ('raw', 'filtered', 'calibration_roi'):
+                self.model.set_cloud_layer_enabled(layer, visible)
+            if layer == 'labels' and not visible:
+                self._clear_labels()
+            self._labels_dirty = True
             self.last_generation = -1
+
+    def set_model(self, model):
+        """Switch the displayed USV cache without recreating the GL canvas."""
+        self.model = model
+        for layer in ('raw', 'filtered', 'calibration_roi'):
+            self.model.set_cloud_layer_enabled(
+                layer, self.visibility.get(layer, False)
+            )
+        self.last_generation = -1
+        self.auto_center_pending = True
+        self._labels_dirty = True
+        self._clear_labels()
 
     def set_max_points(self, maximum):
         value = max(100, int(maximum))
@@ -621,6 +776,7 @@ class LvDotDebugWidget(QWidget):
 
     def reset_view(self):
         self.auto_center_pending = True
+        self.follow_sensor = True
         self.set_view_mode(self.view_mode)
 
     def set_view_mode(self, mode):
@@ -631,7 +787,7 @@ class LvDotDebugWidget(QWidget):
         elevation = 89.0 if self.view_mode == 'topdown' else 36.0
         self.view.setCameraPosition(
             pos=pg.Vector(*self.view_center),
-            distance=115.0, elevation=elevation, azimuth=-90.0,
+            distance=95.0, elevation=elevation, azimuth=-90.0,
         )
 
     @staticmethod
@@ -652,7 +808,12 @@ class LvDotDebugWidget(QWidget):
     def statistics(self):
         intervals = [value for value in self.render_intervals if value > 0]
         mean = sum(intervals) / len(intervals) if intervals else 0.0
-        snapshot = self.model.snapshot()
+        # Status refresh runs from the Qt side panel; it needs timestamps and
+        # counters only, not another copy of the point-cloud buffers.
+        snapshot = self.model.snapshot(
+            cloud_layers=(), marker_layers=(), track_layers=(),
+            include_frames=False,
+        )
         return {
             'fps': 1.0 / mean if mean else 0.0,
             'render_ms': self.last_render_ms,

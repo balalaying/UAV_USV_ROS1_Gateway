@@ -19,6 +19,13 @@
 
 ## 团队统一主世界
 
+> **Phase 1 主入口冻结**：`uav_usv_bringup/fleet_dynamic_capture_live_perception.launch.py`
+> 是唯一的完整 332 集成入口。它组合 332 Gazebo 世界、3 UAV、3 USV、PX4、
+> Mid360、Camera、LV-DOT、Camera-LiDAR Fusion、Fleet Perception Fusion、Fleet
+> World Model、Base Station Service 与 Qt/客户端。不要与会再次启动 Gazebo、PX4、
+> Bridge、Fusion 或 Qt 的历史 launch 同时运行。完整分类见
+> [Launch 索引](docs/LAUNCH_INDEX.md)。
+
 从当前 `main` 开始，团队集成、感知联调和舰队演示统一使用：
 
 ```text
@@ -85,6 +92,19 @@ ros2 launch uav_usv_bringup \
   start_px4:=false start_dds_agent:=false
 ```
 
+### 分段重启顺序
+
+需要分段重启主世界时，固定先启动 `sim`，确认 Gazebo、PX4、Nav2 和任务核心
+稳定后，再启动 `Qt_base`。不要先启动 Qt 基站。
+
+```bash
+# 终端 1
+ros2 launch uav_usv_bringup sim.launch.py
+
+# 等 Gazebo 世界和载具状态出现后，终端 2
+ros2 launch uav_usv_bringup Qt_base.launch.py
+```
+
 详细坐标、模型、Topic、TF和测试结果见
 [332异构协同仿真场景报告](docs/SIMULATION_332_SCENARIO_REPORT.md)。
 
@@ -137,6 +157,22 @@ git switch -c feature/你的模块-功能名
 | `uav_usv_bringup` | 总 launch、参数和系统集成 |
 | `uav_usv_tests` | 接口测试和完整流程测试 |
 | `uav_usv_sim` | 当前原始可运行版本，由负责人维护 |
+
+### Package 状态
+
+本仓库当前共有 17 个 ROS 2 package，均**未获准删除**：
+
+- **official runtime**：`uav_usv_interfaces`、`uav_usv_gazebo`、
+  `uav_usv_bringup`、`uav_usv_uav_control`、`uav_usv_usv_control`、
+  `uav_usv_lv_dot_core`、`uav_usv_lv_dot_ros2`、`uav_usv_perception`、
+  `uav_usv_mission`、`uav_usv_base_station`、`uav_usv_fleet_gateway`。
+- **official compatibility**：`uav_usv_sim`。
+- **planned ownership**：`uav_usv_description`、`uav_usv_navigation`、
+  `uav_usv_localization`、`uav_usv_colregs`、`uav_usv_tests`。
+
+各包职责、启动入口和未来目录规划见
+[项目结构](PROJECT_STRUCTURE.md)；本次整理的风险与后续步骤见
+[Phase 1 报告](docs/REFACTOR_PHASE1_REPORT.md)。
 
 每名成员主要修改自己负责的包。需要修改 Topic、消息、TF、总 launch 或
 `uav_usv_sim` 时，先与项目负责人确认。

@@ -479,10 +479,13 @@ class TopDownVisualizationModel:
 
     def snapshot(self):
         with self._lock:
+            # Point arrays are replaced atomically by update_point_array(),
+            # never mutated in place.  Returning the latest immutable buffer
+            # avoids copying tens of thousands of points on every Qt repaint.
             return {
                 'generation': self._generation,
-                'points': self._points.copy(),
-                'point_heights': self._point_heights.copy(),
+                'points': self._points,
+                'point_heights': self._point_heights,
                 'points_received_at': self._points_received_at,
                 'point_frame_count': self._point_frame_count,
                 'point_status': dict(self._point_status),

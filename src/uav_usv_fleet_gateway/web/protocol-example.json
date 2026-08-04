@@ -1,14 +1,143 @@
 {
   "schema_version": "1.0",
-  "message_type": "fleet_snapshot",
+  "message_type": "fleet_world_model",
   "timestamp": 1784692800.0,
   "sequence": 42,
   "source": "uav_usv_fleet_gateway",
   "data": {
-    "vehicles": [],
-    "targets": [],
-    "sensors": [],
-    "mission": {"state": "not_available"},
-    "gateway": {"connected_clients": 1, "websocket_running": true}
+    "schema_version": "fleet_world_model.v1",
+    "map_frame": "map",
+    "world_time": {
+      "sec": 1784692800,
+      "nanosec": 0,
+      "seconds": 1784692800.0
+    },
+    "fleet": {
+      "uav": [
+        {
+          "id": "uav_01",
+          "type": "UAV",
+          "state_source": "vehicle_state",
+          "online": true,
+          "mode": "OFFBOARD",
+          "pose": {
+            "position": {"x": 12.4, "y": -18.2, "z": 8.0},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.1, "w": 0.995}
+          },
+          "velocity": {
+            "linear": {"x": 1.2, "y": 0.1, "z": 0.0},
+            "angular": {"x": 0.0, "y": 0.0, "z": 0.02}
+          },
+          "header": {
+            "frame_id": "map",
+            "stamp": {"sec": 1784692800, "nanosec": 0, "seconds": 1784692800.0}
+          }
+        }
+      ],
+      "usv": [
+        {
+          "id": "usv_01",
+          "type": "USV",
+          "state_source": "vehicle_state",
+          "online": true,
+          "mode": "NAV2",
+          "pose": {
+            "position": {"x": 3.0, "y": -7.5, "z": 0.0},
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}
+          },
+          "velocity": {
+            "linear": {"x": 0.8, "y": 0.0, "z": 0.0},
+            "angular": {"x": 0.0, "y": 0.0, "z": 0.05}
+          },
+          "header": {
+            "frame_id": "map",
+            "stamp": {"sec": 1784692800, "nanosec": 0, "seconds": 1784692800.0}
+          }
+        }
+      ],
+      "unknown": []
+    },
+    "entities": [
+      {
+        "id": "friendly_ship",
+        "type": "PROTECTED_ASSET",
+        "affiliation": "FRIENDLY",
+        "pose": {
+          "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+          "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}
+        }
+      },
+      {
+        "id": "enemy_ship",
+        "type": "TARGET",
+        "affiliation": "HOSTILE",
+        "pose": {
+          "position": {"x": 42.0, "y": 18.0, "z": 0.0},
+          "orientation": {"x": 0.0, "y": 0.0, "z": 0.35, "w": 0.94}
+        }
+      }
+    ],
+    "targets": [
+      {
+        "id": "enemy_ship",
+        "classification": "VESSEL",
+        "affiliation": "HOSTILE",
+        "confidence": 0.92,
+        "source": ["USV01_MID360", "USV01_CAMERA", "UAV01_CAMERA"],
+        "pose": {
+          "position": {"x": 42.0, "y": 18.0, "z": 0.0},
+          "orientation": {"x": 0.0, "y": 0.0, "z": 0.35, "w": 0.94}
+        },
+        "velocity": {
+          "linear": {"x": -0.6, "y": 0.1, "z": 0.0}
+        },
+        "dimensions": {"x": 4.5, "y": 1.6, "z": 1.5},
+        "header": {
+          "frame_id": "map",
+          "stamp": {"sec": 1784692800, "nanosec": 0, "seconds": 1784692800.0}
+        }
+      }
+    ],
+    "sensors": {
+      "usv_01": {
+        "mid360": {
+          "vehicle_id": "usv_01",
+          "sensor_id": "mid360",
+          "message_type": "PointCloud2",
+          "healthy": true,
+          "timed_out": false,
+          "rate_hz": 10.0,
+          "frame_id": "usv_01/mid360_link",
+          "uplink_topic": "/fleet/uplink/usv_01/mid360/points"
+        },
+        "front_camera": {
+          "vehicle_id": "usv_01",
+          "sensor_id": "front_camera",
+          "message_type": "Image",
+          "healthy": true,
+          "timed_out": false,
+          "rate_hz": 15.0,
+          "frame_id": "usv_01/camera_link",
+          "uplink_topic": "/fleet/uplink/usv_01/camera/image_raw"
+        }
+      }
+    },
+    "tf": {
+      "edges": [
+        {"parent": "map", "child": "usv_01/base_link"},
+        {"parent": "usv_01/base_link", "child": "usv_01/mid360_link"},
+        {"parent": "usv_01/base_link", "child": "usv_01/camera_link"},
+        {"parent": "map", "child": "uav_01/base_link"}
+      ]
+    },
+    "perception": {
+      "primary_source": "fused_targets",
+      "shadow_mode": true
+    },
+    "mission": {
+      "capture": {
+        "state": "TRACKING"
+      }
+    }
   }
 }

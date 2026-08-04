@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scale the PX4 x500 model while preserving an unmodified backup."""
+"""Generate a physically scaled PX4 x500 model from an immutable backup."""
 
 import argparse
 import os
@@ -48,22 +48,58 @@ def scale_model(source, destination, scale):
                 if value.text:
                     value.text = f'{float(value.text) * scale:.10g}'
 
-    # Rotor arms become longer, so multiplying inertia by the same factor
-    # keeps angular acceleration close to the stock PX4 model.
+    mass_scale = scale ** 3
+    inertia_scale = scale ** 5
     for inertial in root.iter('inertial'):
+        mass = inertial.find('mass')
+        if mass is not None and mass.text:
+            mass.text = f'{float(mass.text) * mass_scale:.10g}'
         inertia = inertial.find('inertia')
         if inertia is None:
             continue
         for tag in ('ixx', 'ixy', 'ixz', 'iyy', 'iyz', 'izz'):
             value = inertia.find(tag)
             if value is not None and value.text:
-                value.text = f'{float(value.text) * scale:.10g}'
+                value.text = f'{float(value.text) * inertia_scale:.10g}'
 
     root.insert(
         0,
         ET.Comment(
             f' UAV_USV generated large x500, geometric scale={scale:g} '
         ),
+    )
+    tree.write(destination, encoding='UTF-8', xml_declaration=True)
+
+
+def scale_motor_model(source, destination, scale):
+    """Scale rotor coefficients for a geometrically similar airframe.
+
+    The PX4 SITL motor interface uses a normalized collective command with a
+    bounded hover-thrust range.  Scaling the force coefficient with ``s^3``
+    preserves the stock x500 hover command after the airframe mass is scaled
+    by ``s^3``.  The increased rotational inertia is compensated by the PX4
+    rate-controller profile loaded by the fleet launch, rather than pushing
+    PX4 below its supported hover-thrust range.
+    """
+    tree = ET.parse(source)
+    root = tree.getroot()
+    force_scale = scale ** 3
+    torque_scale = scale ** 4
+    for plugin in root.findall(".//plugin"):
+        if 'MulticopterMotorModel' not in plugin.get('name', ''):
+            continue
+        for tag, factor in (
+            ('motorConstant', force_scale),
+            ('momentConstant', scale),
+            ('rotorDragCoefficient', force_scale),
+            ('rollingMomentCoefficient', torque_scale),
+        ):
+            value = plugin.find(tag)
+            if value is not None and value.text:
+                value.text = f'{float(value.text) * factor:.10g}'
+    root.insert(
+        0,
+        ET.Comment(f' UAV_USV generated x500 motor scale={scale:g} '),
     )
     tree.write(destination, encoding='UTF-8', xml_declaration=True)
 
@@ -75,12 +111,13 @@ def prepare_file(path, scale):
     scale_model(backup, path, scale)
 
 
-def prepare_camera(path, width, height, rate):
+def prepare_camera(path, width, height, rate, scale):
     backup = path + '.uav_usv_unscaled'
     if not os.path.exists(backup):
         shutil.copy2(path, backup)
 
-    tree = ET.parse(backup)
+    scale_model(backup, path, scale)
+    tree = ET.parse(path)
     root = tree.getroot()
     sensor = root.find(".//sensor[@type='camera']")
     if sensor is None:
@@ -91,6 +128,14 @@ def prepare_camera(path, width, height, rate):
     image.find('width').text = str(width)
     image.find('height').text = str(height)
     sensor.find('update_rate').text = f'{rate:g}'
+    # Keep the optical origin in front of the enlarged lens.  Without this
+    # offset the down-facing camera can render its own lens housing.
+    sensor_pose = sensor.find('pose')
+    if sensor_pose is not None:
+        sensor_pose.text = f'{0.025 * scale:.10g} 0 0 0 0 0'
+    visualize = sensor.find('visualize')
+    if visualize is not None:
+        visualize.text = 'false'
     root.insert(
         0,
         ET.Comment(
@@ -109,14 +154,21 @@ def main():
         'gz',
         'models',
     )
-    paths = (
+    physical_paths = (
         os.path.join(model_root, 'x500_base', 'model.sdf'),
         os.path.join(model_root, 'x500_mono_cam_down', 'model.sdf'),
     )
-    for path in paths:
+    for path in physical_paths:
         if not os.path.isfile(path):
             raise FileNotFoundError(path)
         prepare_file(path, args.scale)
+    motor_path = os.path.join(model_root, 'x500', 'model.sdf')
+    if not os.path.isfile(motor_path):
+        raise FileNotFoundError(motor_path)
+    motor_backup = motor_path + '.uav_usv_unscaled'
+    if not os.path.exists(motor_backup):
+        shutil.copy2(motor_path, motor_backup)
+    scale_motor_model(motor_backup, motor_path, args.scale)
     camera_path = os.path.join(model_root, 'mono_cam', 'model.sdf')
     if not os.path.isfile(camera_path):
         raise FileNotFoundError(camera_path)
@@ -125,8 +177,9 @@ def main():
         args.camera_width,
         args.camera_height,
         args.camera_rate,
+        args.scale,
     )
-    print(f'Prepared PX4 x500 visual/collision scale: {args.scale:g}x')
+    print(f'Prepared PX4 x500 physical scale: {args.scale:g}x')
     print(
         'Prepared PX4 camera: '
         f'{args.camera_width}x{args.camera_height}@{args.camera_rate:g}'

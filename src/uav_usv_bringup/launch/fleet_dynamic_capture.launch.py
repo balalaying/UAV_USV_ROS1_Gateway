@@ -9,6 +9,7 @@ from launch.actions import ExecuteProcess
 from launch.actions import GroupAction
 from launch.actions import IncludeLaunchDescription
 from launch.actions import OpaqueFunction
+from launch.actions import Shutdown
 from launch.actions import TimerAction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -55,13 +56,54 @@ def _fleet_runtime_actions(
 ):
     start_gazebo = _launch_bool(context, 'start_gazebo')
     start_rviz = _launch_bool(context, 'start_rviz')
+    enable_capture_camera_follow = _launch_bool(
+        context, 'enable_capture_camera_follow'
+    )
+    enable_px4_camera_follow = _launch_bool(
+        context, 'enable_px4_camera_follow'
+    )
     enable_mid360 = _launch_bool(context, 'enable_mid360')
     mid360_visualize = _launch_bool(context, 'mid360_visualize')
     px4_dir = LaunchConfiguration('px4_dir').perform(context)
-    uav_model_scale = LaunchConfiguration('uav_model_scale').perform(context)
+    camera_follow_target = LaunchConfiguration(
+        'camera_follow_target'
+    ).perform(context).strip()
+    camera_follow_offset_x = float(LaunchConfiguration(
+        'camera_follow_offset_x'
+    ).perform(context))
+    camera_follow_offset_y = float(LaunchConfiguration(
+        'camera_follow_offset_y'
+    ).perform(context))
+    camera_follow_offset_z = float(LaunchConfiguration(
+        'camera_follow_offset_z'
+    ).perform(context))
+    camera_follow_delay = float(LaunchConfiguration(
+        'camera_follow_delay'
+    ).perform(context))
+    if not camera_follow_target:
+        raise RuntimeError('camera_follow_target must not be empty')
+    uav_model_scale = float(
+        LaunchConfiguration('uav_model_scale').perform(context)
+    )
+    if uav_model_scale <= 0.0:
+        raise RuntimeError('uav_model_scale must be greater than zero')
+    usv_model_scale = float(
+        LaunchConfiguration('usv_model_scale').perform(context)
+    )
     uav_camera_rate = LaunchConfiguration('uav_camera_rate').perform(context)
-    vehicle_id = LaunchConfiguration('mid360_vehicle_id').perform(context)
-    ros_topic = LaunchConfiguration('mid360_topic').perform(context)
+    configured_vehicle_ids = LaunchConfiguration(
+        'mid360_vehicle_ids'
+    ).perform(context)
+    mid360_vehicle_ids = tuple(dict.fromkeys(
+        value.strip() for value in configured_vehicle_ids.split(',')
+        if value.strip()
+    ))
+    unknown_vehicle_ids = set(mid360_vehicle_ids) - set(USV_IDS)
+    if unknown_vehicle_ids:
+        raise RuntimeError(
+            'Unknown Mid-360 vehicle IDs: '
+            + ', '.join(sorted(unknown_vehicle_ids))
+        )
     update_rate = float(
         LaunchConfiguration('mid360_update_rate').perform(context)
     )
@@ -77,11 +119,6 @@ def _fleet_runtime_actions(
     rgl_root = LaunchConfiguration('rgl_install').perform(context)
     rgl_patterns = LaunchConfiguration('rgl_patterns').perform(context)
     rgl_plugin_dir = os.path.join(rgl_root, 'RGLServerPlugin')
-    frame_id = vehicle_id + '/mid360_link'
-    raw_topic = '/fleet/uplink/%s/mid360/rgl_points' % vehicle_id
-    filtered_topic = '/perception/%s/mid360/points_filtered' % vehicle_id
-    preview_topic = '/perception/%s/mid360/preview' % vehicle_id
-
     px4_models = os.path.join(px4_dir, 'Tools', 'simulation', 'gz', 'models')
     px4_plugins = os.path.join(
         px4_dir,
@@ -111,12 +148,36 @@ def _fleet_runtime_actions(
             % (
                 shlex.quote(prepare_x500),
                 shlex.quote(px4_dir),
-                shlex.quote(uav_model_scale),
+                shlex.quote(str(uav_model_scale)),
                 shlex.quote(uav_camera_rate),
             )
         )
         selected_world = world
         environment = dict(base_environment)
+        output_root = '/var/tmp/UAV_USV_fleet_mid360'
+        runtime_models = os.path.join(output_root, 'models')
+        selected_world = os.path.join(
+            output_root, 'worlds', os.path.basename(world)
+        )
+        prepare_sensor = (
+            '%s --world %s --models-dir %s --output-root %s '
+            '--vehicle-ids %s --raw-topic %s --frame-id %s '
+            '--update-rate %.6f --min-range %.6f --max-range %.6f '
+            '--model-scale %.6f'
+            % (
+                shlex.quote(prepare_mid360),
+                shlex.quote(world),
+                shlex.quote(os.path.join(gazebo_share, 'models')),
+                shlex.quote(output_root),
+                shlex.quote(','.join(mid360_vehicle_ids)),
+                shlex.quote('/fleet/uplink/{vehicle_id}/mid360/rgl_points'),
+                shlex.quote('{vehicle_id}/mid360_link'),
+                update_rate,
+                min_range,
+                max_range,
+                usv_model_scale,
+            )
+        )
         if enable_mid360:
             required = (
                 os.path.join(
@@ -132,40 +193,27 @@ def _fleet_runtime_actions(
                 raise RuntimeError(
                     'RGL Mid-360 dependency missing: ' + ', '.join(missing)
                 )
-            output_root = '/var/tmp/UAV_USV_fleet_mid360'
-            selected_world = os.path.join(
-                output_root, 'worlds', os.path.basename(world)
-            )
-            prepare_sensor = (
-                '%s --world %s --models-dir %s --output-root %s '
-                '--vehicle-id %s --raw-topic %s --frame-id %s '
-                '--update-rate %.6f --min-range %.6f --max-range %.6f'
-                % (
-                    shlex.quote(prepare_mid360),
-                    shlex.quote(world),
-                    shlex.quote(os.path.join(gazebo_share, 'models')),
-                    shlex.quote(output_root),
-                    shlex.quote(vehicle_id),
-                    shlex.quote(raw_topic),
-                    shlex.quote(frame_id),
-                    update_rate,
-                    min_range,
-                    max_range,
-                )
-            )
             command = (
-                'set -e; rm -rf %s; %s; %s; exec %s %s'
+                'set -e; rm -rf %s; %s; %s; '
+                'export GZ_SIM_RESOURCE_PATH=%s:${GZ_SIM_RESOURCE_PATH:-}; '
+                'export GZ_SIM_SYSTEM_PLUGIN_PATH=%s:${GZ_SIM_SYSTEM_PLUGIN_PATH:-}; '
+                'export LD_LIBRARY_PATH=%s:${LD_LIBRARY_PATH:-}; '
+                'export RGL_PATTERNS_DIR=%s; '
+                'exec %s %s'
                 % (
                     shlex.quote(output_root),
                     prepare_sensor,
                     prepare_uav,
+                    shlex.quote(runtime_models),
+                    shlex.quote(rgl_plugin_dir),
+                    shlex.quote(rgl_plugin_dir),
+                    shlex.quote(rgl_patterns),
                     shlex.quote(run_world),
                     shlex.quote(selected_world),
                 )
             )
             environment['GZ_SIM_RESOURCE_PATH'] = (
-                os.path.join(output_root, 'models') + ':'
-                + environment['GZ_SIM_RESOURCE_PATH']
+                runtime_models + ':' + environment['GZ_SIM_RESOURCE_PATH']
             )
             environment['GZ_SIM_SYSTEM_PLUGIN_PATH'] = (
                 rgl_plugin_dir + ':'
@@ -178,88 +226,187 @@ def _fleet_runtime_actions(
             environment['RGL_PATTERNS_DIR'] = rgl_patterns
         else:
             command = (
-                'set -e; %s; exec %s %s'
+                'set -e; rm -rf %s; %s --no-enable-mid360; %s; '
+                'export GZ_SIM_RESOURCE_PATH=%s:${GZ_SIM_RESOURCE_PATH:-}; '
+                'exec %s %s'
                 % (
+                    shlex.quote(output_root),
+                    prepare_sensor,
                     prepare_uav,
+                    shlex.quote(runtime_models),
                     shlex.quote(run_world),
                     shlex.quote(selected_world),
                 )
+            )
+            environment['GZ_SIM_RESOURCE_PATH'] = (
+                runtime_models + ':' + environment['GZ_SIM_RESOURCE_PATH']
             )
         actions.append(ExecuteProcess(
             cmd=['bash', '-c', command],
             output='screen',
             additional_env=environment,
+            # The simulator is the root process.  Do not leave PX4, Nav2 and
+            # clients claiming to be online when Gazebo exits unexpectedly.
+            on_exit=Shutdown(reason='Gazebo world process exited'),
         ))
 
-    actions.append(Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='fleet_usv_01_camera_mount_tf',
-        output='screen',
-        arguments=[
-            '--x', '3.24', '--y', '0.0', '--z', '1.55',
-            '--roll', '0.0', '--pitch', '0.0', '--yaw', '0.0',
-            '--frame-id', 'usv_01/base_link',
-            '--child-frame-id', 'usv_01/camera_link',
-        ],
-    ))
+        # PX4's native Gazebo workflow uses the CameraTracking GUI plugin's
+        # /gui/track topic.  Keep this in the launch layer so it only changes
+        # the GUI camera; it does not publish a ROS pose or touch vehicle
+        # control.  The 332 world can take longer than PX4's small demo worlds
+        # to finish loading the GUI, so retry the same native message while
+        # the CameraTracking plugin becomes available.
+        if enable_px4_camera_follow:
+            camera_track_payload = (
+                "track_mode: FOLLOW, "
+                "follow_target: {name: '%s'}, "
+                "follow_offset: {x: %.3f, y: %.3f, z: %.3f}, "
+                "follow_pgain: 1.0, track_pgain: 1.0"
+                % (
+                    camera_follow_target,
+                    camera_follow_offset_x,
+                    camera_follow_offset_y,
+                    camera_follow_offset_z,
+                )
+            )
+            camera_track_command = (
+                'sleep %.3f; '
+                'echo "[PX4 camera] requesting native follow for %s"; '
+                'for attempt in {1..30}; do '
+                'gz topic -t /gui/track -m gz.msgs.CameraTrack -p %s '
+                '> /dev/null 2>&1 || true; '
+                'sleep 2; '
+                'done'
+                % (
+                    camera_follow_delay,
+                    shlex.quote(camera_follow_target),
+                    shlex.quote(camera_track_payload),
+                )
+            )
+            actions.append(ExecuteProcess(
+                cmd=['bash', '-c', camera_track_command],
+                output='screen',
+                additional_env=environment,
+            ))
 
-    if enable_mid360:
+    for vehicle_id in USV_IDS:
         actions.extend([
             Node(
-                package='uav_usv_perception',
-                executable='gz_pointcloud_bridge.py',
-                name='fleet_mid360_pointcloud_bridge',
+                package='tf2_ros',
+                executable='static_transform_publisher',
+                name='fleet_%s_camera_mount_tf' % vehicle_id,
                 output='screen',
-                parameters=[{
-                    'gz_topic': raw_topic,
-                    'ros_topic': ros_topic,
-                    'frame_id': frame_id,
-                    'publish_clock': False,
-                    'stamp_mode': 'node',
-                }],
-            ),
-            Node(
-                package='uav_usv_perception',
-                executable='mid360_preprocessor.py',
-                name='fleet_mid360_preprocessor',
-                output='screen',
-                parameters=[{
-                    'input_topic': ros_topic,
-                    'output_topic': filtered_topic,
-                    'preview_topic': preview_topic,
-                    'vehicle_id': vehicle_id,
-                    'frame_id': frame_id,
-                    'expected_rate_hz': update_rate,
-                    'min_range': min_range,
-                    'max_range': max_range,
-                    'voxel_size': voxel_size,
-                    'preview_enabled': mid360_visualize,
-                }],
+                arguments=[
+                    '--x', '%.10g' % (3.24 * usv_model_scale),
+                    '--y', '0.0', '--z', '%.10g' % (1.55 * usv_model_scale),
+                    '--roll', '0.0', '--pitch', '0.0', '--yaw', '0.0',
+                    '--frame-id', vehicle_id + '/base_link',
+                    '--child-frame-id', vehicle_id + '/camera_link',
+                ],
             ),
             Node(
                 package='tf2_ros',
                 executable='static_transform_publisher',
-                name='fleet_mid360_mount_tf',
+                name='fleet_%s_depth_camera_mount_tf' % vehicle_id,
                 output='screen',
                 arguments=[
-                    '--x', '0.9075', '--y', '0.0', '--z', '1.5625',
+                    '--x', '%.10g' % (3.24 * usv_model_scale),
+                    '--y', '0.0', '--z', '%.10g' % (1.55 * usv_model_scale),
                     '--roll', '0.0', '--pitch', '0.0', '--yaw', '0.0',
                     '--frame-id', vehicle_id + '/base_link',
-                    '--child-frame-id', frame_id,
+                    '--child-frame-id', vehicle_id + '/depth_camera_link',
                 ],
             ),
             Node(
-                package='uav_usv_perception',
-                executable='tf_topic_relay.py',
-                name='fleet_mid360_tf_relay',
+                package='tf2_ros',
+                executable='static_transform_publisher',
+                name='fleet_%s_front_lidar_mount_tf' % vehicle_id,
                 output='screen',
-                parameters=[{
-                    'input_topic': '/%s/tf' % vehicle_id,
-                    'output_topic': '/tf',
-                }],
+                arguments=[
+                    '--x', '%.10g' % (0.9075 * usv_model_scale),
+                    '--y', '0.0', '--z', '%.10g' % (1.5625 * usv_model_scale),
+                    '--roll', '0.0', '--pitch', '0.0', '--yaw', '0.0',
+                    '--frame-id', vehicle_id + '/base_link',
+                    '--child-frame-id', vehicle_id + '/front_lidar',
+                ],
             ),
         ])
+
+    for vehicle_id, *_unused in UAV_CONFIG:
+        actions.append(Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='fleet_%s_camera_mount_tf' % vehicle_id,
+            output='screen',
+            arguments=[
+                '--x', '0.0', '--y', '0.0',
+                '--z', '%.10g' % (0.075 * uav_model_scale),
+                '--roll', '0.0', '--pitch', '1.5707', '--yaw', '0.0',
+                '--frame-id', vehicle_id + '/base_link',
+                '--child-frame-id', vehicle_id + '/camera_link',
+            ],
+        ))
+
+    if enable_mid360:
+        for vehicle_id in mid360_vehicle_ids:
+            frame_id = vehicle_id + '/mid360_link'
+            raw_topic = (
+                '/fleet/uplink/%s/mid360/rgl_points' % vehicle_id
+            )
+            ros_topic = '/fleet/uplink/%s/mid360/points' % vehicle_id
+            filtered_topic = (
+                '/perception/%s/mid360/points_filtered' % vehicle_id
+            )
+            preview_topic = (
+                '/perception/%s/mid360/preview' % vehicle_id
+            )
+            actions.extend([
+                Node(
+                    package='uav_usv_perception',
+                    executable='gz_pointcloud_bridge.py',
+                    name='fleet_%s_mid360_pointcloud_bridge' % vehicle_id,
+                    output='screen',
+                    parameters=[{
+                        'gz_topic': raw_topic,
+                        'ros_topic': ros_topic,
+                        'frame_id': frame_id,
+                        'publish_clock': False,
+                        'stamp_mode': 'node',
+                    }],
+                ),
+                Node(
+                    package='uav_usv_perception',
+                    executable='mid360_preprocessor.py',
+                    name='fleet_%s_mid360_preprocessor' % vehicle_id,
+                    output='screen',
+                    parameters=[{
+                        'input_topic': ros_topic,
+                        'output_topic': filtered_topic,
+                        'preview_topic': preview_topic,
+                        'vehicle_id': vehicle_id,
+                        'frame_id': frame_id,
+                        'expected_rate_hz': update_rate,
+                        'min_range': min_range,
+                        'max_range': max_range,
+                        'voxel_size': voxel_size,
+                        'preview_enabled': mid360_visualize,
+                    }],
+                ),
+                Node(
+                    package='tf2_ros',
+                    executable='static_transform_publisher',
+                    name='fleet_%s_mid360_mount_tf' % vehicle_id,
+                    output='screen',
+                    arguments=[
+                        '--x', '%.10g' % (0.9075 * usv_model_scale),
+                        '--y', '0.0',
+                        '--z', '%.10g' % (1.5625 * usv_model_scale),
+                        '--roll', '0.0', '--pitch', '0.0', '--yaw', '0.0',
+                        '--frame-id', vehicle_id + '/base_link',
+                        '--child-frame-id', frame_id,
+                    ],
+                ),
+            ])
 
     if start_rviz:
         rviz_config = (
@@ -274,6 +421,25 @@ def _fleet_runtime_actions(
             output='screen',
             arguments=['-d', rviz_config],
             parameters=[{'use_sim_time': False}],
+        ))
+    if (
+        enable_capture_camera_follow
+        and start_gazebo
+        and not enable_px4_camera_follow
+    ):
+        actions.append(Node(
+            package='uav_usv_mission',
+            executable='capture_gazebo_camera_follow',
+            name='capture_gazebo_camera_follow',
+            output='screen',
+            parameters=[{
+                'use_sim_time': False,
+                'target_id': TARGET_ID,
+                'world_pose_topic': '/world/%s/pose/info' % WORLD_NAME,
+                'update_rate_hz': 1.25,
+                'minimum_distance': 95.0,
+                'maximum_distance': 115.0,
+            }],
         ))
     return actions
 
@@ -364,6 +530,10 @@ def _boat_interface(vehicle_id, model_control_name, use_sim_time, nav_params):
                 'filtered_scan_topic': 'scan',
                 'scan_range_topic': 'scan_range',
                 'marker_topic': 'reference_markers',
+                # The YAML node key is not applied to this namespaced node on
+                # all Humble launch paths.  Keep the demonstrated high-speed
+                # limit explicit so runtime parameter control has full range.
+                'max_linear_output': 11.0,
                 'publish_empty_map': True,
                 'map_width': 1050.0,
                 'map_height': 900.0,
@@ -411,6 +581,7 @@ def _sensor_bridges():
             'usv_ids': list(USV_IDS),
             'usv_source_names': [item[1] for item in USV_CONFIG],
             'bridge_usv_scans': True,
+            'bridge_usv_depth': True,
             'bridge_base_radar': False,
         }],
     )]
@@ -527,15 +698,53 @@ def generate_launch_description():
         DeclareLaunchArgument('start_rviz', default_value='true'),
         DeclareLaunchArgument('start_px4', default_value='true'),
         DeclareLaunchArgument('start_dds_agent', default_value='true'),
+        DeclareLaunchArgument(
+            # Keep Gazebo on its PX4 GUI camera pose by default.  The optional
+            # director remains available for recordings, but must not fight
+            # the native PX4-style view during normal operation.
+            'enable_capture_camera_follow', default_value='false'
+        ),
+        DeclareLaunchArgument(
+            'enable_px4_camera_follow', default_value='true',
+            description=(
+                'Use Gazebo CameraTracking, matching PX4 original follow '
+                'behavior, for the main 332 view.'
+            ),
+        ),
+        DeclareLaunchArgument(
+            'camera_follow_target', default_value='uav_01',
+            description='Gazebo entity followed by the native GUI camera.',
+        ),
+        DeclareLaunchArgument(
+            'camera_follow_offset_x', default_value='-42.0',
+            description='Camera offset X in the followed model frame.',
+        ),
+        DeclareLaunchArgument(
+            'camera_follow_offset_y', default_value='-42.0',
+            description='Camera offset Y in the followed model frame.',
+        ),
+        DeclareLaunchArgument(
+            'camera_follow_offset_z', default_value='28.0',
+            description='Camera offset Z in the followed model frame.',
+        ),
+        DeclareLaunchArgument(
+            'camera_follow_delay', default_value='10.0',
+            description='Seconds to wait for Gazebo GUI before following.',
+        ),
         DeclareLaunchArgument('enable_sudden_turn', default_value='true'),
         DeclareLaunchArgument('sudden_turn_time', default_value='55.0'),
         DeclareLaunchArgument('target_speed', default_value='1.2'),
         DeclareLaunchArgument(
             'target_nominal_turn_rate', default_value='0.01'
         ),
-        DeclareLaunchArgument('uav_model_scale', default_value='6.0'),
+        DeclareLaunchArgument('uav_model_scale', default_value='12.0'),
+        DeclareLaunchArgument('usv_model_scale', default_value='2.0'),
         DeclareLaunchArgument('uav_camera_rate', default_value='20.0'),
         DeclareLaunchArgument('enable_mid360', default_value='true'),
+        DeclareLaunchArgument(
+            'mid360_vehicle_ids',
+            default_value='usv_01,usv_02,usv_03',
+        ),
         DeclareLaunchArgument('mid360_vehicle_id', default_value='usv_01'),
         DeclareLaunchArgument(
             'mid360_topic',
@@ -556,6 +765,9 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'simulate_usv_02_unreachable', default_value='false'
+        ),
+        DeclareLaunchArgument(
+            'enable_shadow_behavior_manager', default_value='true'
         ),
         OpaqueFunction(
             function=_fleet_runtime_actions,
@@ -580,13 +792,83 @@ def generate_launch_description():
 
     actions.extend(_sensor_bridges())
 
+    actions.append(Node(
+        package='uav_usv_sim',
+        executable='fleet_pose_tf_publisher',
+        name='fleet_pose_tf_publisher',
+        output='screen',
+        parameters=[{
+            'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
+            'pose_topic': '/world/%s/pose/info' % WORLD_NAME,
+            'map_frame_id': 'map',
+            'vehicle_ids': list(USV_IDS),
+            'target_ids': [TARGET_ID, 'friendly_ship'] + [
+                item[0] for item in UAV_CONFIG
+            ],
+            'odom_topic_template': '/{vehicle_id}/odom',
+            'publish_rate_hz': 30.0,
+        }],
+    ))
+
+    actions.append(Node(
+        package='uav_usv_mission',
+        executable='fleet_world_model',
+        name='fleet_world_model',
+        output='screen',
+        parameters=[{
+            'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
+            'map_frame': 'map',
+            'publish_rate_hz': 5.0,
+            'vehicle_state_topic': '/fleet/state',
+            'sensor_status_topic': '/fleet/sensor_status',
+            'command_ack_topic': '/fleet/command_ack',
+            'truth_targets_topic': '/fleet/perception/targets',
+            'usv_tracks_topic': '/fleet/perception/usv_tracks',
+            'fused_targets_topic': '/fleet/perception/fused_targets',
+            'capture_state_topic': '/capture/state',
+            'capture_roles_topic': '/capture/roles',
+            'behavior_state_topic': '/fleet/behavior/shadow_state',
+            'world_model_topic': '/fleet/world_model',
+            'summary_topic': '/fleet/world_model_summary',
+            'known_uav_ids': [item[0] for item in UAV_CONFIG],
+            'known_usv_ids': list(USV_IDS),
+            'known_entity_ids': ['friendly_ship', TARGET_ID],
+        }],
+    ))
+
+    actions.append(Node(
+        package='uav_usv_mission',
+        executable='fleet_behavior_manager',
+        name='fleet_behavior_manager',
+        output='screen',
+        condition=IfCondition(
+            LaunchConfiguration('enable_shadow_behavior_manager')
+        ),
+        parameters=[{
+            'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
+            'world_model_topic': '/fleet/world_model',
+            'behavior_state_topic': '/fleet/behavior/shadow_state',
+            'publish_rate_hz': 2.0,
+            'world_model_timeout_sec': 2.5,
+            'default_behavior': 'SEARCH',
+            'defense_trigger_distance_m': 120.0,
+            'transition_hold_seconds': 1.5,
+        }],
+    ))
+
     for usv_index, (vehicle_id, model_control_name) in enumerate(USV_CONFIG):
         actions.append(_boat_interface(
             vehicle_id, model_control_name, use_sim_time, nav_params
         ))
         configured_nav_params = _nav_params(nav_params, vehicle_id)
         actions.append(TimerAction(
-            period=2.0 + 3.0 * usv_index,
+            # Gazebo, RGL Mid-360 and camera bridges create a heavy startup
+            # burst. Starting Nav2 after pose TF and sensor bridges are stable
+            # avoids intermittent lifecycle timeouts, most visibly on usv_01.
+            # PX4 instances attach at 8/11/14 s.  Start Nav2 only after that
+            # CPU/transport burst has settled; otherwise usv_01's lifecycle
+            # manager can miss planner_server's bond during GUI startup.
+            period=22.0 + 5.0 * usv_index,
             actions=[GroupAction(actions=[
                 PushRosNamespace(vehicle_id),
                 IncludeLaunchDescription(
@@ -636,9 +918,21 @@ def generate_launch_description():
             'PX4_GZ_WORLD': WORLD_NAME,
             'PX4_GZ_MODEL_NAME': vehicle_id,
             'PX4_UXRCE_DDS_NS': vehicle_id,
+            # 12x x500 dynamics: the motor/weight scaling preserves hover
+            # thrust while this profile restores attitude-rate authority for
+            # the enlarged s^5 inertial tensor.
+            'UAV_USV_MC_ROLLRATE_P': '0.48',
+            'UAV_USV_MC_PITCHRATE_P': '0.55',
+            'UAV_USV_MC_YAWRATE_P': '0.45',
+            'UAV_USV_MC_ROLLRATE_I': '0.08',
+            'UAV_USV_MC_PITCHRATE_I': '0.08',
+            'UAV_USV_MC_YAWRATE_I': '0.05',
+            'UAV_USV_MC_ROLLRATE_K': '2.5',
+            'UAV_USV_MC_PITCHRATE_K': '2.2',
+            'UAV_USV_MC_YAWRATE_K': '2.0',
         })
         actions.append(TimerAction(
-            period=8.0 + 2.0 * instance,
+            period=8.0 + 3.0 * instance,
             actions=[ExecuteProcess(
                 cmd=_px4_command(px4_dir, px4_rcs, instance),
                 output='screen',

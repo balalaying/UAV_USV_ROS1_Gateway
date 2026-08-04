@@ -44,6 +44,7 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions &options)
   declare_parameter<std::string>("vehicle_id", "");
   declare_parameter<std::string>("output_frame", "map");
   declare_parameter<double>("tf_timeout_seconds", 0.1);
+  declare_parameter<bool>("allow_latest_tf_fallback", true);
   declare_parameter<double>("diagnostics_period_seconds", 1.0);
   declare_parameter<double>("input_min_range", 0.5);
   declare_parameter<double>("input_max_range", 20.0);
@@ -93,6 +94,8 @@ DetectorNode::on_configure(const rclcpp_lifecycle::State &) {
   vehicle_id_ = get_parameter("vehicle_id").as_string();
   output_frame_ = get_parameter("output_frame").as_string();
   tf_timeout_seconds_ = get_parameter("tf_timeout_seconds").as_double();
+  allow_latest_tf_fallback_ =
+      get_parameter("allow_latest_tf_fallback").as_bool();
   diagnostics_period_seconds_ =
       get_parameter("diagnostics_period_seconds").as_double();
 
@@ -322,12 +325,33 @@ void DetectorNode::cloud_callback(
         output_frame_, message->header.frame_id, message->header.stamp,
         tf2::durationFromSec(tf_timeout_seconds_));
   } catch (const tf2::TransformException &error) {
-    std::lock_guard<std::mutex> lock(statistics_mutex_);
-    ++statistics_.tf_failure_count;
-    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
-                         "Dropping cloud because timestamped TF failed: %s",
-                         error.what());
-    return;
+    if (allow_latest_tf_fallback_) {
+      try {
+        transform = tf_buffer_->lookupTransform(
+            output_frame_, message->header.frame_id, tf2::TimePointZero,
+            tf2::durationFromSec(tf_timeout_seconds_));
+        RCLCPP_WARN_THROTTLE(
+            get_logger(), *get_clock(), 5000,
+            "Using latest TF after timestamped lookup failed: %s",
+            error.what());
+      } catch (const tf2::TransformException &) {
+        std::lock_guard<std::mutex> lock(statistics_mutex_);
+        ++statistics_.tf_failure_count;
+        RCLCPP_WARN_THROTTLE(
+            get_logger(), *get_clock(), 5000,
+            "Dropping cloud because timestamped TF failed: %s",
+            error.what());
+        return;
+      }
+    } else {
+      std::lock_guard<std::mutex> lock(statistics_mutex_);
+      ++statistics_.tf_failure_count;
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 5000,
+          "Dropping cloud because timestamped TF failed: %s",
+          error.what());
+      return;
+    }
   }
   {
     std::lock_guard<std::mutex> lock(statistics_mutex_);

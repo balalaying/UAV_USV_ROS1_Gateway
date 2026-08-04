@@ -67,6 +67,8 @@ from uav_usv_mission.perception_topdown import PerceptionTopDownWidget
 from uav_usv_mission.perception_topdown import TopDownVisualizationModel
 from uav_usv_mission.lv_dot_debug_visualization import LvDotDebugModel
 from uav_usv_mission.lv_dot_debug_visualization import LvDotDebugWidget
+from uav_usv_mission.base_station_radar import RadarCanvas
+from uav_usv_mission.base_station_radar import transform_points_to_frame
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 
@@ -74,6 +76,8 @@ from visualization_msgs.msg import MarkerArray
 class GuiSignals(QObject):
     image = pyqtSignal(object)
     scan = pyqtSignal(object)
+    world_model = pyqtSignal(object)
+    base_station_event = pyqtSignal(object)
     sensor = pyqtSignal(object)
     vehicle = pyqtSignal(object)
     defense = pyqtSignal(object)
@@ -85,9 +89,6 @@ class GuiSignals(QObject):
     capture_roles = pyqtSignal(object)
     capture_target = pyqtSignal(object)
     capture_markers = pyqtSignal(object)
-    perception_metrics = pyqtSignal(object)
-    perception_fusion_metrics = pyqtSignal(object)
-    multisensor_metrics = pyqtSignal(object)
     log = pyqtSignal(str)
 
 
@@ -98,17 +99,16 @@ class VideoMosaicLabel(QLabel):
         super().__init__(text)
         self._image = None
         self.setAlignment(Qt.AlignCenter)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.setMinimumHeight(240)
 
     def hasHeightForWidth(self):
         return True
 
     def heightForWidth(self, width):
-        return max(270, min(420, int(width * 9.0 / 32.0)))
-
-    def resizeEvent(self, event):
-        self.setFixedHeight(self.heightForWidth(max(1, self.width())))
-        super().resizeEvent(event)
+        # The service publishes six cameras: three USV views followed by
+        # three UAV views.  A 3 x 2 mosaic has an 8:3 overall ratio.
+        return max(180, min(420, int(width * 3.0 / 8.0)))
 
     def set_image(self, image):
         # The ROS callback already detached this QImage from message memory.
@@ -121,7 +121,16 @@ class VideoMosaicLabel(QLabel):
             super().paintEvent(event)
             return
         painter = QPainter(self)
-        painter.drawImage(self.rect(), self._image)
+        # Keep every camera tile at its source aspect ratio.  Stretching the
+        # composite turns the 3 x 2 mosaic into visibly squeezed imagery when
+        # the Qt window is resized.
+        painter.fillRect(self.rect(), Qt.black)
+        scaled = self._image.scaled(
+            self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        x_offset = (self.width() - scaled.width()) // 2
+        y_offset = (self.height() - scaled.height()) // 2
+        painter.drawImage(x_offset, y_offset, scaled)
 
 
 class CameraInsetLabel(QLabel):
@@ -176,9 +185,20 @@ class BaseStationGuiNode(Node):
         self.declare_parameter('defense_namespace', '')
         self.declare_parameter('defense_node_name', '/defense_sim_demo')
         self.declare_parameter('demo_mode', False)
+        self.declare_parameter('fleet_world_model_only', True)
+        self.declare_parameter('use_base_station_service', True)
+        self.declare_parameter(
+            'base_station_state_topic', '/base_station/state'
+        )
+        self.declare_parameter(
+            'base_station_events_topic', '/base_station/events'
+        )
         self.declare_parameter('enable_perception_topdown', True)
         self.declare_parameter('enable_lv_dot_debug', True)
         self.declare_parameter('enable_affiliation_qt_mode', True)
+        self.declare_parameter(
+            'perception_usv_ids', ['usv_01', 'usv_02', 'usv_03']
+        )
         self.declare_parameter(
             'topdown_points_topic',
             '/perception/visualization/usv_01/topdown_points',
@@ -291,6 +311,18 @@ class BaseStationGuiNode(Node):
             'lv_dot_debug_radar_frame', 'usv_01/mid360_link'
         )
         self.demo_mode = bool(self.get_parameter('demo_mode').value)
+        self.fleet_world_model_only = bool(
+            self.get_parameter('fleet_world_model_only').value
+        )
+        self.use_base_station_service = bool(
+            self.get_parameter('use_base_station_service').value
+        )
+        self.base_station_state_topic = str(
+            self.get_parameter('base_station_state_topic').value
+        )
+        self.base_station_events_topic = str(
+            self.get_parameter('base_station_events_topic').value
+        )
         self.enable_perception_topdown = bool(
             self.get_parameter('enable_perception_topdown').value
         )
@@ -300,6 +332,21 @@ class BaseStationGuiNode(Node):
         self.enable_affiliation_qt_mode = bool(
             self.get_parameter('enable_affiliation_qt_mode').value
         )
+        self.perception_usv_ids = tuple(
+            str(value) for value in
+            self.get_parameter('perception_usv_ids').value
+            if str(value)
+        )
+        if not self.perception_usv_ids:
+            self.perception_usv_ids = ('usv_01',)
+        self.selected_perception_usv = self.perception_usv_ids[0]
+        self.lv_dot_debug_models = {
+            vehicle_id: (
+                self.lv_dot_debug_model
+                if index == 0 else LvDotDebugModel()
+            )
+            for index, vehicle_id in enumerate(self.perception_usv_ids)
+        }
         self.lv_dot_debug_fixed_frame = str(
             self.get_parameter('lv_dot_debug_fixed_frame').value
         )
@@ -308,6 +355,15 @@ class BaseStationGuiNode(Node):
             'radar': str(
                 self.get_parameter('lv_dot_debug_radar_frame').value
             ),
+        }
+        self.camera_lidar_status_by_usv = {
+            vehicle_id: {} for vehicle_id in self.perception_usv_ids
+        }
+        self.vision_guided_status_by_usv = {
+            vehicle_id: {} for vehicle_id in self.perception_usv_ids
+        }
+        self.camera_detection_status_by_usv = {
+            vehicle_id: {} for vehicle_id in self.perception_usv_ids
         }
         self.camera_lidar_status = {}
         self.vision_guided_status = {}
@@ -359,36 +415,60 @@ class BaseStationGuiNode(Node):
                 self._on_scan,
                 image_qos,
             )
-            self.create_subscription(
-                SensorStatus,
-                self._topic(namespace, '/fleet/sensor_status'),
-                self._on_sensor,
-                20,
-            )
-            self.create_subscription(
-                VehicleState,
-                self._topic(namespace, '/fleet/state'),
-                self._on_vehicle,
-                state_qos,
-            )
+            if not self.fleet_world_model_only:
+                self.create_subscription(
+                    SensorStatus,
+                    self._topic(namespace, '/fleet/sensor_status'),
+                    self._on_sensor,
+                    20,
+                )
+                self.create_subscription(
+                    VehicleState,
+                    self._topic(namespace, '/fleet/state'),
+                    self._on_vehicle,
+                    state_qos,
+                )
             self.create_subscription(
                 CommandAck,
                 self._topic(namespace, '/fleet/command_ack'),
                 self._on_ack,
                 20,
             )
-        self.create_subscription(
-            TrackedObjectArray,
-            self._topic(self.capture_namespace, '/fleet/perception/targets'),
-            self._on_capture_targets,
-            10,
+        world_model_topic = self._topic(
+            self.capture_namespace, '/fleet/world_model'
         )
-        self.create_subscription(
-            String,
-            self._topic(self.capture_namespace, '/fleet/capture/status'),
-            self._on_capture_status,
-            10,
-        )
+        if self.use_base_station_service:
+            self.create_subscription(
+                String,
+                self.base_station_state_topic,
+                self._on_base_station_state,
+                10,
+            )
+            self.create_subscription(
+                String,
+                self.base_station_events_topic,
+                self._on_base_station_event,
+                50,
+            )
+        else:
+            self.create_subscription(
+                String, world_model_topic, self._on_world_model, 10
+            )
+        if not self.fleet_world_model_only:
+            self.create_subscription(
+                TrackedObjectArray,
+                self._topic(
+                    self.capture_namespace, '/fleet/perception/targets'
+                ),
+                self._on_capture_targets,
+                10,
+            )
+            self.create_subscription(
+                String,
+                self._topic(self.capture_namespace, '/fleet/capture/status'),
+                self._on_capture_status,
+                10,
+            )
         if self.enable_perception_topdown or self.enable_lv_dot_debug:
             self.create_subscription(
                 Image,
@@ -439,164 +519,151 @@ class BaseStationGuiNode(Node):
                 self.lv_dot_tf_buffer, self
             )
             self.lv_dot_tf_timer = self.create_timer(
-                0.1, self._update_lv_dot_debug_tf
+                0.2, self._update_lv_dot_debug_tf
             )
-            for parameter_name, layer in (
-                ('lv_dot_debug_raw_cloud_topic', 'raw'),
-                ('lv_dot_debug_filtered_cloud_topic', 'filtered'),
-                (
-                    'camera_lidar_calibration_roi_topic',
-                    'calibration_roi',
-                ),
-            ):
-                self.create_subscription(
-                    PointCloud2,
-                    str(self.get_parameter(parameter_name).value),
-                    lambda message, cloud_layer=layer: (
-                        self._on_lv_dot_debug_cloud(message, cloud_layer)
+            for vehicle_id in self.perception_usv_ids:
+                model = self.lv_dot_debug_models[vehicle_id]
+                prefix = '/perception/' + vehicle_id
+                lv_dot_prefix = '/perception/lv_dot/' + vehicle_id
+                for topic_name, layer in (
+                    (
+                        '/fleet/uplink/%s/mid360/points' % vehicle_id,
+                        'raw',
                     ),
-                    topdown_qos,
+                    (prefix + '/mid360/points_filtered', 'filtered'),
+                    (prefix + '/vision_guided/roi_cloud', 'calibration_roi'),
+                ):
+                    self.create_subscription(
+                        PointCloud2,
+                        topic_name,
+                        lambda message, cloud_layer=layer, target=model, source_id=vehicle_id: (
+                            self._on_lv_dot_debug_cloud(
+                                message, cloud_layer, target, source_id
+                            )
+                        ),
+                        topdown_qos,
+                    )
+                bbox_topic = (
+                    lv_dot_prefix + '/diagnostics/lidar_bboxes'
                 )
-            for parameter_name, layer in (
-                ('lv_dot_debug_clusters_topic', 'clusters'),
-                ('lv_dot_debug_bboxes_topic', 'bboxes'),
-                (
-                    'camera_lidar_lidar_only_bboxes_topic',
-                    'lidar_only_bboxes',
-                ),
-                (
-                    'camera_lidar_camera_only_bboxes_topic',
-                    'camera_only_bboxes',
-                ),
-                (
-                    'camera_lidar_fused_bboxes_topic',
-                    'camera_lidar_fused_bboxes',
-                ),
-                (
-                    'camera_lidar_camera_projection_topic',
-                    'camera_projection',
-                ),
-                (
-                    'camera_lidar_calibration_bbox_topic',
-                    'calibration_bbox',
-                ),
-            ):
+                for topic_name, layer in (
+                    (bbox_topic, 'bboxes'),
+                    (
+                        prefix + '/camera_lidar/lidar_only_bboxes',
+                        'lidar_only_bboxes',
+                    ),
+                    (
+                        prefix + '/camera_lidar/camera_only_bboxes',
+                        'camera_only_bboxes',
+                    ),
+                    (
+                        prefix + '/camera_lidar/fused_bboxes',
+                        'camera_lidar_fused_bboxes',
+                    ),
+                    (
+                        prefix + '/vision_guided/camera_projection',
+                        'camera_projection',
+                    ),
+                    (
+                        prefix + '/vision_guided/roi_bboxes',
+                        'calibration_bbox',
+                    ),
+                ):
+                    self.create_subscription(
+                        MarkerArray,
+                        topic_name,
+                        lambda message, marker_layer=layer, target=model, source_id=vehicle_id: (
+                            self._on_lv_dot_debug_markers(
+                                message, marker_layer, target, source_id
+                            )
+                        ),
+                        topdown_qos,
+                    )
+                for topic_name, layer in (
+                    (lv_dot_prefix + '/tracks', 'tracks'),
+                    (lv_dot_prefix + '/dynamic_tracks', 'dynamic'),
+                ):
+                    self.create_subscription(
+                        TrackedObjectArray,
+                        topic_name,
+                        lambda message, track_layer=layer, target=model, source_id=vehicle_id: (
+                            self._on_lv_dot_debug_tracks(
+                                message, track_layer, target, source_id
+                            )
+                        ),
+                        topdown_qos,
+                    )
                 self.create_subscription(
-                    MarkerArray,
-                    str(self.get_parameter(parameter_name).value),
-                    lambda message, marker_layer=layer: (
-                        self.lv_dot_debug_model.update_markers(
-                            marker_layer, message
+                    Image,
+                    prefix + '/camera/detections/image',
+                    lambda message, source_vehicle=vehicle_id: self._on_image(
+                        message, 'topdown_camera:' + source_vehicle
+                    ),
+                    image_qos,
+                )
+                self.create_subscription(
+                    String,
+                    prefix + '/vision_guided/status',
+                    lambda message, source_vehicle=vehicle_id: (
+                        self._on_vision_guided_status(
+                            message, source_vehicle
                         )
                     ),
-                    topdown_qos,
+                    10,
                 )
-            for parameter_name, layer in (
-                ('lv_dot_debug_tracks_topic', 'tracks'),
-                ('lv_dot_debug_dynamic_topic', 'dynamic'),
-                ('lv_dot_debug_fusion_topic', 'fusion'),
-            ):
                 self.create_subscription(
-                    TrackedObjectArray,
-                    str(self.get_parameter(parameter_name).value),
-                    lambda message, track_layer=layer: (
-                        self.lv_dot_debug_model.update_tracks(
-                            track_layer, message
+                    String,
+                    prefix + '/camera/detection_status',
+                    lambda message, source_vehicle=vehicle_id: (
+                        self._on_camera_detection_status(
+                            message, source_vehicle
                         )
                     ),
-                    topdown_qos,
+                    10,
                 )
+                self.create_subscription(
+                    String,
+                    prefix + '/camera_lidar/status',
+                    lambda message, source_vehicle=vehicle_id: (
+                        self._on_camera_lidar_status(
+                            message, source_vehicle
+                        )
+                    ),
+                    10,
+                )
+            # This is a fleet-wide topic.  Subscribing once prevents the
+            # exact same fused target array being decoded for every USV.
             self.create_subscription(
-                String,
-                str(self.get_parameter('lv_dot_debug_status_topic').value),
-                self._on_lv_dot_debug_status,
+                TrackedObjectArray,
+                '/fleet/perception/fused_targets',
+                self._on_lv_dot_debug_fusion,
+                topdown_qos,
+            )
+        if not self.fleet_world_model_only:
+            self.create_subscription(
+                CaptureState,
+                self._topic(self.capture_namespace, '/capture/state'),
+                self._on_capture_state,
                 10,
             )
             self.create_subscription(
-                String,
-                str(self.get_parameter('vision_guided_status_topic').value),
-                self._on_vision_guided_status,
+                CaptureAssignmentArray,
+                self._topic(self.capture_namespace, '/capture/roles'),
+                self._on_capture_roles,
                 10,
             )
             self.create_subscription(
-                String,
-                str(self.get_parameter('camera_detection_status_topic').value),
-                self._on_camera_detection_status,
+                CaptureTargetStatus,
+                self._topic(
+                    self.capture_namespace, '/capture/target_status'
+                ),
+                self._on_capture_target,
                 10,
             )
-            self.create_subscription(
-                String,
-                str(self.get_parameter('camera_lidar_status_topic').value),
-                self._on_camera_lidar_status,
-                10,
-            )
-        self.create_subscription(
-            CaptureState,
-            self._topic(self.capture_namespace, '/capture/state'),
-            self._on_capture_state,
-            10,
-        )
-        self.create_subscription(
-            CaptureAssignmentArray,
-            self._topic(self.capture_namespace, '/capture/roles'),
-            self._on_capture_roles,
-            10,
-        )
-        self.create_subscription(
-            CaptureTargetStatus,
-            self._topic(self.capture_namespace, '/capture/target_status'),
-            self._on_capture_target,
-            10,
-        )
         self.create_subscription(
             MarkerArray,
             self._topic(self.capture_namespace, '/capture/markers'),
             self._on_capture_markers,
-            10,
-        )
-        self.create_subscription(
-            String,
-            self._topic(
-                self.capture_namespace,
-                '/perception/lv_dot/shadow_metrics',
-            ),
-            self._on_perception_metrics,
-            10,
-        )
-        self.create_subscription(
-            String,
-            self._topic(
-                self.capture_namespace,
-                '/perception/lv_dot/fusion_metrics',
-            ),
-            self._on_perception_fusion_metrics,
-            10,
-        )
-        self.create_subscription(
-            String,
-            self._topic(
-                self.capture_namespace,
-                '/perception/multisensor/metrics',
-            ),
-            self._on_multisensor_metrics,
-            10,
-        )
-        self.create_subscription(
-            String,
-            self._topic(self.defense_namespace, '/defense/status'),
-            self._on_defense_status,
-            10,
-        )
-        self.create_subscription(
-            PoseArray,
-            self._topic(self.defense_namespace, '/defense/own_ships'),
-            self._on_defense_own,
-            10,
-        )
-        self.create_subscription(
-            PoseArray,
-            self._topic(self.defense_namespace, '/defense/enemy_ships'),
-            self._on_defense_enemy,
             10,
         )
         self.goal_pub = self.create_publisher(
@@ -630,8 +697,16 @@ class BaseStationGuiNode(Node):
             SetBool,
             str(self.get_parameter('mid360_preview_service').value),
         )
+        self.runtime_parameter_clients = {}
 
     def _on_image(self, msg, source=''):
+        # The perception-debug inset shows one USV at a time.  Avoid copying
+        # the other two RGB frames into QImage objects on every callback;
+        # the six-camera sensor mosaic uses separate sources and is unchanged.
+        if source.startswith('topdown_camera:'):
+            vehicle_id = source.split(':', 1)[1]
+            if vehicle_id != self.selected_perception_usv:
+                return
         encoding = msg.encoding.lower()
         if encoding not in ('bgr8', 'rgb8'):
             return
@@ -660,6 +735,48 @@ class BaseStationGuiNode(Node):
                 angle = msg.angle_min + index * msg.angle_increment
                 points.append((angle, distance))
         self.signals.scan.emit((points, float(msg.range_max)))
+
+    def _on_world_model(self, msg):
+        try:
+            model = json.loads(msg.data)
+        except json.JSONDecodeError as error:
+            self.get_logger().warning(
+                'Invalid situation-state JSON: %s' % error
+            )
+            return
+        self.signals.world_model.emit(model)
+
+    def _on_base_station_state(self, msg):
+        try:
+            state = json.loads(msg.data)
+        except json.JSONDecodeError as error:
+            self.get_logger().warning(
+                'Invalid Base Station Service JSON: %s' % error
+            )
+            return
+        source = state.get('source', {}) if isinstance(state, dict) else {}
+        if (
+            state.get('schema_version') != 'base_station_service.v1'
+            or source.get('world_model_schema') != 'fleet_world_model.v1'
+        ):
+            return
+        self.signals.world_model.emit(state)
+
+    def _on_base_station_event(self, msg):
+        try:
+            event = json.loads(msg.data)
+        except json.JSONDecodeError as error:
+            self.get_logger().warning(
+                'Invalid Base Station event JSON: %s' % error
+            )
+            return
+        if isinstance(event, dict):
+            self.signals.base_station_event.emit(event)
+
+    def _on_world_model_fallback(self, msg):
+        # Retained only for explicit legacy console mode. Service-backed fleet
+        # situation views never subscribe to /fleet/world_model directly.
+        self._on_world_model(msg)
 
     def _on_sensor(self, msg):
         self.signals.sensor.emit(
@@ -834,7 +951,22 @@ class BaseStationGuiNode(Node):
         )
         return np.asarray(values, dtype=np.float32).reshape((-1, 3))
 
-    def _on_lv_dot_debug_cloud(self, msg, layer):
+    @staticmethod
+    def _transform_cloud_xyz(points, transform):
+        """Apply one TF transform to an Nx3 cloud without ROS helpers."""
+        return transform_points_to_frame(points, transform)
+
+    def _on_lv_dot_debug_cloud(
+        self, msg, layer, model=None, vehicle_id=None
+    ):
+        target_model = model or self.lv_dot_debug_model
+        # The three Mid-360 streams are expensive.  The debug page displays
+        # one selected USV, so discard other streams before PointCloud2
+        # decoding, timestamped TF lookup, and NumPy allocation.
+        if vehicle_id and vehicle_id != self.selected_perception_usv:
+            return
+        if not target_model.cloud_layer_enabled(layer):
+            return
         try:
             xyz = self._pointcloud_xyz(msg)
         except (AssertionError, KeyError, TypeError, ValueError) as error:
@@ -842,7 +974,44 @@ class BaseStationGuiNode(Node):
                 'Invalid LV-DOT debug PointCloud2: %s' % error
             )
             return
-        self.lv_dot_debug_model.update_cloud(layer, xyz)
+        source_frame = str(msg.header.frame_id or '').lstrip('/')
+        fixed_frame = str(self.lv_dot_debug_fixed_frame or 'map').lstrip('/')
+        if source_frame and source_frame != fixed_frame:
+            try:
+                transform = self.lv_dot_tf_buffer.lookup_transform(
+                    fixed_frame,
+                    source_frame,
+                    Time.from_msg(msg.header.stamp),
+                ).transform
+                xyz = self._transform_cloud_xyz(xyz, transform)
+            except TransformException as error:
+                # A local cloud rendered at map origin is visually convincing
+                # but wrong.  Drop it until its timestamped transform arrives.
+                self.get_logger().debug(
+                    'LV-DOT debug cloud waiting for %s <- %s TF: %s'
+                    % (fixed_frame, source_frame, error)
+                )
+                return
+        target_model.update_cloud(layer, xyz)
+
+    def _on_lv_dot_debug_markers(
+        self, msg, layer, model, vehicle_id
+    ):
+        if vehicle_id != self.selected_perception_usv:
+            return
+        model.update_markers(layer, msg)
+
+    def _on_lv_dot_debug_tracks(
+        self, msg, layer, model, vehicle_id
+    ):
+        if vehicle_id != self.selected_perception_usv:
+            return
+        model.update_tracks(layer, msg)
+
+    def _on_lv_dot_debug_fusion(self, msg):
+        self.lv_dot_debug_models[
+            self.selected_perception_usv
+        ].update_tracks('fusion', msg)
 
     def _on_lv_dot_debug_status(self, msg):
         try:
@@ -853,7 +1022,9 @@ class BaseStationGuiNode(Node):
         if isinstance(status, dict):
             self.lv_dot_debug_model.update_status(status)
 
-    def _on_camera_lidar_status(self, msg):
+    def _on_camera_lidar_status(self, msg, vehicle_id=None):
+        if vehicle_id and vehicle_id != self.selected_perception_usv:
+            return
         try:
             status = json.loads(msg.data)
         except (TypeError, ValueError):
@@ -863,34 +1034,47 @@ class BaseStationGuiNode(Node):
             return
         if isinstance(status, dict):
             self.camera_lidar_status = status
+            if vehicle_id in self.camera_lidar_status_by_usv:
+                self.camera_lidar_status_by_usv[vehicle_id] = status
 
-    def _on_vision_guided_status(self, msg):
+    def _on_vision_guided_status(self, msg, vehicle_id=None):
+        if vehicle_id and vehicle_id != self.selected_perception_usv:
+            return
         try:
             status = json.loads(msg.data)
         except (TypeError, ValueError):
             return
         if isinstance(status, dict):
             self.vision_guided_status = status
+            if vehicle_id in self.vision_guided_status_by_usv:
+                self.vision_guided_status_by_usv[vehicle_id] = status
 
-    def _on_camera_detection_status(self, msg):
+    def _on_camera_detection_status(self, msg, vehicle_id=None):
+        if vehicle_id and vehicle_id != self.selected_perception_usv:
+            return
         try:
             status = json.loads(msg.data)
         except (TypeError, ValueError):
             return
         if isinstance(status, dict):
             self.camera_detection_status = status
+            if vehicle_id in self.camera_detection_status_by_usv:
+                self.camera_detection_status_by_usv[vehicle_id] = status
 
     def _update_lv_dot_debug_tf(self):
-        for key, frame_id in self.lv_dot_debug_frames.items():
+        vehicle_id = self.selected_perception_usv
+        model = self.lv_dot_debug_models[vehicle_id]
+        for key, frame_id in (
+            ('base', vehicle_id + '/base_link'),
+            ('radar', vehicle_id + '/mid360_link'),
+        ):
             try:
                 transform = self.lv_dot_tf_buffer.lookup_transform(
                     self.lv_dot_debug_fixed_frame, frame_id, Time()
                 )
             except TransformException:
                 continue
-            self.lv_dot_debug_model.update_frame(
-                key, frame_id, transform.transform
-            )
+            model.update_frame(key, frame_id, transform.transform)
 
     def _on_topdown_status(self, msg):
         try:
@@ -1039,6 +1223,54 @@ class BaseStationGuiNode(Node):
         future = self.defense_param_client.call_async(request)
         future.add_done_callback(self._on_defense_parameters_set)
         return True
+
+    def set_runtime_parameter(self, node_name, name, value):
+        """Set one numeric runtime limit without publishing control commands."""
+        service_name = '/' + node_name.strip('/') + '/set_parameters'
+        client = self.runtime_parameter_clients.get(service_name)
+        if client is None:
+            client = self.create_client(SetParameters, service_name)
+            self.runtime_parameter_clients[service_name] = client
+        if not client.wait_for_service(timeout_sec=0.05):
+            self.signals.log.emit('%s 参数服务未就绪' % node_name)
+            return False
+        parameter = Parameter()
+        parameter.name = name
+        parameter.value = ParameterValue(
+            type=ParameterType.PARAMETER_DOUBLE,
+            double_value=float(value),
+        )
+        request = SetParameters.Request()
+        request.parameters = [parameter]
+        future = client.call_async(request)
+        future.add_done_callback(
+            lambda result, target=node_name, parameter_name=name: (
+                self._on_runtime_parameter_set(
+                    result, target, parameter_name
+                )
+            )
+        )
+        return True
+
+    def _on_runtime_parameter_set(self, future, node_name, parameter_name):
+        try:
+            results = future.result().results
+        except Exception as exc:
+            self.signals.log.emit(
+                '%s.%s 设置失败: %s' % (node_name, parameter_name, exc)
+            )
+            return
+        if results and all(item.successful for item in results):
+            self.signals.log.emit(
+                '%s.%s 已实时更新' % (node_name, parameter_name)
+            )
+            return
+        reasons = [item.reason for item in results if item.reason]
+        self.signals.log.emit(
+            '%s.%s 未接受: %s' % (
+                node_name, parameter_name, '; '.join(reasons) or '未知原因'
+            )
+        )
 
     def _on_defense_parameters_set(self, future):
         try:
@@ -1602,6 +1834,350 @@ class CaptureMapWidget(DefenseMapWidget):
         ]))
 
 
+class FleetSituationWidget(QWidget):
+    """A lightweight map-frame radar view fed exclusively by Fleet World Model."""
+
+    DEFAULT_COVERAGE_RADIUS = 250.0
+
+    def __init__(self):
+        super().__init__()
+        self.model = {}
+        self.coverage_radius = self.DEFAULT_COVERAGE_RADIUS
+        self.histories = {}
+        self.layers = {
+            'grid': True,
+            'rings': True,
+            'coverage': True,
+            'tracks': True,
+            'predictions': True,
+            'threats': True,
+            'labels': True,
+        }
+        self.setMinimumSize(760, 560)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+    def set_layer_visible(self, layer, visible):
+        self.layers[layer] = bool(visible)
+        self.update()
+
+    def set_coverage_radius(self, radius):
+        self.coverage_radius = max(50.0, float(radius))
+        self.update()
+
+    def set_world_model(self, model):
+        self.model = model if isinstance(model, dict) else {}
+        for target in self.model.get('targets', []):
+            position = self._position(target)
+            target_id = target.get('id') or target.get('uuid') or 'target'
+            if position is None:
+                continue
+            history = self.histories.setdefault(target_id, [])
+            point = (position['x'], position['y'])
+            if not history or math.hypot(
+                point[0] - history[-1][0], point[1] - history[-1][1]
+            ) > 0.4:
+                history.append(point)
+                del history[:-100]
+        self.update()
+
+    def base_station(self):
+        direct = self.model.get('base_station')
+        if isinstance(direct, dict) and self._position(direct) is not None:
+            return direct, False
+        for entity in self.model.get('entities', []):
+            if entity.get('id') in ('base_station', 'shore_command_base'):
+                if self._position(entity) is not None:
+                    return entity, False
+        return {
+            'id': 'base_station',
+            'pose': {'position': {'x': 0.0, 'y': 0.0, 'z': 0.0}},
+        }, True
+
+    @staticmethod
+    def _position(item):
+        if not isinstance(item, dict):
+            return None
+        position = item.get('pose', {}).get('position', item.get('position'))
+        if not isinstance(position, dict):
+            return None
+        try:
+            return {
+                'x': float(position.get('x', 0.0)),
+                'y': float(position.get('y', 0.0)),
+                'z': float(position.get('z', 0.0)),
+            }
+        except (TypeError, ValueError):
+            return None
+
+    def _visible_positions(self):
+        positions = []
+        for kind in ('uav', 'usv', 'unknown'):
+            positions.extend(
+                self._position(item)
+                for item in self.model.get('fleet', {}).get(kind, [])
+            )
+        positions.extend(
+            self._position(item) for item in self.model.get('entities', [])
+        )
+        positions.extend(
+            self._position(item) for item in self.model.get('targets', [])
+        )
+        for prediction in self.model.get('predictions', []):
+            positions.extend(
+                self._position(item) for item in prediction.get('points', [])
+            )
+        return [point for point in positions if point is not None]
+
+    @staticmethod
+    def _heading(item):
+        try:
+            heading = item.get('heading_rad')
+            if heading is not None:
+                return float(heading)
+            velocity = item.get('velocity', {}).get('linear', {})
+            vx = float(velocity.get('x', 0.0))
+            vy = float(velocity.get('y', 0.0))
+            if math.hypot(vx, vy) > 0.05:
+                return math.atan2(vy, vx)
+        except (AttributeError, TypeError, ValueError):
+            pass
+        return 0.0
+
+    def _to_screen(self, point, base, center, scale):
+        return QPointF(
+            center.x() + (point['x'] - base['x']) * scale,
+            center.y() - (point['y'] - base['y']) * scale,
+        )
+
+    def paintEvent(self, event):
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.fillRect(self.rect(), QColor('#071218'))
+        base_entity, fallback_base = self.base_station()
+        base = self._position(base_entity) or {'x': 0.0, 'y': 0.0, 'z': 0.0}
+        positions = self._visible_positions()
+        max_distance = max(
+            [self.coverage_radius] + [
+                math.hypot(point['x'] - base['x'], point['y'] - base['y'])
+                for point in positions
+            ]
+        )
+        world_radius = max(self.coverage_radius, max_distance + 30.0)
+        margin = 54.0
+        scale = max(
+            0.05,
+            (min(self.width(), self.height()) / 2.0 - margin) / world_radius,
+        )
+        center = QPointF(self.width() * 0.5, self.height() * 0.53)
+
+        if self.layers['grid']:
+            self._draw_grid(painter, base, center, scale, world_radius)
+        if self.layers['coverage']:
+            painter.setBrush(QColor(33, 126, 174, 20))
+            painter.setPen(QPen(QColor('#267aa5'), 1, Qt.DashLine))
+            painter.drawEllipse(center, self.coverage_radius * scale,
+                                self.coverage_radius * scale)
+        if self.layers['rings']:
+            self._draw_rings(painter, center, scale)
+
+        self._draw_base(painter, center, fallback_base)
+        if self.layers['tracks']:
+            self._draw_histories(painter, base, center, scale)
+        if self.layers['predictions']:
+            self._draw_predictions(painter, base, center, scale)
+        self._draw_fleet(painter, base, center, scale)
+        self._draw_entities(painter, base, center, scale)
+        self._draw_targets(painter, base, center, scale)
+        if self.layers['threats']:
+            self._draw_threats(painter, base, center, scale)
+
+        painter.setPen(QColor('#d6e9f2'))
+        painter.setFont(QFont('Sans Serif', 10, QFont.Bold))
+        painter.drawText(16, 24, 'BASE STATION RADAR | Fixed Frame: map')
+        painter.setFont(QFont('Sans Serif', 9))
+        painter.setPen(QColor('#8fabb9'))
+        painter.drawText(
+            16, 44,
+            'center (%.1f, %.1f) m | scale %.0f m | fleet %d | targets %d'
+            % (
+                base['x'], base['y'],
+                self.coverage_radius,
+                sum(len(self.model.get('fleet', {}).get(kind, []))
+                    for kind in ('uav', 'usv', 'unknown')),
+                len(self.model.get('targets', [])),
+            ),
+        )
+
+    def _draw_grid(self, painter, base, center, scale, world_radius):
+        step = 50.0 if world_radius > 250.0 else 25.0
+        limit = math.ceil(world_radius / step) * step
+        painter.setPen(QPen(QColor('#17313e'), 1))
+        value = -limit
+        while value <= limit:
+            painter.drawLine(
+                self._to_screen({'x': base['x'] - limit, 'y': base['y'] + value},
+                                base, center, scale),
+                self._to_screen({'x': base['x'] + limit, 'y': base['y'] + value},
+                                base, center, scale),
+            )
+            painter.drawLine(
+                self._to_screen({'x': base['x'] + value, 'y': base['y'] - limit},
+                                base, center, scale),
+                self._to_screen({'x': base['x'] + value, 'y': base['y'] + limit},
+                                base, center, scale),
+            )
+            value += step
+        painter.setPen(QPen(QColor('#38576a'), 1))
+        painter.drawLine(QPointF(center.x() - limit * scale, center.y()),
+                         QPointF(center.x() + limit * scale, center.y()))
+        painter.drawLine(QPointF(center.x(), center.y() - limit * scale),
+                         QPointF(center.x(), center.y() + limit * scale))
+
+    def _draw_rings(self, painter, center, scale):
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(QColor('#2a5268'), 1, Qt.DotLine))
+        for ratio in (0.25, 0.5, 0.75, 1.0):
+            radius = self.coverage_radius * ratio * scale
+            painter.drawEllipse(center, radius, radius)
+            painter.drawText(center + QPointF(5, -radius - 4),
+                             '%.0fm' % (self.coverage_radius * ratio))
+        painter.setPen(QPen(QColor('#466e80'), 1))
+        painter.drawText(center + QPointF(-6, -self.coverage_radius * scale - 18), 'N')
+        painter.drawText(center + QPointF(self.coverage_radius * scale + 10, 4), 'E')
+        painter.drawText(center + QPointF(-6, self.coverage_radius * scale + 18), 'S')
+        painter.drawText(center + QPointF(-self.coverage_radius * scale - 18, 4), 'W')
+
+    def _draw_base(self, painter, center, fallback):
+        painter.setPen(QPen(QColor('#ffe38a'), 2))
+        painter.setBrush(QColor('#f6c744'))
+        painter.drawEllipse(center, 8, 8)
+        painter.drawLine(center + QPointF(-14, 0), center + QPointF(14, 0))
+        painter.drawLine(center + QPointF(0, -14), center + QPointF(0, 14))
+        if self.layers['labels']:
+            painter.setPen(QColor('#ffe8a6'))
+            label = 'BASE STATION' + (' (map origin)' if fallback else '')
+            painter.drawText(center + QPointF(12, -14), label)
+
+    def _draw_histories(self, painter, base, center, scale):
+        painter.setPen(QPen(QColor(255, 98, 98, 170), 1.5))
+        for points in self.histories.values():
+            if len(points) < 2:
+                continue
+            painter.drawPolyline(QPolygonF([
+                self._to_screen({'x': point[0], 'y': point[1]}, base, center, scale)
+                for point in points
+            ]))
+
+    def _draw_predictions(self, painter, base, center, scale):
+        painter.setPen(QPen(QColor('#f2a84b'), 1.5, Qt.DashLine))
+        for prediction in self.model.get('predictions', []):
+            points = [self._position(item) for item in prediction.get('points', [])]
+            points = [point for point in points if point is not None]
+            if len(points) > 1:
+                painter.drawPolyline(QPolygonF([
+                    self._to_screen(point, base, center, scale)
+                    for point in points
+                ]))
+
+    def _draw_fleet(self, painter, base, center, scale):
+        colors = {
+            'usv_01': QColor('#2f8cff'),
+            'usv_02': QColor('#39c779'),
+            'usv_03': QColor('#30d7da'),
+        }
+        for kind in ('uav', 'usv', 'unknown'):
+            for vehicle in self.model.get('fleet', {}).get(kind, []):
+                point = self._position(vehicle)
+                if point is None:
+                    continue
+                is_uav = vehicle.get('type') == 'UAV' or kind == 'uav'
+                color = QColor('#4ea0ff') if is_uav else colors.get(
+                    vehicle.get('id'), QColor('#ffd44d')
+                )
+                self._draw_vehicle(
+                    painter, self._to_screen(point, base, center, scale),
+                    self._heading(vehicle), color, is_uav,
+                    vehicle.get('id', 'vehicle').upper(),
+                )
+
+    def _draw_entities(self, painter, base, center, scale):
+        for entity in self.model.get('entities', []):
+            point = self._position(entity)
+            if point is None:
+                continue
+            entity_id = entity.get('id', 'entity')
+            color = QColor('#f3c140') if entity_id == 'friendly_ship' else QColor('#f15c5c')
+            screen = self._to_screen(point, base, center, scale)
+            painter.setPen(QPen(color.darker(150), 2))
+            painter.setBrush(color)
+            painter.drawRoundedRect(
+                int(screen.x() - 8), int(screen.y() - 5), 16, 10, 2, 2
+            )
+            if self.layers['labels']:
+                painter.drawText(screen + QPointF(11, -9), entity_id.upper())
+
+    def _draw_targets(self, painter, base, center, scale):
+        for target in self.model.get('targets', []):
+            point = self._position(target)
+            if point is None:
+                continue
+            affiliation = str(target.get('affiliation', 'UNKNOWN')).upper()
+            color = QColor('#f15c5c') if affiliation == 'HOSTILE' else QColor('#42d68d')
+            screen = self._to_screen(point, base, center, scale)
+            painter.setPen(QPen(color, 2))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(int(screen.x() - 7), int(screen.y() - 7), 14, 14)
+            velocity = target.get('velocity', {}).get('linear', {})
+            try:
+                vx = float(velocity.get('x', 0.0))
+                vy = float(velocity.get('y', 0.0))
+            except (TypeError, ValueError):
+                vx, vy = 0.0, 0.0
+            if math.hypot(vx, vy) > 0.05:
+                painter.drawLine(
+                    screen,
+                    screen + QPointF(vx * 4.0, -vy * 4.0),
+                )
+            if self.layers['labels']:
+                label = target.get('id') or target.get('uuid') or 'TARGET'
+                painter.drawText(screen + QPointF(10, 16), str(label))
+
+    def _draw_threats(self, painter, base, center, scale):
+        targets = {
+            item.get('id') or item.get('uuid'): item
+            for item in self.model.get('targets', [])
+        }
+        for threat in self.model.get('threats', []):
+            target = targets.get(threat.get('target_id'))
+            point = self._position(threat) or self._position(target)
+            if point is None:
+                continue
+            screen = self._to_screen(point, base, center, scale)
+            level = str(threat.get('threat_level', 'UNKNOWN')).upper()
+            color = QColor('#ff4040') if level in ('HIGH', 'CRITICAL') else QColor('#ffb347')
+            painter.setBrush(Qt.NoBrush)
+            painter.setPen(QPen(color, 2, Qt.DashLine))
+            painter.drawEllipse(screen, 14, 14)
+            if self.layers['labels']:
+                painter.drawText(screen + QPointF(17, -13), 'THREAT ' + level)
+
+    def _draw_vehicle(self, painter, point, heading, color, is_uav, label):
+        painter.setPen(QPen(color.darker(150), 1.5))
+        painter.setBrush(color)
+        size = 9 if is_uav else 11
+        nose = QPointF(point.x() + math.cos(heading) * size,
+                       point.y() - math.sin(heading) * size)
+        left = QPointF(point.x() + math.cos(heading + 2.45) * size * 0.8,
+                       point.y() - math.sin(heading + 2.45) * size * 0.8)
+        right = QPointF(point.x() + math.cos(heading - 2.45) * size * 0.8,
+                        point.y() - math.sin(heading - 2.45) * size * 0.8)
+        painter.drawPolygon(QPolygonF([nose, left, right]))
+        if self.layers['labels']:
+            painter.setPen(color.lighter(150))
+            painter.drawText(point + QPointF(10, 14), label)
+
+
 class BaseStationWindow(QMainWindow):
     VEHICLE_NAMES = {
         'uav_01': '我方无人机一号',
@@ -1643,6 +2219,8 @@ class BaseStationWindow(QMainWindow):
         )
         self.last_image_time = 0.0
         self.pending_images = {}
+        self.perception_images = {}
+        self.selected_perception_usv = node.selected_perception_usv
         self.sensor_rows = {}
         self.vehicle_rows = {}
         self.fleet_rows = {}
@@ -1650,7 +2228,12 @@ class BaseStationWindow(QMainWindow):
         self.capture_roles_cache = {}
         self.capture_state_cache = {}
         self.capture_target_cache = {}
+        self.world_model_cache = {}
+        self.base_station_events = []
         self.last_ros_message_time = 0.0
+        self.last_base_station_state_time = 0.0
+        self.last_sensor_image_time = 0.0
+        self.sensor_cache = {}
         self.defense_param_values = {}
         self.defense_param_sliders = {}
         self.defense_param_labels = {}
@@ -1667,29 +2250,23 @@ class BaseStationWindow(QMainWindow):
         self.defense_param_timer.setSingleShot(True)
         self.defense_param_timer.timeout.connect(self._send_pending_defense_params)
         self.setWindowTitle('UAV-USV 集群基站')
-        self.resize(1500, 900)
+        self.setMinimumSize(920, 620)
+        self.resize(1240, 760)
         self._build_ui()
         self.status_timer.timeout.connect(self._refresh_topdown_status)
         self.status_timer.timeout.connect(self._refresh_lv_dot_debug_status)
 
         signals.image.connect(self._queue_image)
-        signals.scan.connect(self.radar.set_scan)
+        signals.world_model.connect(self._update_world_model)
+        signals.base_station_event.connect(self._update_base_station_event)
         signals.sensor.connect(self._update_sensor)
         signals.vehicle.connect(self._update_vehicle)
-        signals.defense.connect(self._update_defense)
-        signals.defense_own.connect(self._update_defense_own)
-        signals.defense_enemy.connect(self._update_defense_enemy)
         signals.capture_targets.connect(self._update_capture_targets)
         signals.capture_status.connect(self._update_capture_status)
         signals.capture_state.connect(self._update_capture_state)
         signals.capture_roles.connect(self._update_capture_roles)
         signals.capture_target.connect(self._update_capture_target)
         signals.capture_markers.connect(self._update_capture_markers)
-        signals.perception_metrics.connect(self._update_perception_metrics)
-        signals.perception_fusion_metrics.connect(
-            self._update_perception_fusion_metrics
-        )
-        signals.multisensor_metrics.connect(self._update_multisensor_metrics)
         signals.log.connect(self._append_log)
 
     def _build_ui(self):
@@ -1712,9 +2289,18 @@ class BaseStationWindow(QMainWindow):
             header.addSpacing(18)
             header.addWidget(demo_label)
         header.addStretch()
-        self.link_label = QLabel('数据链路等待中')
-        self.link_label.setObjectName('link')
-        header.addWidget(self.link_label)
+        self.ros_link_label = self._header_status_badge('ROS 2：等待数据')
+        self.base_station_link_label = self._header_status_badge(
+            '基站服务：等待数据'
+        )
+        self.sensor_link_label = self._header_status_badge(
+            '传感器上行：等待数据'
+        )
+        header.addWidget(self.ros_link_label)
+        header.addSpacing(6)
+        header.addWidget(self.base_station_link_label)
+        header.addSpacing(6)
+        header.addWidget(self.sensor_link_label)
         layout.addLayout(header)
 
         tabs = QTabWidget()
@@ -1726,40 +2312,40 @@ class BaseStationWindow(QMainWindow):
         overview_layout.setSpacing(10)
         tabs.addTab(overview_tab, '总览')
 
-        defense_tab = QWidget()
-        defense_layout = QVBoxLayout(defense_tab)
-        defense_layout.setContentsMargins(0, 0, 0, 0)
-        defense_layout.setSpacing(10)
-        tabs.addTab(defense_tab, '防御任务')
+        situation_tab = QWidget()
+        situation_layout = QVBoxLayout(situation_tab)
+        situation_layout.setContentsMargins(0, 0, 0, 0)
+        situation_layout.setSpacing(10)
+        tabs.addTab(situation_tab, '岸基雷达态势')
 
         capture_tab = QWidget()
         capture_layout = QVBoxLayout(capture_tab)
         capture_layout.setContentsMargins(0, 0, 0, 0)
         capture_layout.setSpacing(10)
-        tabs.addTab(capture_tab, 'Dynamic Capture')
+        tabs.addTab(capture_tab, '围捕任务')
 
         perception_tab = QWidget()
         perception_layout = QVBoxLayout(perception_tab)
         perception_layout.setContentsMargins(0, 0, 0, 0)
         perception_layout.setSpacing(10)
-        tabs.addTab(perception_tab, '实时感知')
+        tabs.addTab(perception_tab, '传感器监控')
 
         debug_tab = QWidget()
         debug_layout = QVBoxLayout(debug_tab)
         debug_layout.setContentsMargins(0, 0, 0, 0)
         debug_layout.setSpacing(10)
-        tabs.addTab(debug_tab, 'Perception Monitor')
+        tabs.addTab(debug_tab, '感知调试')
 
-        control_tab = QWidget()
-        control_layout = QVBoxLayout(control_tab)
-        control_layout.setContentsMargins(0, 0, 0, 0)
-        control_layout.setSpacing(10)
-        tabs.addTab(control_tab, '基站控制')
+        speed_tab = QWidget()
+        speed_layout = QVBoxLayout(speed_tab)
+        speed_layout.setContentsMargins(0, 0, 0, 0)
+        speed_layout.setSpacing(10)
+        tabs.addTab(speed_tab, '速度控制')
 
         status_bar = QHBoxLayout()
         self.system_status_label = self._status_card('SYSTEM', 'WAITING')
-        self.uav_count_label = self._status_card('UAV', '0 / 4')
-        self.usv_count_label = self._status_card('USV', '0 / 2')
+        self.uav_count_label = self._status_card('UAV', '0 / 3')
+        self.usv_count_label = self._status_card('USV', '0 / 3')
         self.mission_state_label = self._status_card('MISSION', 'SEARCH')
         self.target_state_label = self._status_card('TARGET', 'WAITING')
         for card in (
@@ -1837,88 +2423,20 @@ class BaseStationWindow(QMainWindow):
         event_layout.addWidget(self.log)
         overview_layout.addWidget(event_group)
 
-        status_splitter = QSplitter(Qt.Horizontal)
-        self.radar = RadarWidget()
-        preview_controls = QHBoxLayout()
-        preview_controls.addWidget(QLabel('Mid-360轻量预览'))
-        self.mid360_preview_button = QPushButton('RViz点云预览：开启')
-        self.mid360_preview_button.setCheckable(True)
-        self.mid360_preview_button.setChecked(True)
-        self.mid360_preview_button.toggled.connect(
-            self._toggle_mid360_preview
+        # One shared camera wall is sufficient for all task pages.  Defense
+        # and capture keep only their task-specific map and controls below.
+        self._add_camera_group(
+            perception_layout, '六路传感器画面（3 x 2）', 'sensor_camera'
         )
-        preview_controls.addWidget(self.mid360_preview_button)
-        preview_controls.addStretch()
-        perception_layout.addLayout(preview_controls)
-        perception_layout.addWidget(self.radar, 2)
-
-        sensor_group = QGroupBox('传感器上行状态')
-        sensor_layout = QVBoxLayout(sensor_group)
-        self.sensor_table = QTableWidget(0, 11)
-        self.sensor_table.setHorizontalHeaderLabels(
-            [
-                '载具', '传感器', 'Frame', '频率', '延迟',
-                '点数', '丢帧', '处理', '数据量', 'TF', '状态',
-            ]
-        )
-        self._configure_table(self.sensor_table)
-        sensor_layout.addWidget(self.sensor_table)
-
-        vehicle_group = QGroupBox('载具状态')
-        vehicle_layout = QVBoxLayout(vehicle_group)
-        self.vehicle_table = QTableWidget(0, 7)
-        self.vehicle_table.setHorizontalHeaderLabels(
-            ['载具', '在线', '解锁', '模式', 'X / m', 'Y / m', 'Z / m']
-        )
-        self._configure_table(self.vehicle_table)
-        vehicle_layout.addWidget(self.vehicle_table)
-        status_splitter.addWidget(sensor_group)
-        status_splitter.addWidget(vehicle_group)
-        status_splitter.setSizes([760, 620])
-        perception_layout.addWidget(status_splitter, 1)
 
         self._build_lv_dot_debug_panel(debug_layout)
+        self._build_speed_control_tab(speed_layout)
 
-        control_group = QGroupBox('基站控制')
-        controls = QGridLayout(control_group)
-        self.target_x = self._spin(-250.0, 250.0, 24.0)
-        self.target_y = self._spin(-200.0, 200.0, 8.0)
-        self.altitude = self._spin(4.0, 80.0, 16.0)
-        controls.addWidget(QLabel('目标 X'), 0, 0)
-        controls.addWidget(self.target_x, 0, 1)
-        controls.addWidget(QLabel('目标 Y'), 0, 2)
-        controls.addWidget(self.target_y, 0, 3)
-        controls.addWidget(QLabel('UAV 高度'), 0, 4)
-        controls.addWidget(self.altitude, 0, 5)
-
-        go_button = QPushButton('协同前往')
-        go_button.clicked.connect(self._send_goal)
-        takeoff_button = QPushButton('无人机起飞')
-        takeoff_button.clicked.connect(
-            lambda: self._send_action('TAKEOFF')
-        )
-        hold_button = QPushButton('全部保持')
-        hold_button.clicked.connect(
-            lambda: self._send_action('HOLD_ALL')
-        )
-        stop_button = QPushButton('紧急停止')
-        stop_button.setObjectName('danger')
-        stop_button.clicked.connect(
-            lambda: self._send_action('EMERGENCY_STOP')
-        )
-        for column, button in enumerate(
-            (go_button, takeoff_button, hold_button, stop_button)
-        ):
-            controls.addWidget(button, 1, column * 2, 1, 2)
-        control_layout.addWidget(control_group)
-
-        control_layout.addStretch()
-
-        self._build_defense_tab(defense_layout)
         self._build_capture_tab(capture_layout)
+        self._build_fleet_situation_tab(situation_layout)
 
         if self.node.demo_mode:
-            tabs.setCurrentWidget(debug_tab)
+            tabs.setCurrentWidget(situation_tab)
 
         self.setCentralWidget(root)
         self.setStyleSheet(
@@ -1987,10 +2505,344 @@ class BaseStationWindow(QMainWindow):
             """
         )
 
-    def _build_defense_tab(self, layout):
-        self._add_camera_group(
-            layout, '防御任务实时感知画面', 'defense_camera'
+    def _build_speed_control_tab(self, layout):
+        """Build runtime speed limits that preserve existing command routing."""
+        hint = QLabel(
+            '通过现有 Nav2 接口和 PX4 Offboard agent 限速。'
+            '0 表示恢复原有自动速度，不发布 Gazebo 直控命令。'
         )
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+        grid = QGridLayout()
+        layout.addLayout(grid)
+        self.speed_controls = {}
+        controls = (
+            ('usv', '无人船目标速度', 'm/s', 0, 110, 10),
+            ('uav', '无人机目标速度', 'm/s', 0, 200, 10),
+        )
+        for row, (key, title, unit, minimum, maximum, scale) in enumerate(controls):
+            group = QGroupBox(title)
+            group_layout = QVBoxLayout(group)
+            value_label = QLabel('自动（原有控制）')
+            value_label.setAlignment(Qt.AlignCenter)
+            slider = QSlider(Qt.Horizontal)
+            slider.setRange(minimum, maximum)
+            slider.setValue(0)
+            slider.setTickPosition(QSlider.TicksBelow)
+            slider.setTickInterval(max(scale, (maximum - minimum) // 6))
+            slider.valueChanged.connect(
+                lambda raw, control_key=key: self._update_speed_label(
+                    control_key, raw
+                )
+            )
+            apply_button = QPushButton('应用到全部%s' % ('USV' if key == 'usv' else 'UAV'))
+            apply_button.clicked.connect(
+                lambda _checked=False, control_key=key: self._apply_speed_limit(
+                    control_key
+                )
+            )
+            reset_button = QPushButton('恢复自动速度')
+            reset_button.clicked.connect(
+                lambda _checked=False, control_key=key: self._reset_speed_limit(
+                    control_key
+                )
+            )
+            group_layout.addWidget(value_label)
+            group_layout.addWidget(slider)
+            buttons = QHBoxLayout()
+            buttons.addWidget(apply_button)
+            buttons.addWidget(reset_button)
+            group_layout.addLayout(buttons)
+            grid.addWidget(group, 0, row)
+            self.speed_controls[key] = (slider, value_label, scale, unit)
+        layout.addStretch(1)
+
+    def _update_speed_label(self, key, raw):
+        _slider, label, scale, unit = self.speed_controls[key]
+        if raw <= 0:
+            label.setText('自动（原有控制）')
+            return
+        label.setText('%.1f %s' % (raw / float(scale), unit))
+
+    def _apply_speed_limit(self, key):
+        slider, _label, scale, _unit = self.speed_controls[key]
+        value = slider.value() / float(scale)
+        if key == 'usv':
+            for vehicle_id in ('usv_01', 'usv_02', 'usv_03'):
+                self.node.set_runtime_parameter(
+                    vehicle_id + '/boat_nav2_interface',
+                    'speed_limit_mps', 0.0,
+                )
+                self.node.set_runtime_parameter(
+                    vehicle_id + '/boat_nav2_interface',
+                    'speed_multiplier', value / 10.0 if value > 0.0 else 1.0,
+                )
+        else:
+            for vehicle_id in ('uav_01', 'uav_02', 'uav_03'):
+                self.node.set_runtime_parameter(
+                    vehicle_id + '_dds_agent',
+                    'flight_speed_limit_mps', value,
+                )
+
+    def _reset_speed_limit(self, key):
+        slider, _label, _scale, _unit = self.speed_controls[key]
+        slider.setValue(0)
+        self._apply_speed_limit(key)
+
+    def _build_fleet_situation_tab(self, layout):
+        """Build the read-only Base Station radar page without sensor topics."""
+        splitter = QSplitter(Qt.Horizontal)
+
+        control_group = QGroupBox('岸基雷达图层')
+        control_group.setMaximumWidth(255)
+        controls = QVBoxLayout(control_group)
+        self.base_station_anchor_label = QLabel(
+            'Base Station: 等待 /base_station/state\n'
+            '参考：map坐标系'
+        )
+        self.base_station_anchor_label.setWordWrap(True)
+        self.base_station_anchor_label.setObjectName('vehicleDetail')
+        controls.addWidget(self.base_station_anchor_label)
+        controls.addWidget(QLabel('雷达量程'))
+        self.base_station_range_combo = QComboBox()
+        self.base_station_range_combo.addItem('自动', 'auto')
+        for range_m in (50, 100, 200, 300, 500):
+            self.base_station_range_combo.addItem('%d m' % range_m, float(range_m))
+        self.base_station_range_combo.addItem('自定义 300 m', 300.0)
+        self.base_station_range_combo.setCurrentIndex(4)
+        controls.addWidget(self.base_station_range_combo)
+        custom_range = QDoubleSpinBox()
+        custom_range.setRange(50.0, 2000.0)
+        custom_range.setSingleStep(25.0)
+        custom_range.setValue(300.0)
+        custom_range.setSuffix(' m')
+        self.base_station_range_spin = custom_range
+        controls.addWidget(custom_range)
+        auto_button = QPushButton('自动量程')
+        auto_button.clicked.connect(lambda: self._set_base_station_range('auto'))
+        controls.addWidget(auto_button)
+        home_button = QPushButton('回到基站中心')
+        home_button.clicked.connect(lambda: self.fleet_situation_map.reset_view())
+        controls.addWidget(home_button)
+
+        self.fleet_situation_checks = {}
+        for title, key, checked in (
+            ('Map 网格', 'grid', True),
+            ('距离圆环', 'rings', True),
+            ('角度刻度', 'ticks', True),
+            ('扫描扇区（仅演示）', 'scan', True),
+            ('舰队载具', 'fleet', True),
+            ('友方/敌方实体', 'entities', True),
+            ('融合目标', 'targets', True),
+            ('目标历史轨迹', 'tracks', True),
+            ('目标预测轨迹', 'predictions', True),
+            ('速度向量', 'velocity', True),
+            ('威胁告警圈', 'threats', True),
+            ('目标与载具标签', 'labels', True),
+            ('离线载具', 'offline', True),
+            ('过期数据', 'stale', True),
+            ('来源标签', 'sources', True),
+        ):
+            checkbox = QCheckBox(title)
+            checkbox.setChecked(checked)
+            self.fleet_situation_checks[key] = checkbox
+            controls.addWidget(checkbox)
+        controls.addStretch()
+        note = QLabel(
+            '本页只读取 /base_station/state。\n'
+            '不会读取点云、相机或LV-DOT调试话题，也不会下发控制命令。'
+        )
+        note.setWordWrap(True)
+        controls.addWidget(note)
+        splitter.addWidget(control_group)
+
+        map_group = QGroupBox('Base Station Radar Situation | 360° 岸基雷达态势')
+        map_layout = QVBoxLayout(map_group)
+        self.fleet_situation_map = RadarCanvas()
+        self.fleet_situation_map.object_selected.connect(
+            self._show_radar_object_detail
+        )
+        map_layout.addWidget(self.fleet_situation_map)
+        splitter.addWidget(map_group)
+
+        details_group = QGroupBox('目标详情与链路信息')
+        details_group.setMaximumWidth(390)
+        details_layout = QVBoxLayout(details_group)
+        self.fleet_situation_summary = QLabel('等待 /base_station/state 数据')
+        self.fleet_situation_summary.setWordWrap(True)
+        self.fleet_situation_summary.setObjectName('vehicleDetail')
+        details_layout.addWidget(self.fleet_situation_summary)
+        self.fleet_situation_source_table = QTableWidget(0, 6)
+        self.fleet_situation_source_table.setHorizontalHeaderLabels(
+            ['目标', '身份', '来源', '置信度', '数据年龄', '威胁']
+        )
+        self._configure_table(self.fleet_situation_source_table)
+        self.fleet_situation_source_table.cellClicked.connect(
+            self._show_fleet_target_detail
+        )
+        details_layout.addWidget(self.fleet_situation_source_table, 1)
+        self.fleet_situation_target_detail = QLabel(
+            '点击目标查看 map 坐标、岸基距离、方位和来源。'
+        )
+        self.fleet_situation_target_detail.setWordWrap(True)
+        self.fleet_situation_target_detail.setObjectName('vehicleDetail')
+        details_layout.addWidget(self.fleet_situation_target_detail)
+        source_note = QLabel(
+            '数据源：/base_station/state 与 /base_station/events。\n'
+            '本页只读；扫描扇区仅为演示效果，不参与感知或控制。'
+        )
+        source_note.setWordWrap(True)
+        details_layout.addWidget(source_note)
+        splitter.addWidget(details_group)
+        splitter.setSizes([240, 980, 360])
+        layout.addWidget(splitter, 1)
+
+        self.base_station_range_spin.valueChanged.connect(
+            lambda value: self._set_base_station_range(float(value))
+        )
+        self.base_station_range_combo.currentIndexChanged.connect(
+            lambda _index: self._set_base_station_range(
+                self.base_station_range_combo.currentData()
+            )
+        )
+        for key, checkbox in self.fleet_situation_checks.items():
+            checkbox.toggled.connect(
+                lambda visible, layer=key: self.fleet_situation_map.set_layer_visible(
+                    layer, visible
+                )
+            )
+
+    def _set_base_station_range(self, value):
+        if value == 'auto':
+            self.fleet_situation_map.set_auto_range(True)
+            return
+        self.fleet_situation_map.set_auto_range(False)
+        self.fleet_situation_map.set_range(float(value))
+
+    def _update_fleet_situation_view(self, model):
+        if not hasattr(self, 'fleet_situation_map'):
+            return
+        self.fleet_situation_map.set_snapshot(model)
+        radar_model = self.fleet_situation_map.model
+        base_station = radar_model.snapshot['base_station']
+        base = base_station['position']
+        configured_range = base_station['radar_display_range_m']
+        if not radar_model.auto_range:
+            self.base_station_range_spin.blockSignals(True)
+            self.base_station_range_spin.setValue(max(50.0, configured_range))
+            self.base_station_range_spin.blockSignals(False)
+        self.base_station_anchor_label.setText(
+            'Base Station: %s\n固定坐标系：%s\n'
+            '位置：(%.1f, %.1f, %.1f) m\n'
+            '雷达量程：%.0f m\n通信状态：%s'
+            % (
+                base_station['id'], radar_model.snapshot['frame_id'],
+                base['x'], base['y'], base['z'],
+                radar_model.visible_range(),
+                base_station['communication_status'],
+            )
+        )
+        threats = {
+            item.get('target_id'): item for item in model.get('threats', [])
+        }
+        targets = model.get('targets', [])
+        fleet = model.get('fleet', {})
+        online = sum(
+            1 for kind in ('uav', 'usv', 'unknown')
+            for item in fleet.get(kind, []) if item.get('online')
+        )
+        service_status = 'ONLINE' if radar_model.snapshot['valid'] else 'STALE'
+        self.fleet_situation_summary.setText(
+            'Base Station Service: %s\n'
+            'map坐标载具：%d 在线 / %d 总计\n'
+            '融合目标：%d | 威胁目标：%d\n'
+            '预测轨迹：%d | 状态年龄：%.2f s\n'
+            '主感知源：%s'
+            % (
+                service_status,
+                online,
+                sum(len(fleet.get(kind, [])) for kind in ('uav', 'usv', 'unknown')),
+                len(targets), len(threats),
+                len(model.get('predictions', [])),
+                radar_model.state_age(),
+                model.get('perception', {}).get('primary_source', 'UNKNOWN'),
+            )
+        )
+        table = self.fleet_situation_source_table
+        table.setRowCount(0)
+        for row, target in enumerate(targets):
+            table.insertRow(row)
+            target_id = target.get('target_id') or target.get('id') or target.get('uuid') or 'target'
+            details = target.get('sources') or target.get('source') or '-'
+            if isinstance(details, (list, tuple)):
+                details = ', '.join(str(value) for value in details)
+            age = target.get('age_seconds', target.get('stamp_age_seconds'))
+            threat = threats.get(target_id, {})
+            values = (
+                str(target_id),
+                str(target.get('affiliation') or 'UNKNOWN'),
+                str(details),
+                '%.2f' % float(target.get('confidence') or 0.0),
+                '-' if age is None else '%.2f s' % float(age),
+                str(threat.get('threat_level') or 'NONE'),
+            )
+            for column, value in enumerate(values):
+                color = '#b63737' if column == 5 and value in ('HIGH', 'CRITICAL') else None
+                table.setItem(row, column, self._item(value, color))
+            table.item(row, 0).setData(Qt.UserRole, target)
+
+    def _show_fleet_target_detail(self, row, _column):
+        item = self.fleet_situation_source_table.item(row, 0)
+        target = item.data(Qt.UserRole) if item is not None else None
+        if not isinstance(target, dict):
+            return
+        self._show_radar_object_detail(
+            self.fleet_situation_map.model.parser._object(target, 'TARGET')
+        )
+
+    def _show_radar_object_detail(self, item):
+        if item is None:
+            self.fleet_situation_target_detail.setText('未选择对象。')
+            return
+        radar_model = self.fleet_situation_map.model
+        relative = radar_model.relative(item)
+        threat = radar_model.threat_for(item.object_id)
+        speed = math.hypot(item.velocity.get('x', 0.0), item.velocity.get('y', 0.0))
+        sources = ', '.join(item.sources) or '-'
+        raw = item.raw
+        origin = (
+            'GROUND TRUTH FALLBACK'
+            if raw.get('is_ground_truth_fallback') else
+            'REAL FUSION' if raw.get('is_real_fusion') else
+            'LIDAR / CAMERA CANDIDATE'
+        )
+        history_count = len(radar_model.snapshot['target_history'].get(item.object_id, []))
+        prediction_count = sum(
+            len(value.get('points', [])) for value in radar_model.snapshot['predictions']
+            if isinstance(value, dict) and str(value.get('target_id') or value.get('id') or '') == item.object_id
+        )
+        self.fleet_situation_target_detail.setText(
+            'ID：%s\n类别：%s | 身份：%s\n'
+            '状态：%s\n置信度：%.2f | source_mask：%s\n'
+            'map：(%.1f, %.1f, %.1f) m\n'
+            '相对岸基：%.1f m / %.1f°\n'
+            '速度：%.2f m/s | 航向：%.1f°\n'
+            '尺寸：%s\n威胁：%s\n数据年龄：%.2f s\n'
+            '来源：%s\n历史：%d 点 | 预测：%d 点'
+            % (
+                item.object_id, item.classification, item.affiliation, origin,
+                item.confidence, item.source_mask,
+                item.position['x'], item.position['y'], item.position['z'],
+                relative['distance'], relative['bearing_deg'], speed,
+                math.degrees(item.heading) % 360.0,
+                json.dumps(item.dimensions, ensure_ascii=False) or '-',
+                threat.get('threat_level', 'NONE'), item.age_seconds, sources,
+                history_count, prediction_count,
+            )
+        )
+
+    def _build_defense_tab(self, layout):
         self.defense_map = DefenseMapWidget()
         layout.addWidget(self.defense_map, 1)
 
@@ -2062,10 +2914,6 @@ class BaseStationWindow(QMainWindow):
         layout.addWidget(hint_group)
 
     def _build_capture_tab(self, layout):
-        self._add_camera_group(
-            layout, 'Dynamic Capture 实时传感器画面', 'capture_camera'
-        )
-
         capture_splitter = QSplitter(Qt.Horizontal)
         map_group = QGroupBox('围捕态势、预测轨迹与分配连线')
         map_layout = QVBoxLayout(map_group)
@@ -2352,6 +3200,15 @@ class BaseStationWindow(QMainWindow):
         controls.addWidget(QLabel('Fixed Frame: map'))
         controls.addWidget(QLabel('View: Top / Z轴向下'))
         controls.addWidget(QLabel('SHADOW MODE（仅显示）'))
+        source_selector = QComboBox()
+        for vehicle_id in self.node.perception_usv_ids:
+            source_selector.addItem(
+                self.VEHICLE_NAMES.get(vehicle_id, vehicle_id),
+                vehicle_id,
+            )
+        controls.addWidget(QLabel('USV感知源'))
+        controls.addWidget(source_selector)
+        self.perception_source_selector = source_selector
 
         view_mode = QComboBox()
         view_mode.addItem('斜俯视 3D', 'oblique')
@@ -2367,29 +3224,29 @@ class BaseStationWindow(QMainWindow):
         controls.addWidget(QLabel('目标着色模式'))
         controls.addWidget(affiliation_color_mode)
         legend = QLabel(
-            '来源: LiDAR黄 / Camera蓝 / 融合绿\n'
-            '阵营: 友方青 / 敌方红 / 中立灰 / 未知黄'
+            '默认：网页简洁视图（白色点云 + 最终融合框）\n'
+            '调试层按需开启；船体 / Mid-360 TF始终保留'
         )
         legend.setWordWrap(True)
         controls.addWidget(legend)
 
         definitions = (
-            ('Mid360原始点云', 'raw', True),
+            ('Mid360原始点云', 'raw', False),
             ('过滤后点云', 'filtered', True),
-            ('DBSCAN Clusters', 'clusters', True),
+            ('DBSCAN Clusters', 'clusters', False),
             ('原始3D BBox', 'bboxes', False),
-            ('LiDAR Only（黄）', 'lidar_only_bboxes', True),
-            ('Camera Only（蓝）', 'camera_only_bboxes', True),
+            ('LiDAR Only（黄）', 'lidar_only_bboxes', False),
+            ('Camera Only（蓝）', 'camera_only_bboxes', False),
             (
                 'Camera+LiDAR（绿）',
-                'camera_lidar_fused_bboxes', True,
+                'camera_lidar_fused_bboxes', False,
             ),
-            ('标定：Camera投影（红）', 'camera_projection', True),
-            ('标定：LiDAR ROI点（绿）', 'calibration_roi', True),
-            ('标定：最终3D框（黄）', 'calibration_bbox', True),
-            ('Tracks + 轨迹', 'tracks', True),
-            ('Dynamic状态', 'dynamic', True),
-            ('Fusion Target', 'fusion', True),
+            ('标定：Camera投影（红）', 'camera_projection', False),
+            ('标定：LiDAR ROI点（绿）', 'calibration_roi', False),
+            ('标定：最终3D框（黄）', 'calibration_bbox', False),
+            ('Tracks + 轨迹', 'tracks', False),
+            ('Dynamic状态', 'dynamic', False),
+            ('Fusion Target', 'fusion', False),
             ('船体 / Mid360 TF', 'tf', True),
             ('Track标签', 'labels', True),
             ('Map网格', 'grid', True),
@@ -2409,10 +3266,10 @@ class BaseStationWindow(QMainWindow):
         max_points = QSpinBox()
         max_points.setRange(1000, 100000)
         max_points.setSingleStep(2000)
-        max_points.setValue(60000)
+        max_points.setValue(20000)
         trail_length = QSpinBox()
         trail_length.setRange(10, 500)
-        trail_length.setValue(100)
+        trail_length.setValue(60)
         for title, control in (
             ('每层最大点数', max_points),
             ('轨迹历史长度', trail_length),
@@ -2442,12 +3299,17 @@ class BaseStationWindow(QMainWindow):
         self.lv_dot_debug_status = QLabel('等待LV-DOT Debug数据')
         self.lv_dot_debug_status.setWordWrap(True)
         self.lv_dot_debug_status.setObjectName('vehicleDetail')
-        camera_title = QLabel('我方船一号（蓝色）融合相机')
-        camera_title.setObjectName('subtitle')
+        self.perception_camera_title = QLabel(
+            self.VEHICLE_NAMES.get(
+                self.selected_perception_usv,
+                self.selected_perception_usv,
+            ) + '融合相机'
+        )
+        self.perception_camera_title.setObjectName('subtitle')
         self.perception_camera = CameraInsetLabel(
             '等待我方船一号相机数据'
         )
-        status_layout.addWidget(camera_title)
+        status_layout.addWidget(self.perception_camera_title)
         status_layout.addWidget(self.perception_camera)
         status_layout.addWidget(self.lv_dot_debug_status)
         status_layout.addStretch()
@@ -2473,6 +3335,11 @@ class BaseStationWindow(QMainWindow):
         affiliation_color_mode.currentIndexChanged.connect(
             lambda _index: self.lv_dot_debug_widget.set_color_mode(
                 affiliation_color_mode.currentData()
+            )
+        )
+        source_selector.currentIndexChanged.connect(
+            lambda _index: self._select_perception_usv(
+                source_selector.currentData()
             )
         )
         for checkbox in self.lv_dot_debug_checks.values():
@@ -2666,9 +3533,16 @@ class BaseStationWindow(QMainWindow):
         cluster = status.get('clusters', {})
         track = status.get('tracks', {})
         dynamic = status.get('dynamic', {})
-        camera_lidar = dict(self.node.camera_lidar_status)
-        vision_guided = dict(self.node.vision_guided_status)
-        camera_detection = dict(self.node.camera_detection_status)
+        selected_usv = self.selected_perception_usv
+        camera_lidar = dict(
+            self.node.camera_lidar_status_by_usv.get(selected_usv, {})
+        )
+        vision_guided = dict(
+            self.node.vision_guided_status_by_usv.get(selected_usv, {})
+        )
+        camera_detection = dict(
+            self.node.camera_detection_status_by_usv.get(selected_usv, {})
+        )
         association = camera_lidar.get('last_counts', {})
         ages = statistics.get('cloud_age', {})
 
@@ -2677,7 +3551,7 @@ class BaseStationWindow(QMainWindow):
 
         label.setText(
             'MODE: SHADOW / DISPLAY ONLY\n'
-            'Fixed Frame: map\n\n'
+            'Fixed Frame: map | Source: %s\n\n'
             '画布: %.1f FPS / %.2f ms\n'
             'Raw: %d点  age=%s\n'
             'Filtered: %d点  age=%s\n\n'
@@ -2703,6 +3577,7 @@ class BaseStationWindow(QMainWindow):
             '控制链连接: NO\n'
             'perception_source: ground_truth'
             % (
+                selected_usv,
                 float(statistics.get('fps', 0.0)),
                 float(statistics.get('render_ms', 0.0)),
                 int(counts.get('raw', 0)), age_text(ages.get('raw')),
@@ -2781,11 +3656,33 @@ class BaseStationWindow(QMainWindow):
         camera_layout.setContentsMargins(0, 0, 0, 0)
         camera_layout.setSpacing(0)
         camera = VideoMosaicLabel('等待真实相机数据')
-        camera.setMinimumSize(720, 180)
+        camera.setMinimumSize(520, 180)
         camera.setStyleSheet('background: #0d141a; color: #8fa5b2;')
         camera_layout.addWidget(camera)
         setattr(self, attribute, camera)
-        layout.addWidget(group, 0)
+        group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        layout.addWidget(group, 1)
+
+    def _header_status_badge(self, text):
+        label = QLabel(text)
+        label.setObjectName('link')
+        label.setAlignment(Qt.AlignCenter)
+        label.setStyleSheet(
+            'background: #fff4d7; color: #7a5700; '
+            'padding: 7px 10px; border: 1px solid #dfc26d;'
+        )
+        return label
+
+    @staticmethod
+    def _set_header_status(label, text, online):
+        label.setText(text)
+        label.setStyleSheet(
+            ('background: #d9f0e5; color: #176b47; '
+             'padding: 7px 10px; border: 1px solid #8cc5a8;')
+            if online else
+            ('background: #fff4d7; color: #7a5700; '
+             'padding: 7px 10px; border: 1px solid #dfc26d;')
+        )
 
     def _add_defense_slider(
         self,
@@ -2953,23 +3850,43 @@ class BaseStationWindow(QMainWindow):
 
     def _update_image(self, image, source=''):
         self.last_image_time = time.monotonic()
-        if source == 'topdown_camera':
+        self.last_sensor_image_time = self.last_image_time
+        if source.startswith('topdown_camera:'):
+            vehicle_id = source.split(':', 1)[1]
+            self.perception_images[vehicle_id] = image
+            if (
+                vehicle_id == self.selected_perception_usv
+                and hasattr(self, 'perception_camera')
+            ):
+                self.perception_camera.set_image(image)
+        elif source == 'topdown_camera':
             if hasattr(self, 'perception_camera'):
                 self.perception_camera.set_image(image)
-        elif source == 'defense':
-            self.defense_camera.set_image(image)
-        elif source == 'capture':
-            self.capture_camera.set_image(image)
         else:
-            # A single-world deployment shares the real sensor mosaic between
-            # both task pages while keeping their controls and status separate.
-            self.defense_camera.set_image(image)
-            self.capture_camera.set_image(image)
-        self.link_label.setText('基站数据链路在线')
-        self.link_label.setStyleSheet(
-            'background: #d9f0e5; color: #176b47; '
-            'padding: 7px 12px; border: 1px solid #8cc5a8;'
+            # The sensor tab owns the only six-camera mosaic.  Keeping one
+            # widget avoids three redundant image paints for every frame.
+            if hasattr(self, 'sensor_camera'):
+                self.sensor_camera.set_image(image)
+        self._set_header_status(
+            self.sensor_link_label, '传感器上行：在线', True
         )
+
+    def _select_perception_usv(self, vehicle_id):
+        if vehicle_id not in self.node.lv_dot_debug_models:
+            return
+        self.selected_perception_usv = vehicle_id
+        self.node.selected_perception_usv = vehicle_id
+        if getattr(self, 'lv_dot_debug_widget', None) is not None:
+            self.lv_dot_debug_widget.set_model(
+                self.node.lv_dot_debug_models[vehicle_id]
+            )
+        if hasattr(self, 'perception_camera_title'):
+            self.perception_camera_title.setText(
+                self.VEHICLE_NAMES.get(vehicle_id, vehicle_id) + '融合相机'
+            )
+        image = self.perception_images.get(vehicle_id)
+        if image is not None and hasattr(self, 'perception_camera'):
+            self.perception_camera.set_image(image)
 
     def _update_sensor(self, data):
         self._touch_ros()
@@ -2992,6 +3909,12 @@ class BaseStationWindow(QMainWindow):
             last_sec,
             last_nanosec,
         ) = data
+        self.sensor_cache[(vehicle, sensor)] = data
+        # The sensor-monitor tab is now intentionally a camera wall.  Keep
+        # status data for the rest of the station, but do not maintain a
+        # hidden table with hundreds of item updates per minute.
+        if not hasattr(self, 'sensor_table'):
+            return
         row = self._sensor_row(vehicle, sensor)
         values = [
             self.VEHICLE_NAMES.get(vehicle, vehicle),
@@ -3213,29 +4136,30 @@ class BaseStationWindow(QMainWindow):
             'updated': time.monotonic(),
         }
         self.vehicle_cache[vehicle] = state
-        row = self._vehicle_row(vehicle)
-        values = [
-            self.VEHICLE_NAMES.get(vehicle, vehicle),
-            '在线' if online else '离线',
-            '是' if armed else '否',
-            mode,
-            '%.2f' % x,
-            '%.2f' % y,
-            '%.2f' % z,
-        ]
-        for column, value in enumerate(values):
-            color = None
-            if column == 1:
-                color = '#16834a' if online else '#b63737'
-            if column == 0:
-                self.vehicle_table.setItem(
-                    row, column, self._vehicle_item(vehicle)
-                )
-            else:
-                self.vehicle_table.setItem(
-                    row, column, self._item(value, color)
-                )
-        self.vehicle_table.setToolTip('%s: %s' % (vehicle, status))
+        if hasattr(self, 'vehicle_table'):
+            row = self._vehicle_row(vehicle)
+            values = [
+                self.VEHICLE_NAMES.get(vehicle, vehicle),
+                '在线' if online else '离线',
+                '是' if armed else '否',
+                mode,
+                '%.2f' % x,
+                '%.2f' % y,
+                '%.2f' % z,
+            ]
+            for column, value in enumerate(values):
+                color = None
+                if column == 1:
+                    color = '#16834a' if online else '#b63737'
+                if column == 0:
+                    self.vehicle_table.setItem(
+                        row, column, self._vehicle_item(vehicle)
+                    )
+                else:
+                    self.vehicle_table.setItem(
+                        row, column, self._item(value, color)
+                    )
+            self.vehicle_table.setToolTip('%s: %s' % (vehicle, status))
         role = self.capture_roles_cache.get(vehicle, {})
         fleet_row = self._fleet_row(vehicle)
         control = 'PX4 / %s' % mode if vehicle.startswith('uav_') \
@@ -3479,6 +4403,206 @@ class BaseStationWindow(QMainWindow):
         self.capture_overview_map.set_markers(data)
         self.capture_detail_map.set_markers(data)
 
+    def _update_world_model(self, model):
+        self._touch_ros()
+        self.last_base_station_state_time = time.monotonic()
+        self.world_model_cache = model
+        self._update_fleet_situation_view(model)
+        health = model.get('health', {})
+        perception = model.get('perception', {})
+        mission = model.get('mission', {})
+
+        for vehicle in model.get('fleet', {}).get('uav', []):
+            self._update_world_model_vehicle(vehicle)
+        for vehicle in model.get('fleet', {}).get('usv', []):
+            self._update_world_model_vehicle(vehicle)
+
+        sensors = model.get('sensors', {})
+        for vehicle_id, vehicle_sensors in sensors.items():
+            if not isinstance(vehicle_sensors, dict):
+                continue
+            for sensor_id, sensor in vehicle_sensors.items():
+                self._update_world_model_sensor(
+                    vehicle_id, sensor_id, sensor
+                )
+
+        targets = [
+            self._world_model_target_to_capture_target(target)
+            for target in model.get('targets', [])
+        ]
+        self._update_capture_targets(targets)
+        if targets:
+            self._update_capture_target({
+                'track_id': targets[0].get('track_id', 'target'),
+                'x': targets[0].get('x', 0.0),
+                'y': targets[0].get('y', 0.0),
+                'z': targets[0].get('z', 0.0),
+                'speed': targets[0].get('speed', 0.0),
+                'turn_rate': 0.0,
+                'model': perception.get('primary_source', 'world_model'),
+                'tracked': True,
+                'confirmations': int(health.get('target_count', 0)),
+                'age': float(targets[0].get('age', 0.0) or 0.0),
+            })
+
+        capture = mission.get('capture')
+        if capture:
+            self._update_capture_state({
+                'state': int(capture.get('state_id', 0)),
+                'state_name': capture.get('state', 'UNKNOWN'),
+                'target_id': capture.get('target_id') or 'enemy_ship',
+                'reason': capture.get('reason', ''),
+                'configured_uavs': int(capture.get('configured_uavs', 0)),
+                'configured_usvs': int(capture.get('configured_usvs', 0)),
+                'active_uavs': int(capture.get('active_uavs', 0)),
+                'active_usvs': int(capture.get('active_usvs', 0)),
+                'generation': int(capture.get('allocation_generation', 0)),
+                'degraded': bool(capture.get('degraded', False)),
+            })
+
+        roles = mission.get('capture_roles')
+        if roles:
+            self._update_capture_roles({
+                'target_id': roles.get('target_id', ''),
+                'center_x': float(
+                    roles.get('capture_center', {}).get('x', 0.0)
+                ),
+                'center_y': float(
+                    roles.get('capture_center', {}).get('y', 0.0)
+                ),
+                'radius': float(roles.get('capture_radius', 0.0)),
+                'generation': int(roles.get('generation', 0)),
+                'assignments': [
+                    self._world_model_assignment_to_role(item)
+                    for item in roles.get('assignments', [])
+                ],
+            })
+
+        self.system_status_label.setText('SYSTEM\nWORLD MODEL')
+        self.target_state_label.setText(
+            'TARGET\n%d' % int(health.get('target_count', len(targets)))
+        )
+        service_mode = model.get('schema_version') == 'base_station_service.v1'
+        self._set_header_status(
+            self.base_station_link_label,
+            ('基站服务：在线' if service_mode else '世界模型：在线'),
+            True,
+        )
+
+    def _update_base_station_event(self, event):
+        self._touch_ros()
+        self.base_station_events.append(event)
+        del self.base_station_events[:-100]
+        event_type = event.get('event_type', 'event')
+        entity_id = event.get('entity_id', 'fleet')
+        self._append_log('Base Station event: %s [%s]' % (
+            event_type, entity_id
+        ))
+
+    def _update_world_model_vehicle(self, vehicle):
+        vehicle_id = vehicle.get('id', '')
+        pose = vehicle.get('pose', {})
+        position = pose.get('position', {})
+        velocity = vehicle.get('velocity', {}).get('linear', {})
+        vehicle_type = (
+            VehicleState.TYPE_UAV
+            if vehicle.get('type') == 'UAV'
+            else VehicleState.TYPE_USV
+            if vehicle.get('type') == 'USV'
+            else VehicleState.TYPE_UNKNOWN
+        )
+        status = vehicle.get('health', {}).get('status_text', '')
+        if vehicle.get('stale'):
+            status = (status + ' | STALE').strip(' |')
+        self._update_vehicle((
+            vehicle_id,
+            vehicle_type,
+            bool(vehicle.get('online', False)),
+            bool(vehicle.get('armed', False)),
+            vehicle.get('mode', ''),
+            float(position.get('x', 0.0)),
+            float(position.get('y', 0.0)),
+            float(position.get('z', 0.0)),
+            float(velocity.get('x', 0.0)),
+            float(velocity.get('y', 0.0)),
+            status,
+        ))
+
+    def _update_world_model_sensor(self, vehicle_id, sensor_id, sensor):
+        self._update_sensor((
+            vehicle_id,
+            sensor_id,
+            sensor.get('frame_id', ''),
+            float(sensor.get('rate_hz', 0.0)),
+            float(sensor.get('age_seconds_reported', 0.0)),
+            float(sensor.get('latency_seconds', 0.0)),
+            float(sensor.get('processing_time_ms', 0.0)),
+            int(sensor.get('point_count', 0)),
+            int(sensor.get('total_messages', 0)),
+            int(sensor.get('total_bytes', 0)),
+            int(sensor.get('dropped_messages', 0)),
+            bool(sensor.get('healthy', False)),
+            bool(sensor.get('timed_out', False)),
+            sensor.get('tf_target_frame', ''),
+            bool(sensor.get('tf_available', False)),
+            int(sensor.get('last_message_time', {}).get('sec', 0)),
+            int(sensor.get('last_message_time', {}).get('nanosec', 0)),
+        ))
+
+    @staticmethod
+    def _world_model_target_to_capture_target(target):
+        position = target.get('pose', {}).get('position', {})
+        source = target.get('source_mask', 0)
+        return {
+            'track_id': target.get('id') or target.get('uuid') or 'target',
+            'class': BaseStationWindow._target_class_id(
+                target.get('classification') or target.get('class')
+            ),
+            'source': int(source) if isinstance(source, int) else 0,
+            'confidence': float(target.get('confidence', 0.0)),
+            'x': float(position.get('x', 0.0)),
+            'y': float(position.get('y', 0.0)),
+            'z': float(position.get('z', 0.0)),
+            'speed': float(target.get('speed_mps', 0.0)),
+            'age': float(target.get('stamp_age_seconds') or 0.0),
+        }
+
+    @staticmethod
+    def _target_class_id(name):
+        names = {
+            'UNKNOWN': 0,
+            'VESSEL': 1,
+            'BUOY': 2,
+            'DEBRIS': 3,
+            'LANDMARK': 4,
+        }
+        return names.get(str(name).upper(), 0)
+
+    @staticmethod
+    def _world_model_assignment_to_role(item):
+        goal_position = (
+            item.get('goal', {}).get('position', {})
+            if isinstance(item.get('goal'), dict) else {}
+        )
+        return {
+            'vehicle_id': item.get('vehicle_id', ''),
+            'vehicle_type': (
+                VehicleState.TYPE_UAV
+                if item.get('vehicle_type') == 'UAV'
+                else VehicleState.TYPE_USV
+                if item.get('vehicle_type') == 'USV'
+                else VehicleState.TYPE_UNKNOWN
+            ),
+            'role_type': int(item.get('role_type', 0)),
+            'role_name': item.get('role', 'Standby'),
+            'x': float(goal_position.get('x', 0.0)),
+            'y': float(goal_position.get('y', 0.0)),
+            'z': float(goal_position.get('z', 0.0)),
+            'cost': float(item.get('assignment_cost', 0.0)),
+            'active': bool(item.get('active', False)),
+            'status': item.get('status', ''),
+        }
+
     def _touch_ros(self):
         self.last_ros_message_time = time.monotonic()
 
@@ -3490,15 +4614,28 @@ class BaseStationWindow(QMainWindow):
         self.system_status_label.setText(
             'SYSTEM\n%s' % ('READY' if connected else 'WAITING')
         )
-        self.link_label.setText(
-            'ROS 2 已连接' if connected else '等待 ROS 2 数据'
+        base_station_online = (
+            self.last_base_station_state_time > 0.0
+            and time.monotonic() - self.last_base_station_state_time < 3.0
         )
-        self.link_label.setStyleSheet(
-            ('background: #d9f0e5; color: #176b47; '
-             'padding: 7px 12px; border: 1px solid #8cc5a8;')
-            if connected else
-            ('background: #fff4d7; color: #7a5700; '
-             'padding: 7px 12px; border: 1px solid #dfc26d;')
+        sensor_online = (
+            self.last_sensor_image_time > 0.0
+            and time.monotonic() - self.last_sensor_image_time < 3.0
+        )
+        self._set_header_status(
+            self.ros_link_label,
+            'ROS 2：在线' if connected else 'ROS 2：等待数据',
+            connected,
+        )
+        self._set_header_status(
+            self.base_station_link_label,
+            '基站服务：在线' if base_station_online else '基站服务：等待数据',
+            base_station_online,
+        )
+        self._set_header_status(
+            self.sensor_link_label,
+            '传感器上行：在线' if sensor_online else '传感器上行：等待数据',
+            sensor_online,
         )
 
     def _refresh_fleet_summary(self):

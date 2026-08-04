@@ -2,15 +2,17 @@
 
 ## 目标与架构
 
-该 Demo 将现有 ROS 2 舰队状态转换为稳定 JSON，通过局域网 WebSocket 发送给手机浏览器。当前严格只读，不提供任何控制入口。
+该 Demo 将 ROS 2 舰队世界模型转换为稳定 JSON，通过局域网 WebSocket 发送给手机浏览器。当前严格只读，不提供任何控制入口。
 
 ```text
-ROS 2 Topics
-  -> ROS Adapter（消息转换）
+Fleet World Model
+  /fleet/world_model
+  /fleet/world_model_summary
+  -> Gateway FWM Adapter（世界模型转换）
   -> FleetRegistry（统一内部模型）
   -> ProtocolEncoder（JSON v1.0）
   -> WebSocket（有界客户端队列）
-  -> 原生 HTML/CSS/JS 手机测试页
+  -> 原生 HTML/CSS/JS 手机测试页 / 未来WebGL岸基态势平台
 ```
 
 HTTP 线程、WebSocket asyncio 事件循环、墙钟推送线程和 ROS executor 相互独立。ROS 回调只更新最新值缓存，不处理网页布局，也不等待网络发送。推送线程通过 `call_soon_threadsafe` 将消息交给 asyncio loop，再进入每个客户端独立的异步有界优先队列。
@@ -19,35 +21,52 @@ HTTP 线程、WebSocket asyncio 事件循环、墙钟推送线程和 ROS executo
 
 ## 仓库审计
 
-### 载具状态
+### 舰队世界模型
 
-- 通用消息：`uav_usv_interfaces/msg/VehicleState`
-- 实际话题：`/fleet/state`
-- 发布者：`uav_fleet_agent.py`、`uav_dds_fleet_agent.py`、`usv_fleet_agent.py` 和仿真 agent
-- ID 规则：`uav_01...`、`usv_01...`，消息内 `vehicle_id` 是权威 ID
-- UAV/USV 类型：`VehicleState.TYPE_UAV` / `TYPE_USV`
-- 位姿：`VehicleState.pose`，主线 frame 为 `map`
-- 速度：`VehicleState.twist`
-- 姿态：`VehicleState.pose.orientation`；网关保留四元数并计算欧拉角
-- 模式/解锁：`mode`、`armed`
-- 电池：仅有 `battery_percent`；当前多个 agent 使用 `-1.0` 表示不可用，网关输出 `null`
-- 电压：消息不存在，输出 `null`
-- namespace：状态集中发布在全局 `/fleet/state`，逻辑 namespace 由 `vehicle_id` 表示为 `/<vehicle_id>`
+- 主话题：`/fleet/world_model`
+- 摘要话题：`/fleet/world_model_summary`
+- 消息类型：`std_msgs/String` JSON
+- 完整模型schema：`fleet_world_model.v1`
+- 摘要schema：`fleet_world_model.summary.v1`
+- 坐标主框架：`map`
+- 载具：`fleet.uav`、`fleet.usv`、`fleet.unknown`
+- 任务实体：`entities`，例如 `friendly_ship`、`enemy_ship`
+- 目标：`targets`
+- 传感器健康：`sensors`
+- TF摘要：`tf`
+- 任务与感知：`mission`、`perception`
 
-### 感知与任务
+网关默认只订阅世界模型，不再直接把 `/fleet/state`、`/fleet/perception/targets`、`/fleet/sensor_status` 当作网页主入口。旧话题只作为 `enable_legacy_topic_fallback=true` 时的兼容回退。
 
-- perception fusion 输出：`/perception/fused/tracks`
-- source mux 正式输出：`/fleet/perception/targets`
-- source mux 状态：`/perception/source_status`
-- LV-DOT ROS2 track：`/perception/lv_dot_ros2/tracks`
-- LV-DOT dynamic：`/perception/lv_dot_ros2/dynamic_tracks`
-- LV-DOT 标准观察：`/perception/lv_dot/observations`
-- 统一目标消息：`TrackedObjectArray`，对象含 track ID、分类、来源 mask、位姿/速度协方差、尺寸和置信度
-- 传感器健康：`/fleet/sensor_status`，类型为 `SensorStatus`
-- 围捕任务：`/capture/state`，类型为 `CaptureState`
-- 角色/目标诊断还包括 `/capture/roles`、`/capture/target_status` 和文本兼容话题
+### 兼容输出
 
-网关优先订阅 source mux 的正式输出，不订阅 LV-DOT Shadow 作为正式目标，因此不会混淆真值、Shadow 和融合结果。`perception_source` 的默认值未被修改，仍为 `ground_truth`。
+为兼容当前手机测试页，网关仍从世界模型派生以下 WebSocket 消息：
+
+- `vehicle_state`：10 Hz，来自 `fleet.uav/usv/unknown`
+- `perception_targets`：10 Hz，来自 `targets`
+- `sensor_status`：1 Hz，来自 `sensors`
+- `fleet_snapshot`：1 Hz，包含 `vehicles`、`targets`、`sensors`、`entities` 和完整 `world_model`
+- `fleet_world_model`：2 Hz，完整世界模型
+- `fleet_world_model_summary`：1 Hz，低带宽摘要，优先用于远距离链路健康和兜底态势
+- `gateway_diagnostics`：1 Hz
+
+未来 WebGL 正式平台应优先消费 `fleet_world_model`，只把兼容消息作为快速 UI 或调试入口。
+
+远距离链路可关闭完整世界模型推送：
+
+```bash
+ros2 launch uav_usv_fleet_gateway remote_summary_gateway.launch.py
+```
+
+此时 WebSocket 仍推送 `fleet_world_model_summary`、载具、目标、传感器和诊断摘要，但不周期性推送完整 `fleet_world_model`。这是未来 4G/5G/卫星链路的推荐起点。
+
+`gateway_hello` 和 `gateway_diagnostics` 都包含 `communication_profile`：
+
+- `local_full`：完整世界模型模式；
+- `remote_summary`：远距离摘要模式；
+- `custom`：手动组合参数。
+
+前端或岸基服务器可以用该字段决定是否等待完整 `fleet_world_model`。
 
 ### 现有网络代码
 
@@ -59,13 +78,15 @@ HTTP 线程、WebSocket asyncio 事件循环、墙钟推送线程和 ROS executo
 
 | 数据 | 话题 | ROS 类型 |
 | --- | --- | --- |
-| 载具状态 | `/fleet/state` | `VehicleState` |
-| 正式感知目标 | `/fleet/perception/targets` | `TrackedObjectArray` |
-| 传感器摘要 | `/fleet/sensor_status` | `SensorStatus` |
-| 围捕任务 | `/capture/state` | `CaptureState` |
-| 感知源状态 | `/perception/source_status` | `std_msgs/String` JSON |
+| 舰队世界模型 | `/fleet/world_model` | `std_msgs/String` JSON |
+| 舰队世界模型摘要 | `/fleet/world_model_summary` | `std_msgs/String` JSON |
+| 旧载具状态回退 | `/fleet/state` | `VehicleState` |
+| 旧正式感知目标回退 | `/fleet/perception/targets` | `TrackedObjectArray` |
+| 旧传感器摘要回退 | `/fleet/sensor_status` | `SensorStatus` |
+| 旧围捕任务回退 | `/capture/state` | `CaptureState` |
+| 旧感知源状态回退 | `/perception/source_status` | `std_msgs/String` JSON |
 
-全部话题和服务端口均可通过 YAML/launch 参数修改，核心代码没有固定载具数量或固定载具 ID。
+全部话题和服务端口均可通过 YAML/launch 参数修改，核心代码没有固定载具数量或固定载具 ID。旧话题默认不订阅。
 
 ## 构建与启动
 
@@ -113,6 +134,7 @@ sudo ufw allow 8765/tcp
 - 自动推断当前网页主机并生成 WebSocket 地址
 - 连接、断开、自动重连、请求完整快照
 - 无需点击按钮即可接收 10 Hz 载具状态、10 Hz 目标状态和 1 Hz 完整快照
+- 自动接收 2 Hz 完整 `fleet_world_model`，供未来 WebGL 使用
 - 按消息类型显示最近 5 秒接收 Hz、累计数量和最后更新时间
 - 按 ID 更新 UAV/USV 卡片和目标卡片，不重复堆积
 - Canvas 俯视图：UAV 三角形、USV 船形、目标框、航向、速度向量、拖动与缩放
@@ -145,6 +167,8 @@ sudo ufw allow 8765/tcp
 - 手机关闭屏幕、切换 WiFi/蜂窝网络后的恢复尚未用真机测试。
 - 原需求中的 30 分钟运行未执行；用户已允许缩短，实际完成的是 3 分钟连续稳定性测试。
 - MQTT 仅保留 `enable_mqtt=false` 参数，未实现传输。
+- 当前不会制作正式 WebGL 页面；本阶段只冻结 ROS2 到网页端的数据接口。
+- 网关不会转发原始视频或点云，未来网页三维态势只接收世界坐标目标和健康摘要。
 - 不发送视频或点云，这是本阶段刻意限制。
 
 ## 当前限制与下一步

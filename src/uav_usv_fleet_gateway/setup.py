@@ -31,6 +31,9 @@ setup(
     entry_points={
         'console_scripts': [
             'fleet_gateway = uav_usv_fleet_gateway.gateway_node:main',
+            'fleet_sensor_stream_adapter = uav_usv_fleet_gateway.sensor_stream_adapter:main',
+            'fleet_remote_uplink = uav_usv_fleet_gateway.remote_uplink:main',
+            'fleet_remote_relay = uav_usv_fleet_gateway.remote_relay:main',
         ],
     },
 )

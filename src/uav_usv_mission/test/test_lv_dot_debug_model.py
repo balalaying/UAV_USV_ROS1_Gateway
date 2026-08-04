@@ -6,6 +6,7 @@ from uav_usv_mission.lv_dot_debug_visualization import LvDotDebugModel
 
 def test_debug_model_keeps_raw_and_filtered_clouds_separate():
     model = LvDotDebugModel()
+    model.set_cloud_layer_enabled('raw', True)
     raw = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
     filtered = np.array([[4.0, 5.0, 6.0]])
 
@@ -20,6 +21,7 @@ def test_debug_model_keeps_raw_and_filtered_clouds_separate():
 
 def test_debug_model_keeps_camera_lidar_calibration_roi_separate():
     model = LvDotDebugModel()
+    model.set_cloud_layer_enabled('calibration_roi', True)
     roi = np.array([[8.0, 1.0, 0.8], [8.1, 1.1, 1.0]])
 
     model.update_cloud('calibration_roi', roi)

@@ -176,7 +176,7 @@ class FleetWebSocketServer:
     def __init__(self, host, port, path, protocol, hello_factory,
                  snapshot_factory, queue_size=100, max_clients=8,
                  heartbeat_interval=15.0, sent_callback=None,
-                 drop_callback=None):
+                 drop_callback=None, command_handler=None):
         self.host = str(host)
         self.port = int(port)
         self.path = str(path)
@@ -188,6 +188,7 @@ class FleetWebSocketServer:
         self.heartbeat_interval = float(heartbeat_interval)
         self.sent_callback = sent_callback or (lambda count: None)
         self.drop_callback = drop_callback or (lambda count: None)
+        self.command_handler = command_handler
         self.running = False
         self._clients = set()
         self._client_count = 0
@@ -354,6 +355,27 @@ class FleetWebSocketServer:
         elif command == 'ping':
             self._send_client(
                 client, self.protocol.dumps('pong', {}), priority=2)
+        elif command in ('submit_task', 'cancel_task', 'emergency_stop'):
+            if self.command_handler is None:
+                response = {
+                    'code': 'command_interface_disabled',
+                    'message': (
+                        'Mission commands are recognized but disabled in '
+                        'this read-only gateway.'
+                    ),
+                    'accepted_commands': [
+                        'submit_task',
+                        'cancel_task',
+                        'emergency_stop',
+                    ],
+                }
+            else:
+                response = self.command_handler(request)
+            self._send_client(
+                client,
+                self.protocol.dumps('command_response', response),
+                priority=2,
+            )
         else:
             self._send_client(client, self.protocol.dumps('error', {
                 'code': 'unsupported_command',
@@ -399,7 +421,7 @@ class FleetWebSocketServer:
                 self._shutdown_async(), self._loop)
             try:
                 future.result(timeout=4.0)
-            except (TimeoutError, RuntimeError):
+            except (KeyboardInterrupt, TimeoutError, RuntimeError):
                 pass
             self._loop.call_soon_threadsafe(self._loop.stop)
         if self._thread is not None:

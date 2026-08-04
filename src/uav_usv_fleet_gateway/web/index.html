@@ -3,91 +3,126 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#f4f7f9">
-  <title>舰队数据测试岸基站</title>
+  <meta name="theme-color" content="#f6f8fa">
+  <title>UAV-USV 远程感知岸基站</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
-    <div><h1>舰队数据测试岸基站</h1><small>只读局域网 Demo</small></div>
-    <span id="connectionBadge" class="badge offline">未连接</span>
+    <div class="brand">
+      <span class="brand-mark">US</span>
+      <div><h1>UAV-USV 远程感知岸基站</h1><p>跨网只读演示 · map 统一坐标</p></div>
+    </div>
+    <div class="system-strip">
+      <span id="relayBadge" class="status offline">中继未连接</span>
+      <span><b id="onlineCount">0</b> 在线载具</span>
+      <span><b id="targetCount">0</b> 融合目标</span>
+      <span><b id="receiveRate">0.0</b> Hz</span>
+    </div>
   </header>
 
+  <nav class="tabs" aria-label="页面">
+    <button class="active" data-page="perception">实时感知</button>
+    <button data-page="fleet">载具状态</button>
+    <button data-page="network">链路诊断</button>
+  </nav>
+
   <main>
-    <section class="panel connection-panel">
-      <div class="panel-title"><h2>连接</h2><span id="serverText">-</span></div>
-      <div class="connection-grid">
-        <label>WebSocket 地址<input id="wsUrl" autocomplete="url" inputmode="url"></label>
-        <div class="button-row">
-          <button id="connectButton" class="primary">连接</button>
-          <button id="disconnectButton">断开</button>
-          <button id="snapshotButton">请求快照</button>
+    <section id="perceptionPage" class="page active">
+      <div class="sensor-toolbar">
+        <div>
+          <label for="sensorSource">感知平台</label>
+          <select id="sensorSource">
+            <option value="usv_01">我方船一号</option>
+            <option value="usv_02">我方船二号</option>
+            <option value="usv_03">我方船三号</option>
+          </select>
         </div>
-        <label class="toggle"><input id="autoReconnect" type="checkbox" checked>自动重连</label>
-      </div>
-    </section>
-
-    <section class="metric-grid" aria-label="系统摘要">
-      <div class="metric"><span>最后消息</span><strong id="lastMessage">--</strong></div>
-      <div class="metric"><span>消息数</span><strong id="messageCount">0</strong></div>
-      <div class="metric"><span>接收频率</span><strong id="receiveRate">0.0 Hz</strong></div>
-      <div class="metric"><span>在线载具</span><strong id="onlineCount">0</strong></div>
-      <div class="metric"><span>目标</span><strong id="targetCount">0</strong></div>
-    </section>
-
-    <section class="panel stream-panel">
-      <div class="panel-title">
-        <h2>实时推送统计</h2><span>最近 5 秒窗口</span>
-      </div>
-      <div id="messageTypeGrid" class="details-grid">
-        <div class="detail"><span>等待 WebSocket 数据</span><strong>--</strong></div>
-      </div>
-    </section>
-
-    <section class="panel map-panel">
-      <div class="panel-title">
-        <h2>舰队俯视图</h2>
-        <div class="map-tools">
-          <label class="toggle"><input id="showGrid" type="checkbox" checked>网格</label>
-          <button id="zoomOut" title="缩小">−</button>
-          <button id="zoomIn" title="放大">＋</button>
-          <button id="resetView">重置</button>
+        <div class="view-modes" role="group" aria-label="视角">
+          <button id="topView">俯视</button>
+          <button id="obliqueView" class="active">斜俯视</button>
         </div>
+        <label class="switch"><input id="showGrid" type="checkbox" checked><span></span>网格</label>
+        <label class="switch"><input id="showCloud" type="checkbox" checked><span></span>点云</label>
+        <label class="switch"><input id="showBoxes" type="checkbox" checked><span></span>融合框</label>
+        <label class="switch"><input id="showTargets" type="checkbox"><span></span>全局候选</label>
+        <label class="switch"><input id="showVehicles" type="checkbox" checked><span></span>载具</label>
+        <button id="resetView" class="command">恢复视角</button>
       </div>
-      <canvas id="fleetMap" aria-label="舰队俯视图"></canvas>
-      <div class="legend"><span class="uav">UAV</span><span class="usv">USV</span><span class="target">目标</span></div>
-    </section>
 
-    <section class="panel">
-      <div class="panel-title"><h2>载具状态</h2><span id="vehicleSummary">0 艘/架</span></div>
-      <div id="vehicleCards" class="card-grid empty">等待载具状态</div>
-    </section>
+      <div class="perception-layout">
+        <section class="viewport">
+          <div class="section-head">
+            <div><strong>Camera + Mid-360 融合态势</strong><span id="fixedFrame">Fixed frame: map</span></div>
+            <div class="live-indicator"><i></i><span id="cloudStatus">等待点云</span></div>
+          </div>
+          <canvas id="perceptionCanvas"></canvas>
+          <div class="viewport-help">滚轮缩放 · 拖动平移 · 融合框为绿色</div>
+          <div class="legend">
+            <span class="cloud">Mid-360 点云</span>
+            <span class="fusion">Camera+LiDAR</span>
+            <span class="uav">UAV</span>
+            <span class="usv">USV</span>
+            <span class="target">目标</span>
+          </div>
+        </section>
 
-    <section class="panel">
-      <div class="panel-title"><h2>感知目标</h2><span id="perceptionSource">source_mux</span></div>
-      <div id="targetCards" class="card-grid empty">等待目标数据</div>
-    </section>
+        <aside class="sensor-side">
+          <section class="camera-panel">
+            <div class="section-head">
+              <div><strong id="cameraTitle">我方船一号 · 船首相机</strong><span id="cameraMeta">等待图像</span></div>
+              <select id="cameraStream" aria-label="相机流"></select>
+            </div>
+            <div class="camera-stage">
+              <img id="cameraImage" alt="实时传感器画面">
+              <span id="cameraPlaceholder">等待远端相机数据</span>
+              <div class="camera-overlay"><span>LIVE</span><b id="cameraFps">0.0 FPS</b></div>
+            </div>
+          </section>
 
-    <section class="panel">
-      <div class="panel-title"><h2>传感器摘要</h2></div>
-      <div id="sensorCards" class="card-grid empty">等待传感器状态</div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-title"><h2>网关状态</h2></div>
-      <div id="gatewayGrid" class="details-grid"></div>
-    </section>
-
-    <details class="panel raw-panel">
-      <summary>最近一条原始 JSON</summary>
-      <div class="button-row raw-tools">
-        <button id="pauseJson">暂停</button><button id="clearJson">清空</button>
-        <label class="toggle"><input id="autoScroll" type="checkbox" checked>自动滚动</label>
+          <section class="telemetry">
+            <div class="section-head"><strong>感知链状态</strong><span id="dataAge">--</span></div>
+            <dl>
+              <div><dt>点云</dt><dd id="pointCount">0 点</dd></div>
+              <div><dt>点云帧率</dt><dd id="cloudFps">0.0 Hz</dd></div>
+              <div><dt>融合框</dt><dd id="boxCount">0</dd></div>
+              <div><dt>融合目标</dt><dd id="fusionCount">0</dd></div>
+              <div><dt>坐标系</dt><dd id="frameId">map</dd></div>
+              <div><dt>传输模式</dt><dd>远端中继</dd></div>
+            </dl>
+          </section>
+        </aside>
       </div>
-      <pre id="rawJson">等待消息</pre>
-    </details>
+    </section>
+
+    <section id="fleetPage" class="page">
+      <div class="page-heading"><div><h2>载具状态</h2><p>状态均来自统一 Fleet World Model，不读取 Gazebo 实体。</p></div><span id="vehicleSummary">0 艘/架</span></div>
+      <div id="vehicleTable" class="vehicle-table empty">等待载具状态</div>
+    </section>
+
+    <section id="networkPage" class="page">
+      <div class="page-heading"><div><h2>跨网链路诊断</h2><p>浏览器只连接远端中继，ROS2 主机保持出站连接。</p></div><button id="snapshotButton" class="command">请求快照</button></div>
+      <div class="network-grid">
+        <section>
+          <h3>连接设置</h3>
+          <label>远端 WebSocket<input id="wsUrl" autocomplete="url" inputmode="url"></label>
+          <div class="button-row"><button id="connectButton" class="primary">连接</button><button id="disconnectButton">断开</button></div>
+          <label class="switch"><input id="autoReconnect" type="checkbox" checked><span></span>自动重连</label>
+        </section>
+        <section>
+          <h3>实时统计</h3>
+          <dl id="networkStats"></dl>
+        </section>
+        <section>
+          <h3>消息类型</h3>
+          <dl id="messageTypes"></dl>
+        </section>
+      </div>
+      <details class="raw-panel"><summary>最近一条协议消息</summary><pre id="rawJson">等待消息</pre></details>
+    </section>
   </main>
-  <footer>协议 v1.0 · 只读查看 · 不提供任何载具控制</footer>
+
+  <footer><span>协议 v1.0 + Sensor Stream 扩展</span><span>只读 Shadow Display</span></footer>
   <script src="app.js"></script>
 </body>
 </html>

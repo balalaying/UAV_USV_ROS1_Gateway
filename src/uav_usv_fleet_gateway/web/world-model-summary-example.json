@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "message_type": "fleet_world_model_summary",
+  "timestamp": 1785128400.0,
+  "sequence": 84,
+  "source": "uav_usv_fleet_gateway",
+  "data": {
+    "schema_version": "fleet_world_model.summary.v1",
+    "world_model_schema_version": "fleet_world_model.v1",
+    "world_time": {
+      "sec": 1785128400,
+      "nanosec": 0,
+      "seconds": 1785128400.0
+    },
+    "map_frame": "map",
+    "uav_count": 3,
+    "usv_count": 3,
+    "entity_count": 2,
+    "target_count": 1,
+    "threat_count": 1,
+    "obstacle_count": 0,
+    "sensor_count": 12,
+    "primary_source": "fused_targets",
+    "mission_state": "TRACKING",
+    "tf_edge_count": 20
+  }
+}

@@ -15,6 +15,12 @@ fleet_gateway:
     snapshot_rate_hz: 1.0
     diagnostics_rate_hz: 1.0
     sensor_publish_rate_hz: 1.0
+    sensor_stream_publish_rate_hz: 20.0
+    enable_world_model_publish: false
+    world_model_publish_rate_hz: 2.0
+    enable_world_model_summary_publish: true
+    world_model_summary_publish_rate_hz: 1.0
+    include_world_model_in_snapshot: true
 
     stale_timeout_sec: 3.0
     remove_timeout_sec: 30.0
@@ -23,9 +29,17 @@ fleet_gateway:
     auto_remove_offline_vehicle: false
     enable_mqtt: false
 
+    world_model_topic: /fleet/world_model
+    world_model_summary_topic: /fleet/world_model_summary
+    enable_base_station_service: true
+    base_station_state_topic: /base_station/state
+    base_station_events_topic: /base_station/events
+    enable_legacy_topic_fallback: false
+
     vehicle_state_topics:
       - /fleet/state
     perception_targets_topic: /fleet/perception/targets
     sensor_status_topic: /fleet/sensor_status
+    sensor_stream_topic: /fleet/gateway/sensor_stream
     mission_state_topic: /capture/state
     perception_source_status_topic: /perception/source_status

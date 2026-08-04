@@ -14,6 +14,7 @@
   <exec_depend>ros_gz_bridge</exec_depend>
   <exec_depend>rviz2</exec_depend>
   <exec_depend>uav_usv_mission</exec_depend>
+  <exec_depend>uav_usv_base_station</exec_depend>
   <exec_depend>uav_usv_perception</exec_depend>
   <exec_depend>uav_usv_lv_dot_ros2</exec_depend>
   <exec_depend>uav_usv_gazebo</exec_depend>

@@ -651,7 +651,9 @@ class FleetBaseStation(Node):
                 )
             if not panels:
                 return
-            columns = 4
+            # Keep the six operational cameras in a compact 3 x 2 layout:
+            # first row USV-01..03, second row UAV-01..03.
+            columns = 3
             while len(panels) % columns:
                 panels.append(np.zeros_like(panels[0]))
             rows = [

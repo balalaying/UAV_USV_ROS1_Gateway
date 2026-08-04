@@ -35,6 +35,7 @@ class VehicleModel:
     mode: Optional[str] = None
     armed: Optional[bool] = None
     health: Dict[str, Any] = field(default_factory=dict)
+    state_source: str = ''
     received_at: float = 0.0
 
     def public(self):
@@ -95,6 +96,8 @@ class FleetSnapshot:
     vehicles: List[Dict[str, Any]] = field(default_factory=list)
     targets: List[Dict[str, Any]] = field(default_factory=list)
     sensors: List[Dict[str, Any]] = field(default_factory=list)
+    entities: List[Dict[str, Any]] = field(default_factory=list)
+    world_model: Dict[str, Any] = field(default_factory=dict)
     mission: Dict[str, Any] = field(default_factory=dict)
     gateway: Dict[str, Any] = field(default_factory=dict)
 

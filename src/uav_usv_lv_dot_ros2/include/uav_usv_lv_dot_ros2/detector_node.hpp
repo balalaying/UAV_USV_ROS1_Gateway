@@ -100,6 +100,7 @@ private:
   std::string vehicle_id_;
   std::string output_frame_;
   double tf_timeout_seconds_{0.1};
+  bool allow_latest_tf_fallback_{true};
   double diagnostics_period_seconds_{1.0};
 
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;

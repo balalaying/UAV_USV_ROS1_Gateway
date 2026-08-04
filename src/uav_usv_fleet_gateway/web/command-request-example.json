@@ -1,0 +1,22 @@
+{
+  "command": "submit_task",
+  "request_id": "web-20260727-0001",
+  "operator_id": "shore_operator",
+  "task": {
+    "task_id": "task-capture-enemy-001",
+    "task_type": "capture",
+    "target_id": "enemy_ship",
+    "priority": 120,
+    "constraints": {
+      "allowed_vehicles": [
+        "uav_01",
+        "uav_02",
+        "uav_03",
+        "usv_01",
+        "usv_02",
+        "usv_03"
+      ],
+      "max_duration_sec": 300.0
+    }
+  }
+}

@@ -67,6 +67,12 @@ install(PROGRAMS
 )
 
 install(PROGRAMS
+  scripts/capture_gazebo_camera_follow.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME capture_gazebo_camera_follow
+)
+
+install(PROGRAMS
   scripts/capture_target_motion.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME capture_target_motion
@@ -76,6 +82,18 @@ install(PROGRAMS
   scripts/uav_visual_shell_spawner.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME uav_visual_shell_spawner
+)
+
+install(PROGRAMS
+  scripts/fleet_world_model_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME fleet_world_model
+)
+
+install(PROGRAMS
+  scripts/fleet_behavior_manager.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME fleet_behavior_manager
 )
 
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
@@ -95,6 +113,16 @@ if(BUILD_TESTING)
   ament_add_pytest_test(
     lv_dot_debug_visualization
     test/test_lv_dot_debug_model.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  ament_add_pytest_test(
+    behavior_policy
+    test/test_behavior_policy.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  ament_add_pytest_test(
+    world_model_contract
+    test/test_world_model_contract.py
     APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
   )
 endif()

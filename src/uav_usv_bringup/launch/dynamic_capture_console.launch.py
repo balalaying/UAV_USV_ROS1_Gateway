@@ -18,6 +18,11 @@ def generate_launch_description():
         'enable_pointcloud_projection'
     )
     enable_lv_dot_debug = LaunchConfiguration('enable_lv_dot_debug')
+    enable_debug_filtered_projection = LaunchConfiguration(
+        'enable_debug_filtered_projection'
+    )
+    fleet_world_model_only = LaunchConfiguration('fleet_world_model_only')
+    use_base_station_service = LaunchConfiguration('use_base_station_service')
     enable_affiliation_qt_mode = LaunchConfiguration(
         'enable_affiliation_qt_mode'
     )
@@ -31,6 +36,15 @@ def generate_launch_description():
             'enable_pointcloud_projection', default_value='true'
         ),
         DeclareLaunchArgument('enable_lv_dot_debug', default_value='true'),
+        DeclareLaunchArgument(
+            'enable_debug_filtered_projection', default_value='true'
+        ),
+        DeclareLaunchArgument(
+            'fleet_world_model_only', default_value='true'
+        ),
+        DeclareLaunchArgument(
+            'use_base_station_service', default_value='true'
+        ),
         DeclareLaunchArgument(
             'enable_affiliation_qt_mode', default_value='true'
         ),
@@ -48,11 +62,13 @@ def generate_launch_description():
                 '/perception/lv_dot_ros2/diagnostics/lidar_bboxes'
             ),
         ),
+        # The projection is presentation-only.  Keep one current scan at a
+        # bounded density so the Qt event loop remains responsive.
         DeclareLaunchArgument('topdown_point_rate', default_value='10.0'),
-        DeclareLaunchArgument('topdown_max_points', default_value='80000'),
-        DeclareLaunchArgument('topdown_voxel_size', default_value='0.015'),
+        DeclareLaunchArgument('topdown_max_points', default_value='12000'),
+        DeclareLaunchArgument('topdown_voxel_size', default_value='0.10'),
         DeclareLaunchArgument(
-            'topdown_persistence_frames', default_value='6'
+            'topdown_persistence_frames', default_value='1'
         ),
         DeclareLaunchArgument('topdown_min_z', default_value='-1.0'),
         DeclareLaunchArgument('topdown_max_z', default_value='8.0'),
@@ -112,7 +128,7 @@ def generate_launch_description():
             executable='qt_pointcloud_projection_node.py',
             name='lv_dot_debug_filtered_projection',
             output='screen',
-            condition=IfCondition(enable_lv_dot_debug),
+            condition=IfCondition(enable_debug_filtered_projection),
             parameters=[{
                 'use_sim_time': ParameterValue(
                     use_sim_time, value_type=bool
@@ -125,12 +141,12 @@ def generate_launch_description():
                     '/perception/lv_dot/debug/cloud_filtered_status'
                 ),
                 'output_frame': 'map',
-                'pointcloud_display_rate_hz': 20.0,
-                'pointcloud_max_points': 60000,
-                'pointcloud_voxel_size': 0.03,
+                'pointcloud_display_rate_hz': 5.0,
+                'pointcloud_max_points': 8000,
+                'pointcloud_voxel_size': 0.10,
                 'pointcloud_min_z': -1.0,
                 'pointcloud_max_z': 8.0,
-                'pointcloud_persistence_frames': 4,
+                'pointcloud_persistence_frames': 1,
             }],
         ),
         Node(
@@ -164,6 +180,17 @@ def generate_launch_description():
                 'enable_lv_dot_debug': ParameterValue(
                     enable_lv_dot_debug, value_type=bool
                 ),
+                # The live demo deliberately visualizes one Mid-360.  This
+                # prevents Qt from decoding inactive USV_02/03 clouds while
+                # preserving the multi-USV topics in the perception stack.
+                'perception_usv_ids': ['usv_01'],
+                'fleet_world_model_only': ParameterValue(
+                    fleet_world_model_only, value_type=bool
+                ),
+                'use_base_station_service': ParameterValue(
+                    use_base_station_service, value_type=bool
+                ),
+                'base_station_state_topic': '/base_station/state',
                 'enable_affiliation_qt_mode': ParameterValue(
                     enable_affiliation_qt_mode, value_type=bool
                 ),

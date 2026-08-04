@@ -15,7 +15,7 @@ boat_nav2_interface:
     velocity_measurement_alpha: 0.3
     linear_setpoint_alpha: 0.45
     angular_setpoint_alpha: 0.12
-    max_linear_output: 3.6
+    max_linear_output: 11.0
     min_linear_output: -0.65
     max_angular_output: 1.2
     command_deadband: 0.01
@@ -130,15 +130,15 @@ controller_server:
       model_dt: 0.05
       batch_size: 1800
       iteration_count: 1
-      vx_std: 0.9
+      vx_std: 1.2
       vy_std: 0.0
       wz_std: 0.22
-      vx_max: 3.2
+      vx_max: 10.0
       vx_min: 0.0
       vy_max: 0.0
       wz_max: 1.0
-      ax_max: 1.6
-      ax_min: -2.2
+      ax_max: 5.0
+      ax_min: -5.5
       ay_min: 0.0
       ay_max: 0.0
       az_max: 0.6
@@ -336,10 +336,10 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: false
     feedback: OPEN_LOOP
-    max_velocity: [3.2, 0.0, 1.0]
+    max_velocity: [10.0, 0.0, 1.0]
     min_velocity: [-0.65, 0.0, -1.0]
-    max_accel: [1.6, 0.0, 0.6]
-    max_decel: [-2.2, 0.0, -0.8]
+    max_accel: [5.0, 0.0, 0.8]
+    max_decel: [-5.5, 0.0, -1.0]
     odom_topic: /odom
     odom_duration: 0.2
     deadband_velocity: [0.02, 0.0, 0.02]

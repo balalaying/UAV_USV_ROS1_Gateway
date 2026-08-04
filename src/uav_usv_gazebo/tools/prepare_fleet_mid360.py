@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Materialize a fleet world with an RGL Mid-360 on one existing USV.
-
-The generated model keeps the source USV dynamics and control plugins intact.
-Only semantic frames, visual geometry, and a custom RGL sensor are appended to
-its existing link. No collision, inertia, joint, or control plugin is added.
-"""
+"""Materialize a fleet world with physically scaled USVs and RGL Mid-360."""
 
 import argparse
 import os
@@ -17,6 +12,55 @@ def _element(parent, tag, text=None, attributes=None):
     if text is not None:
         child.text = str(text)
     return child
+
+
+def _scale_values(text, factors):
+    values = [float(value) for value in text.split()]
+    for index, factor in enumerate(factors):
+        if index < len(values):
+            values[index] *= factor
+    return ' '.join('%.10g' % value for value in values)
+
+
+def _scale_model(model, scale):
+    """Scale visual/collision geometry and inertial terms coherently."""
+    if abs(scale - 1.0) < 1e-9:
+        return
+    mass_scale = scale ** 3
+    inertia_scale = scale ** 5
+    for pose in model.iter('pose'):
+        if pose.text:
+            pose.text = _scale_values(pose.text, (scale, scale, scale))
+    for geometry in model.iter('geometry'):
+        for size in geometry.iter('size'):
+            if size.text:
+                size.text = _scale_values(size.text, (scale, scale, scale))
+        for mesh_scale in geometry.iter('scale'):
+            if mesh_scale.text:
+                mesh_scale.text = _scale_values(
+                    mesh_scale.text, (scale, scale, scale)
+                )
+        for tag in ('radius', 'length'):
+            for value in geometry.iter(tag):
+                if value.text:
+                    value.text = '%.10g' % (float(value.text) * scale)
+    for inertial in model.iter('inertial'):
+        mass = inertial.find('mass')
+        if mass is not None and mass.text:
+            mass.text = '%.10g' % (float(mass.text) * mass_scale)
+        inertia = inertial.find('inertia')
+        if inertia is None:
+            continue
+        for tag in ('ixx', 'ixy', 'ixz', 'iyy', 'iyz', 'izz'):
+            value = inertia.find(tag)
+            if value is not None and value.text:
+                value.text = '%.10g' % (
+                    float(value.text) * inertia_scale
+                )
+
+
+def _scaled_pose(pose, scale):
+    return _scale_values(pose, (scale, scale, scale))
 
 
 def _find_vehicle_model(world, vehicle_id):
@@ -187,50 +231,61 @@ def prepare(args):
     if world is None:
         raise RuntimeError('No <world> element in %s' % args.world)
 
-    vehicle_include, model_name = _find_vehicle_model(
-        world, args.vehicle_id
-    )
-    source_model_dir = os.path.join(args.models_dir, model_name)
-    model_tree, model = _load_model(source_model_dir)
-    sensor_model = model
-    merged_source = _merged_link_source(
-        model, args.models_dir, args.link_name
-    )
-    if merged_source is not None:
-        _, _, _, _, sensor_model = merged_source
-
-    _append_manager(world)
-    _append_mid360(
-        model=sensor_model,
-        link_name=args.link_name,
-        mount_pose=args.mount_pose,
-        raw_topic=args.raw_topic,
-        frame_id=args.frame_id,
-        update_rate=args.update_rate,
-        min_range=args.min_range,
-        max_range=args.max_range,
-        visual_scale=args.visual_scale,
-    )
-
-    runtime_model_name = model_name + '_mid360_runtime'
-    output_model_dir = os.path.join(
-        args.output_root, 'models', runtime_model_name
-    )
+    if args.enable_mid360:
+        _append_manager(world)
     output_world_dir = os.path.join(args.output_root, 'worlds')
-    os.makedirs(output_model_dir, exist_ok=True)
     os.makedirs(output_world_dir, exist_ok=True)
-
-    if merged_source is not None:
-        include, child_name, child_dir, child_tree, _ = merged_source
-        child_runtime_name = child_name + '_mid360_runtime'
-        child_output_dir = os.path.join(
-            args.output_root, 'models', child_runtime_name
+    vehicle_ids = [
+        value.strip() for value in args.vehicle_ids.split(',')
+        if value.strip()
+    ]
+    if not vehicle_ids:
+        vehicle_ids = [args.vehicle_id]
+    for vehicle_id in dict.fromkeys(vehicle_ids):
+        vehicle_include, model_name = _find_vehicle_model(world, vehicle_id)
+        source_model_dir = os.path.join(args.models_dir, model_name)
+        model_tree, model = _load_model(source_model_dir)
+        _scale_model(model, args.model_scale)
+        sensor_model = model
+        merged_source = _merged_link_source(
+            model, args.models_dir, args.link_name
         )
-        _copy_model_tree(child_dir, child_output_dir, child_tree)
-        include.find('uri').text = 'model://' + child_runtime_name
+        if merged_source is not None:
+            _, _, _, _, sensor_model = merged_source
+            _scale_model(sensor_model, args.model_scale)
 
-    _copy_model_tree(source_model_dir, output_model_dir, model_tree)
-    vehicle_include.find('uri').text = 'model://' + runtime_model_name
+        if args.enable_mid360:
+            _append_mid360(
+                model=sensor_model,
+                link_name=args.link_name,
+                mount_pose=_scaled_pose(args.mount_pose, args.model_scale),
+                raw_topic=args.raw_topic.format(vehicle_id=vehicle_id),
+                frame_id=args.frame_id.format(vehicle_id=vehicle_id),
+                update_rate=args.update_rate,
+                min_range=args.min_range,
+                max_range=args.max_range,
+                visual_scale=args.visual_scale,
+            )
+
+        runtime_model_name = model_name + '_mid360_runtime'
+        output_model_dir = os.path.join(
+            args.output_root, 'models', runtime_model_name
+        )
+        os.makedirs(output_model_dir, exist_ok=True)
+
+        if merged_source is not None:
+            include, child_name, child_dir, child_tree, _ = merged_source
+            child_runtime_name = (
+                child_name + '_' + vehicle_id + '_mid360_runtime'
+            )
+            child_output_dir = os.path.join(
+                args.output_root, 'models', child_runtime_name
+            )
+            _copy_model_tree(child_dir, child_output_dir, child_tree)
+            include.find('uri').text = 'model://' + child_runtime_name
+
+        _copy_model_tree(source_model_dir, output_model_dir, model_tree)
+        vehicle_include.find('uri').text = 'model://' + runtime_model_name
     output_world = os.path.join(
         output_world_dir, os.path.basename(args.world)
     )
@@ -244,14 +299,32 @@ def main():
     parser.add_argument('--models-dir', required=True)
     parser.add_argument('--output-root', required=True)
     parser.add_argument('--vehicle-id', default='usv_01')
+    parser.add_argument(
+        '--vehicle-ids',
+        default='',
+        help='Comma-separated USV IDs. Overrides --vehicle-id when set.',
+    )
     parser.add_argument('--link-name', default='hull')
     parser.add_argument('--mount-pose', default='0.9075 0 1.5625 0 0 0')
-    parser.add_argument('--raw-topic', required=True)
-    parser.add_argument('--frame-id', required=True)
+    parser.add_argument(
+        '--raw-topic',
+        required=True,
+        help='Topic or format template containing {vehicle_id}.',
+    )
+    parser.add_argument(
+        '--frame-id',
+        required=True,
+        help='Frame or format template containing {vehicle_id}.',
+    )
     parser.add_argument('--update-rate', type=float, default=10.0)
     parser.add_argument('--min-range', type=float, default=0.1)
     parser.add_argument('--max-range', type=float, default=70.0)
     parser.add_argument('--visual-scale', type=float, default=1.0)
+    parser.add_argument('--model-scale', type=float, default=1.0)
+    parser.add_argument(
+        '--enable-mid360', action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     args = parser.parse_args()
 
     if args.update_rate <= 0.0:
@@ -260,6 +333,8 @@ def main():
         parser.error('invalid Mid-360 range')
     if args.visual_scale <= 0.0:
         parser.error('--visual-scale must be positive')
+    if args.model_scale <= 0.0:
+        parser.error('--model-scale must be positive')
     prepare(args)
 
 

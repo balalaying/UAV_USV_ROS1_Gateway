@@ -70,13 +70,31 @@ def project_points(
     max_z,
     voxel_size,
     max_points,
+    min_range=0.0,
+    max_range=float('inf'),
 ):
-    """Transform, height-filter and deterministically thin XYZ points."""
+    """Prepare a display cloud without changing the perception source.
+
+    Range filtering is applied in the sensor frame before the map transform.
+    This removes distant single-return clutter without tying the filter to a
+    particular world origin.  The Z limits remain map-frame limits because the
+    web display is a map-frame scene.
+    """
     values = np.asarray(points, dtype=np.float64)
     if values.size == 0:
         return np.empty((0, 3), dtype=np.float32)
     values = values.reshape((-1, 3))
     values = values[np.isfinite(values).all(axis=1)]
+    if values.size == 0:
+        return np.empty((0, 3), dtype=np.float32)
+
+    squared_range = np.einsum('ij,ij->i', values, values)
+    min_squared_range = max(0.0, float(min_range)) ** 2
+    max_squared_range = max(float(min_range), float(max_range)) ** 2
+    values = values[
+        (squared_range >= min_squared_range)
+        & (squared_range <= max_squared_range)
+    ]
     if values.size == 0:
         return np.empty((0, 3), dtype=np.float32)
 
@@ -124,9 +142,15 @@ class QtPointCloudProjectionNode(Node):
         self.declare_parameter('pointcloud_voxel_size', 0.20)
         self.declare_parameter('pointcloud_min_z', -1.0)
         self.declare_parameter('pointcloud_max_z', 8.0)
+        self.declare_parameter('pointcloud_min_range', 0.0)
+        self.declare_parameter('pointcloud_max_range', 70.0)
         self.declare_parameter('pointcloud_persistence_frames', 4)
         self.declare_parameter('tf_timeout_seconds', 0.05)
-        self.declare_parameter('tf_queue_timeout_seconds', 0.30)
+        # This is a visual stream.  Do not wait behind an old sensor stamp
+        # long enough for the radar to visibly lag the moving USV.
+        self.declare_parameter('tf_queue_timeout_seconds', 0.08)
+        self.declare_parameter('pending_frame_max_age_seconds', 0.08)
+        self.declare_parameter('allow_latest_tf_fallback', True)
 
         self.input_topic = str(self.get_parameter('input_topic').value)
         self.output_topic = str(self.get_parameter('output_topic').value)
@@ -149,6 +173,13 @@ class QtPointCloudProjectionNode(Node):
         self.max_z = float(self.get_parameter('pointcloud_max_z').value)
         if self.max_z < self.min_z:
             raise ValueError('pointcloud_max_z must be >= pointcloud_min_z')
+        self.min_range = max(
+            0.0, float(self.get_parameter('pointcloud_min_range').value)
+        )
+        self.max_range = max(
+            self.min_range,
+            float(self.get_parameter('pointcloud_max_range').value),
+        )
         self.persistence_frames = max(
             1,
             int(
@@ -161,6 +192,17 @@ class QtPointCloudProjectionNode(Node):
         self.tf_queue_timeout = max(
             self.tf_timeout,
             float(self.get_parameter('tf_queue_timeout_seconds').value),
+        )
+        self.pending_frame_max_age = max(
+            0.0,
+            float(
+                self.get_parameter(
+                    'pending_frame_max_age_seconds'
+                ).value
+            ),
+        )
+        self.allow_latest_tf_fallback = bool(
+            self.get_parameter('allow_latest_tf_fallback').value
         )
 
         self.publisher = self.create_publisher(
@@ -225,7 +267,10 @@ class QtPointCloudProjectionNode(Node):
             (len(self.arrivals) - 1) / elapsed if elapsed > 1e-6 else 0.0
         )
 
-    def _publish_status(self, cloud, output_count, processing_ms, latency_ms):
+    def _publish_status(
+        self, cloud, output_count, processing_ms, latency_ms,
+        used_latest_tf=False,
+    ):
         payload = {
             'online': True,
             'input_topic': self.input_topic,
@@ -242,12 +287,14 @@ class QtPointCloudProjectionNode(Node):
             'published_frames': self.published_frames,
             'rate_limited_frames': self.rate_limited_frames,
             'tf_failure_count': self.tf_failure_count,
+            'used_latest_tf': bool(used_latest_tf),
             'decode_failure_count': self.decode_failure_count,
             'voxel_size': self.voxel_size,
             'min_z': self.min_z,
             'max_z': self.max_z,
             'max_points': self.max_points,
             'persistence_frames': self.persistence_frames,
+            'pending_frame_max_age_seconds': self.pending_frame_max_age,
         }
         status = String()
         status.data = json.dumps(payload, sort_keys=True)
@@ -257,6 +304,16 @@ class QtPointCloudProjectionNode(Node):
         arrived_at = time.monotonic()
         self.received_frames += 1
         self.arrivals.append(arrived_at)
+        if self.pending_cloud is not None:
+            # The display is a latest-frame consumer, not a recorder.  A
+            # briefly pending cloud gets a chance to receive timestamped TF;
+            # after that, discard it in favour of the newest scan so the
+            # visible radar never trails the vessel by several frames.
+            if arrived_at - self.pending_since >= self.pending_frame_max_age:
+                self.pending_cloud = cloud
+                self.pending_since = arrived_at
+            self.rate_limited_frames += 1
+            return
         if arrived_at - self.last_processed_at < 0.8 / self.display_rate:
             self.rate_limited_frames += 1
             return
@@ -269,6 +326,7 @@ class QtPointCloudProjectionNode(Node):
         if cloud is None:
             return
         started_at = time.perf_counter()
+        used_latest_tf = False
         try:
             rotation, translation = self._transform(
                 cloud.header.frame_id, cloud.header.stamp
@@ -276,14 +334,33 @@ class QtPointCloudProjectionNode(Node):
         except TransformException as error:
             if time.monotonic() - self.pending_since < self.tf_queue_timeout:
                 return
-            self.pending_cloud = None
-            self.tf_failure_count += 1
-            if self.tf_failure_count == 1 or self.tf_failure_count % 50 == 0:
-                self.get_logger().warning(
-                    'Dropping queued cloud without exact timestamped TF: %s'
-                    % error
-                )
-            return
+            if self.allow_latest_tf_fallback:
+                try:
+                    rotation, translation = self._transform(
+                        cloud.header.frame_id, Time().to_msg()
+                    )
+                    used_latest_tf = True
+                except TransformException:
+                    self.pending_cloud = None
+                    self.tf_failure_count += 1
+                    if (
+                        self.tf_failure_count == 1
+                        or self.tf_failure_count % 50 == 0
+                    ):
+                        self.get_logger().warning(
+                            'Dropping queued cloud without usable TF: %s'
+                            % error
+                        )
+                    return
+            else:
+                self.pending_cloud = None
+                self.tf_failure_count += 1
+                if self.tf_failure_count == 1 or self.tf_failure_count % 50 == 0:
+                    self.get_logger().warning(
+                        'Dropping queued cloud without exact timestamped TF: %s'
+                        % error
+                    )
+                return
         self.pending_cloud = None
         try:
             points = point_cloud2.read_points_numpy(
@@ -299,6 +376,8 @@ class QtPointCloudProjectionNode(Node):
                 self.max_z,
                 self.voxel_size,
                 self.max_points,
+                self.min_range,
+                self.max_range,
             )
         except (AssertionError, KeyError, TypeError, ValueError) as error:
             self.decode_failure_count += 1
@@ -315,7 +394,10 @@ class QtPointCloudProjectionNode(Node):
             self.projected_history.clear()
         self.last_cloud_stamp = stamp_seconds
         self.projected_history.append(projected)
-        displayed = np.concatenate(tuple(self.projected_history), axis=0)
+        if len(self.projected_history) == 1:
+            displayed = projected
+        else:
+            displayed = np.concatenate(tuple(self.projected_history), axis=0)
         if displayed.shape[0] > self.max_points:
             indices = np.linspace(
                 0, displayed.shape[0] - 1, self.max_points, dtype=np.int64
@@ -334,7 +416,7 @@ class QtPointCloudProjectionNode(Node):
         if stamp_seconds > 0.0:
             latency_ms = max(0.0, (now_seconds - stamp_seconds) * 1000.0)
         self._publish_status(
-            cloud, len(displayed), processing_ms, latency_ms
+            cloud, len(displayed), processing_ms, latency_ms, used_latest_tf
         )
 
 

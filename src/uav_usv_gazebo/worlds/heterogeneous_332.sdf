@@ -62,7 +62,7 @@
     <include><uri>model://sim332_usv_cyan</uri><name>usv_03</name><pose>-30 -305 0 0 0 -0.05</pose></include>
 
     <include><uri>model://sim332_friendly_ship</uri><name>friendly_ship</name><pose>-150 -355 0 0 0 0.25</pose></include>
-    <include><uri>model://sim332_enemy_ship</uri><name>enemy_ship</name><pose>-80 -315 0 0 0 2.60</pose></include>
+    <include><uri>model://sim332_enemy_ship</uri><name>enemy_ship</name><pose>-80 -345 0 0 0 2.60</pose></include>
 
     <light name="sun" type="directional"><pose>0 0 100 0 0 0</pose><cast_shadows>true</cast_shadows><intensity>1.1</intensity><direction>-0.35 0.2 -0.92</direction><diffuse>0.92 0.92 0.88 1</diffuse><specular>0.25 0.25 0.25 1</specular></light>
   </world>

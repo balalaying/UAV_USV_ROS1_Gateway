@@ -14,6 +14,7 @@ from nav_msgs.msg import Odometry
 import rclpy
 from rclpy.duration import Duration
 from rclpy._rclpy_pybind11 import RCLError
+from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy
 from rclpy.qos import HistoryPolicy
@@ -131,6 +132,10 @@ class BoatNav2Interface(Node):
         self.declare_parameter('linear_setpoint_alpha', 0.45)
         self.declare_parameter('angular_setpoint_alpha', 0.6)
         self.declare_parameter('max_linear_output', 2.8)
+        # Zero keeps the established Nav2 behavior.  A positive value is a
+        # runtime ceiling used by the base-station speed-control page.
+        self.declare_parameter('speed_limit_mps', 0.0)
+        self.declare_parameter('speed_multiplier', 1.0)
         self.declare_parameter('min_linear_output', -0.65)
         self.declare_parameter('max_angular_output', 2.2)
         self.declare_parameter('command_deadband', 0.01)
@@ -207,6 +212,14 @@ class BoatNav2Interface(Node):
             0.0,
             float(self.get_parameter('max_linear_output').value),
         )
+        self.speed_limit_mps = max(
+            0.0,
+            float(self.get_parameter('speed_limit_mps').value),
+        )
+        self.speed_multiplier = max(
+            0.25, float(self.get_parameter('speed_multiplier').value)
+        )
+        self.add_on_set_parameters_callback(self._on_parameters)
         self.min_linear_output = min(
             0.0,
             float(self.get_parameter('min_linear_output').value),
@@ -329,7 +342,7 @@ class BoatNav2Interface(Node):
             LaserScan,
             self.scan_topic,
             self._on_scan,
-            10,
+            qos_profile_sensor_data,
         )
 
         self.boat_pose = None
@@ -440,11 +453,14 @@ class BoatNav2Interface(Node):
     def _on_cmd_vel(self, msg):
         self.last_cmd_time = time.monotonic()
         self.command_timed_out = False
+        max_forward = self.max_linear_output * self.speed_multiplier
+        if self.speed_limit_mps > 0.0:
+            max_forward = min(max_forward, self.speed_limit_mps)
         self.target_cmd = (
             clamp(
-                float(msg.linear.x),
+                float(msg.linear.x) * self.speed_multiplier,
                 self.min_linear_output,
-                self.max_linear_output,
+                max_forward,
             ),
             clamp(
                 float(msg.angular.z),
@@ -453,14 +469,31 @@ class BoatNav2Interface(Node):
             ),
         )
 
-    def _on_scan(self, msg):
-        if self.boat_pose is not None:
-            roll, pitch = roll_pitch_from_quaternion(
-                self.boat_pose.orientation
-            )
-            if max(abs(roll), abs(pitch)) > self.max_scan_tilt:
-                return
+    def _on_parameters(self, parameters):
+        for parameter in parameters:
+            if parameter.name == 'speed_limit_mps':
+                value = float(parameter.value)
+                if value < 0.0 or value > self.max_linear_output * 2.0:
+                    return SetParametersResult(
+                        successful=False,
+                        reason='speed_limit_mps is outside the supported range',
+                    )
+                self.speed_limit_mps = value
+                if value > 0.0:
+                    self.target_cmd = (
+                        min(self.target_cmd[0], value), self.target_cmd[1]
+                    )
+            elif parameter.name == 'speed_multiplier':
+                value = float(parameter.value)
+                if value < 0.25 or value > 2.0:
+                    return SetParametersResult(
+                        successful=False,
+                        reason='speed_multiplier must be in [0.25, 2.0]',
+                    )
+                self.speed_multiplier = value
+        return SetParametersResult(successful=True)
 
+    def _on_scan(self, msg):
         filtered_msg = copy.deepcopy(msg)
         filtered_ranges = list(msg.ranges)
         if self.filter_wave_points and self.boat_pose is not None:

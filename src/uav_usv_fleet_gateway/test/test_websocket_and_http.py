@@ -134,6 +134,32 @@ def test_websocket_request_snapshot_and_read_only_error():
         server.stop()
 
 
+def test_websocket_recognizes_disabled_mission_command_interface():
+    server = FleetWebSocketServer(
+        '127.0.0.1', 0, '/ws', ProtocolEncoder(),
+        lambda: {}, lambda: {'vehicles': []})
+    server.start()
+    sock = _connect(server.port)
+    try:
+        _receive_frame(sock)
+        _receive_frame(sock)
+        sock.sendall(_masked_text(json.dumps({
+            'command': 'submit_task',
+            'task': {
+                'task_id': 'web-task-001',
+                'task_type': 'capture',
+                'target_id': 'enemy_ship',
+            },
+        })))
+        message = json.loads(_receive_frame(sock)[1])
+        assert message['message_type'] == 'command_response'
+        assert message['data']['code'] == 'command_interface_disabled'
+        assert 'submit_task' in message['data']['accepted_commands']
+    finally:
+        sock.close()
+        server.stop()
+
+
 def test_http_root_and_health():
     with tempfile.TemporaryDirectory() as directory:
         Path(directory, 'index.html').write_text('mobile-demo')

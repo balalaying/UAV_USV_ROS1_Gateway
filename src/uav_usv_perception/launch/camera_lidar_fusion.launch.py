@@ -70,6 +70,56 @@ def generate_launch_description():
                 '/perception/usv_01/camera_lidar/observations'
             ),
         ),
+        DeclareLaunchArgument(
+            'debug_image_topic',
+            default_value='/perception/usv_01/camera/detections/image',
+        ),
+        DeclareLaunchArgument(
+            'camera_status_topic',
+            default_value='/perception/usv_01/camera/detection_status',
+        ),
+        DeclareLaunchArgument(
+            'vision_observations_topic',
+            default_value='/perception/usv_01/vision_guided/observations',
+        ),
+        DeclareLaunchArgument(
+            'vision_roi_cloud_topic',
+            default_value='/perception/usv_01/vision_guided/roi_cloud',
+        ),
+        DeclareLaunchArgument(
+            'vision_roi_bboxes_topic',
+            default_value='/perception/usv_01/vision_guided/roi_bboxes',
+        ),
+        DeclareLaunchArgument(
+            'vision_camera_projection_topic',
+            default_value=(
+                '/perception/usv_01/vision_guided/camera_projection'
+            ),
+        ),
+        DeclareLaunchArgument(
+            'vision_status_topic',
+            default_value='/perception/usv_01/vision_guided/status',
+        ),
+        DeclareLaunchArgument(
+            'lidar_only_markers_topic',
+            default_value=(
+                '/perception/usv_01/camera_lidar/lidar_only_bboxes'
+            ),
+        ),
+        DeclareLaunchArgument(
+            'camera_only_markers_topic',
+            default_value=(
+                '/perception/usv_01/camera_lidar/camera_only_bboxes'
+            ),
+        ),
+        DeclareLaunchArgument(
+            'fused_markers_topic',
+            default_value='/perception/usv_01/camera_lidar/fused_bboxes',
+        ),
+        DeclareLaunchArgument(
+            'association_status_topic',
+            default_value='/perception/usv_01/camera_lidar/status',
+        ),
         DeclareLaunchArgument('camera_frame', default_value='usv_01/camera_link'),
         DeclareLaunchArgument('output_frame', default_value='map'),
         DeclareLaunchArgument('sync_slop_seconds', default_value='0.20'),
@@ -88,7 +138,7 @@ def generate_launch_description():
         Node(
             package='uav_usv_perception',
             executable='usv_camera_detection_node.py',
-            name='usv_01_camera_detection',
+            name=[LaunchConfiguration('vehicle_id'), '_camera_detection'],
             output='screen',
             parameters=[config, {
                 'use_sim_time': ParameterValue(
@@ -106,9 +156,10 @@ def generate_launch_description():
                     LaunchConfiguration('enable_affiliation_filter'),
                     value_type=bool,
                 ),
-                'debug_image_topic': (
-                    '/perception/usv_01/camera/detections/image'
+                'debug_image_topic': LaunchConfiguration(
+                    'debug_image_topic'
                 ),
+                'status_topic': LaunchConfiguration('camera_status_topic'),
                 'max_rate_hz': ParameterValue(
                     LaunchConfiguration('camera_max_rate_hz'),
                     value_type=float,
@@ -126,7 +177,10 @@ def generate_launch_description():
         Node(
             package='uav_usv_perception',
             executable='vision_guided_lidar_roi_node.py',
-            name='usv_01_vision_guided_lidar_roi',
+            name=[
+                LaunchConfiguration('vehicle_id'),
+                '_vision_guided_lidar_roi',
+            ],
             output='screen',
             condition=IfCondition(
                 LaunchConfiguration('enable_vision_guided_perception')
@@ -139,6 +193,19 @@ def generate_launch_description():
                 'camera_info_topic': LaunchConfiguration('camera_info_topic'),
                 'points_topic': LaunchConfiguration('points_topic'),
                 'tracks_topic': LaunchConfiguration('lidar_tracks_topic'),
+                'observations_topic': LaunchConfiguration(
+                    'vision_observations_topic'
+                ),
+                'roi_cloud_topic': LaunchConfiguration(
+                    'vision_roi_cloud_topic'
+                ),
+                'roi_bboxes_topic': LaunchConfiguration(
+                    'vision_roi_bboxes_topic'
+                ),
+                'camera_projection_topic': LaunchConfiguration(
+                    'vision_camera_projection_topic'
+                ),
+                'status_topic': LaunchConfiguration('vision_status_topic'),
                 'camera_frame': LaunchConfiguration('camera_frame'),
                 'output_frame': LaunchConfiguration('output_frame'),
                 'shadow_mode': ParameterValue(
@@ -150,7 +217,10 @@ def generate_launch_description():
         Node(
             package='uav_usv_perception',
             executable='camera_lidar_association_node.py',
-            name='usv_01_camera_lidar_association',
+            name=[
+                LaunchConfiguration('vehicle_id'),
+                '_camera_lidar_association',
+            ],
             output='screen',
             parameters=[config, {
                 'use_sim_time': ParameterValue(
@@ -163,7 +233,7 @@ def generate_launch_description():
                     'affiliated_detections_topic'
                 ),
                 'vision_guided_observations_topic': (
-                    '/perception/usv_01/vision_guided/observations'
+                    LaunchConfiguration('vision_observations_topic')
                 ),
                 'camera_info_topic': LaunchConfiguration(
                     'camera_info_topic'
@@ -175,6 +245,18 @@ def generate_launch_description():
                     'lidar_tracks_topic'
                 ),
                 'output_topic': LaunchConfiguration('output_topic'),
+                'lidar_only_markers_topic': LaunchConfiguration(
+                    'lidar_only_markers_topic'
+                ),
+                'camera_only_markers_topic': LaunchConfiguration(
+                    'camera_only_markers_topic'
+                ),
+                'fused_markers_topic': LaunchConfiguration(
+                    'fused_markers_topic'
+                ),
+                'status_topic': LaunchConfiguration(
+                    'association_status_topic'
+                ),
                 'camera_frame': LaunchConfiguration('camera_frame'),
                 'output_frame': LaunchConfiguration('output_frame'),
                 'sync_slop_seconds': ParameterValue(
