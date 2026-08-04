@@ -1,0 +1,127 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <world name="heterogeneous_332_vrx_water">
+    <gui fullscreen="0">
+      <plugin filename="MinimalScene" name="3D View">
+        <gz-gui><title>3D View</title><property type="bool" key="showTitleBar">false</property><property type="string" key="state">docked</property></gz-gui>
+        <engine>ogre2</engine><scene>scene</scene>
+        <ambient_light>0.75 0.78 0.82</ambient_light>
+        <background_color>0.82 0.9 0.96</background_color>
+        <camera_pose>-430 -560 420 0 0.78 0.72</camera_pose>
+        <camera_clip><near>0.15</near><far>3000</far></camera_clip>
+      </plugin>
+      <plugin filename="GzSceneManager" name="Scene Manager"/>
+      <plugin filename="InteractiveViewControl" name="Interactive view control"/>
+      <plugin filename="CameraTracking" name="Camera Tracking"/>
+      <plugin filename="EntityContextMenuPlugin" name="Entity context menu"/>
+      <plugin filename="WorldControl" name="World control">
+        <gz-gui><property type="bool" key="showTitleBar">false</property><property type="bool" key="resizable">false</property><property type="double" key="height">72</property><property type="double" key="width">121</property><property type="double" key="z">1</property><property type="string" key="state">floating</property><anchors target="3D View"><line own="left" target="left"/><line own="bottom" target="bottom"/></anchors></gz-gui>
+        <play_pause>true</play_pause><step>true</step><start_paused>false</start_paused>
+      </plugin>
+    </gui>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors"><render_engine>ogre2</render_engine></plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-air-pressure-system" name="gz::sim::systems::AirPressure"/>
+    <plugin filename="gz-sim-magnetometer-system" name="gz::sim::systems::Magnetometer"/>
+    <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
+    <!-- VRX-compatible Pierson-Moskowitz wave spectrum publisher. -->
+    <plugin filename="libVrxWavefieldPublisher.so" name="vrx::VrxWavefieldPublisher">
+      <publish_period>2.0</publish_period>
+      <wavefield>
+        <topic>/vrx/wavefield/parameters</topic>
+        <size>1050 900</size>
+        <cell_count>175 150</cell_count>
+        <wave>
+          <model>PMS</model>
+          <number>3</number>
+          <period>6.0</period>
+          <scale>1.35</scale>
+          <gain>0.65</gain>
+          <direction>0.25</direction>
+          <angle>0.5</angle>
+          <steepness>0.35</steepness>
+          <tau>2.0</tau>
+        </wave>
+      </wavefield>
+    </plugin>
+    <!-- Experimental physical water support; the original world is untouched. -->
+    <plugin filename="gz-sim-buoyancy-system" name="gz::sim::systems::Buoyancy">
+      <uniform_fluid_density>1025</uniform_fluid_density>
+      <!-- Restrict buoyancy to the three USV hulls.  Applying it to the large
+           island collision proxies makes the ODE broad phase unstable. -->
+      <enable>usv_01::hull</enable>
+      <enable>usv_02::hull</enable>
+      <enable>usv_03::hull</enable>
+    </plugin>
+    <physics type="ode"><max_step_size>0.004</max_step_size><real_time_factor>1</real_time_factor><real_time_update_rate>250</real_time_update_rate></physics>
+    <gravity>0 0 -9.8</gravity>
+    <scene><grid>false</grid><ambient>0.75 0.78 0.82 1</ambient><background>0.82 0.9 0.96 1</background><shadows>true</shadows></scene>
+    <spherical_coordinates><surface_model>EARTH_WGS84</surface_model><world_frame_orientation>ENU</world_frame_orientation><latitude_deg>47.397971057728974</latitude_deg><longitude_deg>8.5461637398001464</longitude_deg><elevation>0</elevation><heading_deg>0</heading_deg></spherical_coordinates>
+
+    <!-- The plane is retained as a hidden contact fallback for this preview;
+         the visible surface below is the VRX wavefield model. -->
+    <model name="ocean_plane"><static>true</static><link name="ocean_link">
+      <collision name="ocean_collision"><geometry><plane><normal>0 0 1</normal><size>1050 900</size></plane></geometry></collision>
+    </link></model>
+    <include><uri>model://vrx_coast_waves</uri><name>vrx_coast_waves</name><pose>0 0 0.015 0 0 0</pose></include>
+
+    <!-- The glTF is visual-only. Lowering it closes the shoreline gap while
+         simple collision proxies keep boats from crossing the island. -->
+    <include><uri>model://catalina_island</uri><name>catalina_island_terrain</name><pose>0 0 -0.8 0 0 0</pose></include>
+    <include><uri>model://shore_collision_boundary</uri><name>shore_collision_boundary</name><pose>0 0 0 0 0 0</pose></include>
+    <include><uri>model://sim332_catalina_collision_proxy</uri><name>catalina_collision_proxy</name><pose>0 0 0 0 0 0</pose></include>
+    <!-- Mirror the source texture's V axis into Gazebo Y while preserving the
+         collision ring's z=-2..10 m range (roll pi around a z=4 m centre). -->
+    <include><uri>model://mountain_shore_invisible_collision</uri><name>mountain_shore_invisible_collision</name><pose>0 0 8 3.141592653589793 0 0</pose></include>
+    <include><uri>model://sim332_island_uav_base</uri><name>island_uav_base</name><pose>-75 -215 0 0 0 0.559</pose></include>
+    <include><uri>model://mountain_shore_command_base</uri><name>shore_command_base</name><pose>-35 -190 17.5 0 0 0.559</pose></include>
+
+    <!-- Display IDs: UAV_01, UAV_02, UAV_03. Lower-case entity IDs preserve
+         the existing PX4 model binding and ROS namespace convention. -->
+    <include><uri>model://x500_mono_cam_down</uri><name>uav_01</name><pose>-86.86 -222.43 19.75 0 0 0.559</pose></include>
+    <include><uri>model://x500_mono_cam_down</uri><name>uav_02</name><pose>-75.00 -215.00 19.75 0 0 0.559</pose></include>
+    <include><uri>model://x500_mono_cam_down</uri><name>uav_03</name><pose>-63.14 -207.57 19.75 0 0 0.559</pose></include>
+
+    <!-- Display IDs: USV_01 blue, USV_02 green, USV_03 cyan. -->
+    <include><uri>model://sim332_usv_blue</uri><name>usv_01</name><pose>-120 -305 0 0 0 0.10</pose>
+      <plugin filename="gz-sim-hydrodynamics-system" name="gz::sim::systems::Hydrodynamics">
+        <link_name>hull</link_name><water_density>1025</water_density>
+        <xDotU>-8</xDotU><yDotV>-45</yDotV><zDotW>-70</zDotW>
+        <kDotP>-2</kDotP><mDotQ>-5</mDotQ><nDotR>-8</nDotR>
+        <xUabsU>-8</xUabsU><xU>-1.2</xU><yVabsV>-24</yVabsV><yV>-3</yV>
+        <zWabsW>-35</zWabsW><zW>-5</zW><kPabsP>-2</kPabsP><kP>-0.5</kP>
+        <mQabsQ>-3</mQabsQ><mQ>-0.7</mQ><nRabsR>-5</nRabsR><nR>-1.0</nR>
+      </plugin>
+    </include>
+    <include><uri>model://sim332_usv_green</uri><name>usv_02</name><pose>-75 -320 0 0 0 0.05</pose>
+      <plugin filename="gz-sim-hydrodynamics-system" name="gz::sim::systems::Hydrodynamics">
+        <link_name>hull</link_name><water_density>1025</water_density>
+        <xDotU>-8</xDotU><yDotV>-45</yDotV><zDotW>-70</zDotW>
+        <kDotP>-2</kDotP><mDotQ>-5</mDotQ><nDotR>-8</nDotR>
+        <xUabsU>-8</xUabsU><xU>-1.2</xU><yVabsV>-24</yVabsV><yV>-3</yV>
+        <zWabsW>-35</zWabsW><zW>-5</zW><kPabsP>-2</kPabsP><kP>-0.5</kP>
+        <mQabsQ>-3</mQabsQ><mQ>-0.7</mQ><nRabsR>-5</nRabsR><nR>-1.0</nR>
+      </plugin>
+    </include>
+    <include><uri>model://sim332_usv_cyan</uri><name>usv_03</name><pose>-30 -305 0 0 0 -0.05</pose>
+      <plugin filename="gz-sim-hydrodynamics-system" name="gz::sim::systems::Hydrodynamics">
+        <link_name>hull</link_name><water_density>1025</water_density>
+        <xDotU>-8</xDotU><yDotV>-45</yDotV><zDotW>-70</zDotW>
+        <kDotP>-2</kDotP><mDotQ>-5</mDotQ><nDotR>-8</nDotR>
+        <xUabsU>-8</xUabsU><xU>-1.2</xU><yVabsV>-24</yVabsV><yV>-3</yV>
+        <zWabsW>-35</zWabsW><zW>-5</zW><kPabsP>-2</kPabsP><kP>-0.5</kP>
+        <mQabsQ>-3</mQabsQ><mQ>-0.7</mQ><nRabsR>-5</nRabsR><nR>-1.0</nR>
+      </plugin>
+    </include>
+
+    <include><uri>model://sim332_friendly_ship</uri><name>friendly_ship</name><pose>-150 -355 0 0 0 0.25</pose></include>
+    <include><uri>model://sim332_enemy_ship</uri><name>enemy_ship</name><pose>-80 -345 0 0 0 2.60</pose></include>
+
+    <light name="sun" type="directional"><pose>0 0 100 0 0 0</pose><cast_shadows>true</cast_shadows><intensity>1.1</intensity><direction>-0.35 0.2 -0.92</direction><diffuse>0.92 0.92 0.88 1</diffuse><specular>0.25 0.25 0.25 1</specular></light>
+  </world>
+</sdf>

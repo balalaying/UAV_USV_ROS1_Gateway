@@ -55,6 +55,31 @@ Run the isolated VRX-style world without changing the default world:
 ros2 run uav_usv_gazebo run_gz_world.sh vrx_sydney_regatta_custom
 ```
 
+## VRX 水面实验副本
+
+`worlds/heterogeneous_332_vrx_water.sdf` 是当前主世界
+`worlds/heterogeneous_332.sdf` 的独立副本。副本使用 VRX Gazebo 8 的
+Pierson–Moskowitz 波场、`WaveVisual` Gerstner 波面材质，以及 Gazebo 原生
+Buoyancy / Hydrodynamics 系统；原主世界没有被修改。
+VRX 实现来自 [Open Source Robotics Foundation 的 VRX 项目](https://github.com/osrf/vrx)，
+与本工作区的 Gazebo Sim 8 ABI 对齐。
+
+准备好 PX4 后，可直接启动完整的 3 UAV / 3 USV 预览：
+
+```bash
+source install/setup.bash
+export PX4_DIR=/home/dji/PX4-Autopilot  # 按本机路径调整
+ros2 run uav_usv_gazebo run_vrx_water_preview.sh
+```
+
+可用环境变量调整预览：`UAV_USV_X500_SCALE`（默认 `12`）、
+`UAV_USV_CAMERA_WIDTH`（默认 `320`）、`UAV_USV_CAMERA_HEIGHT`（默认 `180`）、
+`UAV_USV_CAMERA_RATE`（默认 `20`）和 `GZ_SIM_ARGS`（默认 `-r`）。
+
+副本保留原有船舶控制和波浪跟随器，同时增加水动力阻尼，便于先观察视觉
+和运行稳定性；若要做严格的物理水面实验，下一步可关闭旧的
+`BoatWaveFollower` 位姿覆盖并重新标定船体浮力参数。
+
 PX4 asset synchronization is also owned by this package:
 
 ```bash
