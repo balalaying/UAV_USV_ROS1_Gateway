@@ -80,26 +80,6 @@ ros2 run uav_usv_gazebo run_vrx_water_preview.sh
 和运行稳定性；若要做严格的物理水面实验，下一步可关闭旧的
 `BoatWaveFollower` 位姿覆盖并重新标定船体浮力参数。
 
-FFT 海面试验副本：
-
-`worlds/heterogeneous_332_fft_water.sdf` 使用外部
-`asv_wave_sim` 的 FFT / tiled ocean visual plugin。该方案支持当前的
-Gazebo Harmonic (`gz-sim8`)，但项目许可证为 GPL-3.0，因此本仓库不复制
-其源码或二进制；预览脚本从 `/tmp`（或环境变量指定的位置）加载它们。
-当前工作区已在 `/tmp/asv_wave_sim` 和 `/tmp/asv_wave_install` 准备好试验版本；
-如果换机器，需要先按 [asv_wave_sim 的 Harmonic 构建说明](https://github.com/srmainwaring/asv_wave_sim)
-编译并安装该外部插件。
-其构建依赖至少包括 `libfftw3-dev` 和 `libcgal-dev`。
-预览脚本将 `DYNAMIC_TEXTURE` 切换为 `DYNAMIC_GEOMETRY` 并生成 5×5 瓦片，
-这是当前 Ogre 2.3 环境下更稳定的 FFT 渲染路径。
-
-```bash
-export ASV_WAVE_ROOT=/tmp/asv_wave_sim
-export ASV_WAVE_INSTALL=/tmp/asv_wave_install
-source install/setup.bash
-ros2 run uav_usv_gazebo run_fft_water_preview.sh
-```
-
 PX4 asset synchronization is also owned by this package:
 
 ```bash
