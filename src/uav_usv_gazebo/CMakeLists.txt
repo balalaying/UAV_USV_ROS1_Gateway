@@ -138,6 +138,8 @@ install(PROGRAMS
   tools/prepare_coastline.sh
   tools/build_coastline_assets.py
   tools/prepare_fleet_mid360.py
+  tools/prepare_fft_preview_assets.sh
+  tools/run_fft_water_preview.sh
   tools/run_vrx_water_preview.sh
   tools/sync_to_px4.sh
   DESTINATION lib/${PROJECT_NAME}
