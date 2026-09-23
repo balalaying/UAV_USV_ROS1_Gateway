@@ -1,0 +1,82 @@
+Gazebo Harmonic source snapshot
+==============================
+
+[gz-cmake]
+remote: https://github.com/gazebosim/gz-cmake
+commit: eb85f5f20d9358c65a0ec1afa0c391b3254a8e26
+branch: gz-cmake3
+
+[gz-common]
+remote: https://github.com/gazebosim/gz-common
+commit: dcf9693fea6977cabc7bd408c94251a59019db24
+branch: gz-common5
+
+[gz-fuel-tools]
+remote: https://github.com/gazebosim/gz-fuel-tools
+commit: c381002f4e0004fd9c186592836d8a9c936ab281
+branch: gz-fuel-tools9
+
+[gz-gui]
+remote: https://github.com/gazebosim/gz-gui
+commit: e17f4fda7697c08c84fae6f106ee6997a7b6196a
+branch: gz-gui8
+
+[gz-launch]
+remote: https://github.com/gazebosim/gz-launch
+commit: f97cf936af57eb75d477487b35e4bfdbc670d330
+branch: gz-launch7
+
+[gz-math]
+remote: https://github.com/gazebosim/gz-math
+commit: c2f878f355d9c9fd5050ea36a09c9ea6e723d4e7
+branch: gz-math7
+
+[gz-msgs]
+remote: https://github.com/gazebosim/gz-msgs
+commit: 292056c60b08a83b5d005e244dc3aa2c9a32a061
+branch: gz-msgs10
+
+[gz-physics]
+remote: https://github.com/gazebosim/gz-physics
+commit: 275641c6c830c75ed0c3a602ed440f42b8ef8b13
+branch: gz-physics7
+
+[gz-plugin]
+remote: https://github.com/gazebosim/gz-plugin
+commit: 25b10154cbe7a23e0bbf939fcc7cd63be39f70da
+branch: gz-plugin2
+
+[gz-rendering]
+remote: https://github.com/gazebosim/gz-rendering
+commit: f4805cc67d815b1f80805d120e2ceb54c78b4cf5
+branch: gz-rendering8
+
+[gz-sensors]
+remote: https://github.com/gazebosim/gz-sensors
+commit: 504241fff44bb2bb5e86b323aac95493550bfa7d
+branch: gz-sensors8
+
+[gz-sim]
+remote: https://github.com/gazebosim/gz-sim
+commit: 446a44335a45b704b4d36dabcc5508ee34eeb3d8
+branch: gz-sim8
+
+[gz-tools]
+remote: https://github.com/gazebosim/gz-tools
+commit: e1ea54ce558127465e8d313084bb719eaccdf33e
+branch: gz-tools2
+
+[gz-transport]
+remote: https://github.com/gazebosim/gz-transport
+commit: e57e131e38b198c81391f72e297a8437ccdb1c23
+branch: gz-transport13
+
+[gz-utils]
+remote: https://github.com/gazebosim/gz-utils
+commit: c23010fad4a291dbd4f06023000da071469f1424
+branch: gz-utils2
+
+[sdformat]
+remote: https://github.com/gazebosim/sdformat
+commit: 8512585c6265faf4aed0069a6765f11bd15b7efc
+branch: sdf14

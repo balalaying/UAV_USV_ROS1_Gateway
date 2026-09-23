@@ -1,0 +1,20 @@
+User-level development tools
+============================
+
+CMake
+-----
+version: 3.27.9
+installation method:
+  python3 -m pip install --user cmake==3.27.9
+
+expected executable:
+  ~/.local/bin/cmake
+
+Gazebo Sim environment
+----------------------
+workspace:
+  ~/gz_harmonic_ws
+
+shell environment:
+  export GZ_CONFIG_PATH=$HOME/gz_harmonic_ws/install/gz-sim8/share/gz
+  source $HOME/gz_harmonic_ws/install/setup.bash
