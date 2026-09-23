@@ -1,33 +1,25 @@
 <?xml version="1.0"?>
-<package format="3">
+<package format="2">
   <name>uav_usv_mission</name>
   <version>0.1.0</version>
-  <description>High-level UAV-USV cooperative mission and task management.</description>
+  <description>ROS 1 base station, Qt console and Gazebo Harmonic sensor bridge.</description>
   <maintainer email="team@example.com">UAV-USV Team</maintainer>
   <license>Apache-2.0</license>
-  <buildtool_depend>ament_cmake</buildtool_depend>
-  <buildtool_depend>ament_cmake_python</buildtool_depend>
-  <exec_depend>uav_usv_interfaces</exec_depend>
-  <exec_depend>uav_usv_uav_control</exec_depend>
-  <exec_depend>uav_usv_usv_control</exec_depend>
-  <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend>nav_msgs</exec_depend>
-  <exec_depend>python3-gz-msgs10</exec_depend>
-  <exec_depend>python3-gz-transport13</exec_depend>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_msgs</depend>
+  <depend>uav_usv_interfaces</depend>
+  <depend>uav_usv_ros1_compat</depend>
+  <depend>visualization_msgs</depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
-  <exec_depend>python3-opengl</exec_depend>
   <exec_depend>python3-pil</exec_depend>
   <exec_depend>python3-pyqt5</exec_depend>
-  <exec_depend>python3-pyqtgraph</exec_depend>
-  <exec_depend>rclpy</exec_depend>
-  <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>sensor_msgs_py</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
-  <exec_depend>std_srvs</exec_depend>
-  <exec_depend>tf2_msgs</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
-  <exec_depend>visualization_msgs</exec_depend>
-  <test_depend>ament_cmake_pytest</test_depend>
-  <export><build_type>ament_cmake</build_type></export>
+  <export/>
 </package>

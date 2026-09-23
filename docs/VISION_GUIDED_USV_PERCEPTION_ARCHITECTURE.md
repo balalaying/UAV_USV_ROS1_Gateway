@@ -60,7 +60,7 @@ LV-DOT 提供 Track、速度、动态状态与视觉失效保底。
 | `/perception/usv_01/camera/affiliated_detections` | `AffiliatedDetection2DArray` | 类型安全的身份元数据 |
 | `/perception/usv_01/camera/detections/image` | `sensor_msgs/Image` | 标注图像 |
 | `/perception/usv_01/mid360/points_filtered` | `sensor_msgs/PointCloud2` | 标准过滤点云 |
-| `/perception/lv_dot_ros2/tracks` | `TrackedObjectArray` | LV-DOT Track 候选 |
+| `/perception/lv_dot/tracks` | `TrackedObjectArray` | LV-DOT Track 候选 |
 | `/perception/usv_01/vision_guided/roi_cloud` | `PointCloud2` | 被 Camera ROI 接受的点 |
 | `/perception/usv_01/vision_guided/roi_clusters` | `MarkerArray` | 局部簇调试显示 |
 | `/perception/usv_01/vision_guided/roi_bboxes` | `MarkerArray` | 稳定 3D 框 |

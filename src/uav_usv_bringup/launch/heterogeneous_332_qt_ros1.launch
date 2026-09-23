@@ -1,0 +1,254 @@
+<launch>
+  <env name="PYTHONPATH" value="/home/liu/gz_harmonic_ws/install/gz-msgs10/lib/python:/home/liu/gz_harmonic_ws/install/gz-transport13/lib/python:/home/liu/gz_harmonic_ws/install/gz-math7/lib/python:$(optenv PYTHONPATH)"/>
+  <arg name="start_world" default="true"/>
+  <arg name="start_ardupilot" default="true"/>
+  <arg name="start_gui" default="true"/>
+  <arg name="auto_demo" default="false"/>
+  <!-- UAV_USV_DUAL_ALGORITHMS_ARGS -->
+  <arg name="start_algorithms" default="false"/>
+  <arg name="start_gbsflacs" default="false"/>
+  <arg name="algorithm_mode" default="idle"/>
+  <arg name="algorithm_auto_start" default="false"/>
+  <arg name="enable_mid360" default="true"/>
+  <arg name="rgl_root" default="/var/tmp/RGLGazeboPlugin_v0.2.0_focal_custom"/>
+  <arg name="mid360_rate" default="10.0"/>
+  <arg name="mid360_min_range" default="0.5"/>
+  <arg name="mid360_max_range" default="70.0"/>
+  <env name="UAV_USV_RGL_ROOT" value="$(arg rgl_root)"/>
+  <env name="UAV_USV_MID360_RATE" value="$(arg mid360_rate)"/>
+  <env name="UAV_USV_MID360_MIN_RANGE" value="$(arg mid360_min_range)"/>
+  <env name="UAV_USV_MID360_MAX_RANGE" value="$(arg mid360_max_range)"/>
+
+  <group if="$(arg start_world)">
+    <node if="$(arg enable_mid360)" pkg="uav_usv_gazebo"
+          type="run_gz_world_mid360.sh" name="heterogeneous_332_gazebo"
+          output="screen"/>
+    <node unless="$(arg enable_mid360)" pkg="uav_usv_gazebo"
+          type="run_gz_world.sh" name="heterogeneous_332_gazebo"
+          args="heterogeneous_332.sdf" output="screen"/>
+  </group>
+
+  <node if="$(arg start_ardupilot)" pkg="uav_usv_bringup"
+        type="start_ardupilot_332.sh" name="ardupilot_332_instances" output="screen"/>
+
+  <node pkg="uav_usv_mission" type="gz_sensor_bridge.py"
+        name="gz_sensor_bridge" output="screen">
+    <param name="world_name" value="heterogeneous_332"/>
+    <rosparam param="uav_ids">[uav_01, uav_02, uav_03]</rosparam>
+    <rosparam param="uav_model_names">[uav_01, uav_02, uav_03]</rosparam>
+    <rosparam param="usv_ids">[usv_01, usv_02, usv_03]</rosparam>
+    <rosparam param="usv_source_names">[own_01, own_02, own_03]</rosparam>
+    <param name="bridge_usv_scans" value="true"/>
+    <param name="bridge_usv_depth" value="true"/>
+    <param name="bridge_base_radar" value="true"/>
+    <param name="base_radar_source_topic" value="/defense/own_01/scan"/>
+    <param name="camera_max_rate" value="10.0"/>
+  </node>
+
+  <group if="$(arg enable_mid360)">
+    <node pkg="uav_usv_sim" type="fleet_pose_tf_publisher.py"
+          name="fleet_pose_tf_publisher" output="screen">
+      <param name="pose_topic" value="/world/heterogeneous_332/pose/info"/>
+      <rosparam param="vehicle_ids">[usv_01, usv_02, usv_03]</rosparam>
+      <rosparam param="target_ids">[friendly_ship, enemy_ship]</rosparam>
+      <param name="publish_rate_hz" value="20.0"/>
+    </node>
+
+    <node pkg="tf2_ros" type="static_transform_publisher"
+          name="usv_01_mid360_tf" args="0.9075 0 1.5625 0 0 0 usv_01/base_link usv_01/mid360_link"/>
+    <node pkg="tf2_ros" type="static_transform_publisher"
+          name="usv_02_mid360_tf" args="0.9075 0 1.5625 0 0 0 usv_02/base_link usv_02/mid360_link"/>
+    <node pkg="tf2_ros" type="static_transform_publisher"
+          name="usv_03_mid360_tf" args="0.9075 0 1.5625 0 0 0 usv_03/base_link usv_03/mid360_link"/>
+
+    <node pkg="uav_usv_perception" type="gz_pointcloud_bridge.py"
+          name="usv_01_mid360_gz_bridge" output="screen">
+      <param name="gz_topic" value="/fleet/uplink/usv_01/mid360/rgl_points"/>
+      <param name="ros_topic" value="/fleet/uplink/usv_01/mid360/points"/>
+      <param name="frame_id" value="usv_01/mid360_link"/>
+      <param name="publish_clock" value="false"/>
+      <param name="stamp_mode" value="node"/>
+    </node>
+    <node pkg="uav_usv_perception" type="gz_pointcloud_bridge.py"
+          name="usv_02_mid360_gz_bridge" output="screen">
+      <param name="gz_topic" value="/fleet/uplink/usv_02/mid360/rgl_points"/>
+      <param name="ros_topic" value="/fleet/uplink/usv_02/mid360/points"/>
+      <param name="frame_id" value="usv_02/mid360_link"/>
+      <param name="publish_clock" value="false"/>
+      <param name="stamp_mode" value="node"/>
+    </node>
+    <node pkg="uav_usv_perception" type="gz_pointcloud_bridge.py"
+          name="usv_03_mid360_gz_bridge" output="screen">
+      <param name="gz_topic" value="/fleet/uplink/usv_03/mid360/rgl_points"/>
+      <param name="ros_topic" value="/fleet/uplink/usv_03/mid360/points"/>
+      <param name="frame_id" value="usv_03/mid360_link"/>
+      <param name="publish_clock" value="false"/>
+      <param name="stamp_mode" value="node"/>
+    </node>
+
+    <node pkg="uav_usv_perception" type="mid360_preprocessor.py"
+          name="usv_01_mid360_preprocessor" output="screen">
+      <param name="input_topic" value="/fleet/uplink/usv_01/mid360/points"/>
+      <param name="output_topic" value="/perception/usv_01/mid360/points_filtered"/>
+      <param name="preview_topic" value="/perception/usv_01/mid360/preview"/>
+      <param name="vehicle_id" value="usv_01"/>
+      <param name="frame_id" value="usv_01/mid360_link"/>
+      <param name="expected_rate_hz" value="$(arg mid360_rate)"/>
+      <param name="min_range" value="$(arg mid360_min_range)"/>
+      <param name="max_range" value="$(arg mid360_max_range)"/>
+      <param name="voxel_size" value="0.12"/>
+      <param name="preview_enabled" value="true"/>
+    </node>
+    <node pkg="uav_usv_perception" type="mid360_preprocessor.py"
+          name="usv_02_mid360_preprocessor" output="screen">
+      <param name="input_topic" value="/fleet/uplink/usv_02/mid360/points"/>
+      <param name="output_topic" value="/perception/usv_02/mid360/points_filtered"/>
+      <param name="preview_topic" value="/perception/usv_02/mid360/preview"/>
+      <param name="vehicle_id" value="usv_02"/>
+      <param name="frame_id" value="usv_02/mid360_link"/>
+      <param name="expected_rate_hz" value="$(arg mid360_rate)"/>
+      <param name="min_range" value="$(arg mid360_min_range)"/>
+      <param name="max_range" value="$(arg mid360_max_range)"/>
+      <param name="voxel_size" value="0.12"/>
+      <param name="preview_enabled" value="true"/>
+    </node>
+    <node pkg="uav_usv_perception" type="mid360_preprocessor.py"
+          name="usv_03_mid360_preprocessor" output="screen">
+      <param name="input_topic" value="/fleet/uplink/usv_03/mid360/points"/>
+      <param name="output_topic" value="/perception/usv_03/mid360/points_filtered"/>
+      <param name="preview_topic" value="/perception/usv_03/mid360/preview"/>
+      <param name="vehicle_id" value="usv_03"/>
+      <param name="frame_id" value="usv_03/mid360_link"/>
+      <param name="expected_rate_hz" value="$(arg mid360_rate)"/>
+      <param name="min_range" value="$(arg mid360_min_range)"/>
+      <param name="max_range" value="$(arg mid360_max_range)"/>
+      <param name="voxel_size" value="0.12"/>
+      <param name="preview_enabled" value="true"/>
+    </node>
+
+    <node pkg="uav_usv_perception" type="qt_pointcloud_projection_node.py"
+          name="usv_01_qt_pointcloud_projection" output="screen">
+      <param name="input_topic" value="/perception/usv_01/mid360/points_filtered"/>
+      <param name="output_topic" value="/perception/visualization/usv_01/topdown_points"/>
+      <param name="status_topic" value="/perception/visualization/usv_01/topdown_status"/>
+      <param name="output_frame" value="map"/>
+      <param name="pointcloud_display_rate_hz" value="5.0"/>
+      <param name="pointcloud_max_points" value="10000"/>
+    </node>
+  </group>
+
+  <node pkg="uav_usv_mission" type="gz_entity_truth_bridge.py"
+        name="gz_entity_truth_bridge" output="screen">
+    <param name="world_name" value="heterogeneous_332"/>
+    <rosparam param="entity_ids">[friendly_ship, enemy_ship]</rosparam>
+    <param name="output_topic" value="/fleet/perception/targets"/>
+  </node>
+
+  <group>
+    <node pkg="uav_usv_usv_control" type="usv_gz_fleet_agent.py"
+          name="usv_01_agent" output="screen">
+      <param name="vehicle_id" value="usv_01"/>
+      <param name="model_name" value="usv_01"/>
+      <param name="arrival_tolerance" value="1.0"/>
+      <param name="navigation_speed" value="10.0"/>
+      <param name="mavlink_url" value="tcp:127.0.0.1:5790"/>
+      <param name="force_arm" value="false"/>
+    </node>
+    <node pkg="uav_usv_usv_control" type="usv_gz_fleet_agent.py"
+          name="usv_02_agent" output="screen">
+      <param name="vehicle_id" value="usv_02"/>
+      <param name="model_name" value="usv_02"/>
+      <param name="arrival_tolerance" value="1.0"/>
+      <param name="navigation_speed" value="10.0"/>
+      <param name="mavlink_url" value="tcp:127.0.0.1:5800"/>
+      <param name="force_arm" value="false"/>
+    </node>
+    <node pkg="uav_usv_usv_control" type="usv_gz_fleet_agent.py"
+          name="usv_03_agent" output="screen">
+      <param name="vehicle_id" value="usv_03"/>
+      <param name="model_name" value="usv_03"/>
+      <param name="arrival_tolerance" value="1.0"/>
+      <param name="navigation_speed" value="10.0"/>
+      <param name="mavlink_url" value="tcp:127.0.0.1:5810"/>
+      <param name="force_arm" value="false"/>
+    </node>
+  </group>
+
+  <!-- Publish each ROS 1 navigation solution on the fleet uplink contract. -->
+  <node pkg="topic_tools" type="relay" name="usv_01_odom_uplink"
+        args="/usv_01/odom /fleet/uplink/usv_01/odom" output="screen"/>
+  <node pkg="topic_tools" type="relay" name="usv_02_odom_uplink"
+        args="/usv_02/odom /fleet/uplink/usv_02/odom" output="screen"/>
+  <node pkg="topic_tools" type="relay" name="usv_03_odom_uplink"
+        args="/usv_03/odom /fleet/uplink/usv_03/odom" output="screen"/>
+
+  <node pkg="uav_usv_uav_control" type="uav_fleet_agent.py"
+        name="uav_01_agent" output="screen">
+    <param name="vehicle_id" value="uav_01"/>
+    <param name="model_name" value="uav_01"/>
+    <param name="mavlink_url" value="tcp:127.0.0.1:5760"/>
+    <param name="force_arm" value="false"/>
+    <param name="deck_release_topic" value="/model/uav_01/release_from_deck"/>
+  </node>
+  <node pkg="uav_usv_uav_control" type="uav_fleet_agent.py"
+        name="uav_02_agent" output="screen">
+    <param name="vehicle_id" value="uav_02"/>
+    <param name="model_name" value="uav_02"/>
+    <param name="mavlink_url" value="tcp:127.0.0.1:5770"/>
+    <param name="force_arm" value="false"/>
+    <param name="deck_release_topic" value="/model/uav_02/release_from_deck"/>
+  </node>
+  <node pkg="uav_usv_uav_control" type="uav_fleet_agent.py"
+        name="uav_03_agent" output="screen">
+    <param name="vehicle_id" value="uav_03"/>
+    <param name="model_name" value="uav_03"/>
+    <param name="mavlink_url" value="tcp:127.0.0.1:5780"/>
+    <param name="force_arm" value="false"/>
+    <param name="deck_release_topic" value="/model/uav_03/release_from_deck"/>
+  </node>
+
+  <node pkg="uav_usv_mission" type="fleet_base_station.py"
+        name="fleet_base_station" output="screen">
+    <param name="auto_demo" value="$(arg auto_demo)"/>
+    <param name="monitor_only" value="false"/>
+    <param name="uav_ids" value="uav_01,uav_02,uav_03"/>
+    <param name="usv_ids" value="usv_01,usv_02,usv_03"/>
+  </node>
+
+  <node pkg="uav_usv_mission" type="fleet_world_model_node.py"
+        name="fleet_world_model" output="screen">
+    <rosparam param="known_uav_ids">[uav_01, uav_02, uav_03]</rosparam>
+    <rosparam param="known_usv_ids">[usv_01, usv_02, usv_03]</rosparam>
+    <rosparam param="known_entity_ids">[friendly_ship, enemy_ship]</rosparam>
+  </node>
+
+  <include file="$(find uav_usv_base_station)/launch/base_station_service.launch">
+    <arg name="base_station_x" value="-35.0"/>
+    <arg name="base_station_y" value="-190.0"/>
+    <arg name="base_station_z" value="17.5"/>
+  </include>
+
+  <node if="$(arg start_gui)" pkg="uav_usv_mission"
+        type="fleet_base_station_gui.py" name="fleet_base_station_gui"
+        output="screen">
+    <param name="fleet_world_model_only" value="true"/>
+    <param name="use_base_station_service" value="true"/>
+    <param name="enable_perception_topdown" value="$(arg enable_mid360)"/>
+    <param name="enable_lv_dot_debug" value="$(arg enable_mid360)"/>
+    <param name="enable_affiliation_qt_mode" value="false"/>
+  </node>
+
+  <!-- UAV_USV_DUAL_ALGORITHMS_INCLUDE -->
+  <include if="$(arg start_algorithms)"
+           file="$(find uav_usv_cooperative_algorithms)/launch/dual_algorithms_ros1.launch">
+    <arg name="mode" value="$(arg algorithm_mode)"/>
+    <arg name="auto_start" value="$(arg algorithm_auto_start)"/>
+    <arg name="publish_commands" value="true"/>
+  </include>
+
+  <include if="$(arg start_gbsflacs)"
+           file="$(find uav_usv_cooperative_algorithms)/launch/gbsflacs_ros1.launch">
+    <arg name="auto_start" value="false"/>
+    <arg name="target_id" value="enemy_ship"/>
+  </include>
+</launch>

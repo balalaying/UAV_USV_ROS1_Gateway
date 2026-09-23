@@ -66,7 +66,7 @@ def test_vehicle_conversion_preserves_null_battery():
     message = NS(
         header=NS(stamp=_stamp(5, 500_000_000), frame_id='map'),
         vehicle_id='uav_01', vehicle_type=1, online=True, armed=False,
-        mode='PX4', pose=_pose(), twist=_twist(3.0, 4.0, 0.0),
+        mode='GUIDED', pose=_pose(), twist=_twist(3.0, 4.0, 0.0),
         battery_percent=-1.0, active_command_id='', status_text='ready',
     )
     model = vehicle_from_ros(message, 10.0)

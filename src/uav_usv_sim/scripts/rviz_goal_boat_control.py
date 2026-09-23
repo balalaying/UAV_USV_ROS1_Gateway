@@ -7,8 +7,7 @@ from geometry_msgs.msg import TransformStamped
 from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.msgs10.twist_pb2 import Twist
 from gz.transport13 import Node as GzTransportNode
-import rclpy
-from rclpy.node import Node
+import rospy
 from sensor_msgs.msg import LaserScan
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker
@@ -40,121 +39,128 @@ def rotate_xy(x, y, yaw):
     )
 
 
-class RvizGoalBoatControl(Node):
+class RvizGoalBoatControl:
 
     def __init__(self):
-        super().__init__('rviz_goal_boat_control')
 
-        self.declare_parameter('goal_topic', '/goal_pose')
-        self.declare_parameter('pose_topic', '/world/default/pose/info')
-        self.declare_parameter('boat_cmd_topic', '/model/simple_boat/cmd_vel')
-        self.declare_parameter('scan_topic', '/boat/scan')
-        self.declare_parameter('scan_range_topic', '/boat/scan_range')
-        self.declare_parameter('boat_name', 'landing_boat')
-        self.declare_parameter('accepted_goal_frames', ['map', 'world', 'default'])
-        self.declare_parameter('control_rate', 10.0)
-        self.declare_parameter('arrival_radius', 0.8)
-        self.declare_parameter('slow_radius', 5.0)
-        self.declare_parameter('max_speed', 2.6)
-        self.declare_parameter('min_speed', 0.35)
-        self.declare_parameter('turn_gain', 1.5)
-        self.declare_parameter('max_turn', 1.8)
-        self.declare_parameter('heading_slowdown_yaw', 1.0)
-        self.declare_parameter('stale_pose_timeout', 1.0)
-        self.declare_parameter('marker_topic', '/boat/navigation_markers')
-        self.declare_parameter('enable_avoidance', True)
-        self.declare_parameter('obstacle_slow_distance', 18.0)
-        self.declare_parameter('obstacle_stop_distance', 4.0)
-        self.declare_parameter('obstacle_turn_gain', 2.8)
-        self.declare_parameter('obstacle_clear_distance', 21.0)
-        self.declare_parameter('avoidance_hold_time', 3.0)
-        self.declare_parameter('avoidance_filter_alpha', 0.35)
-        self.declare_parameter('avoidance_min_speed', 0.55)
-        self.declare_parameter('scan_stale_timeout', 1.0)
-        self.declare_parameter('lidar_offset_x', 0.9075)
-        self.declare_parameter('lidar_offset_y', 0.0)
-        self.declare_parameter('lidar_offset_z', 1.5625)
-        self.declare_parameter('boat_frame_id', 'landing_boat/base_link')
-        self.declare_parameter('lidar_frame_id', 'landing_boat/hull/front_lidar')
 
-        self.goal_topic = self.get_parameter('goal_topic').value
-        self.pose_topic = self.get_parameter('pose_topic').value
-        self.boat_cmd_topic = self.get_parameter('boat_cmd_topic').value
-        self.scan_topic = self.get_parameter('scan_topic').value
-        self.scan_range_topic = self.get_parameter('scan_range_topic').value
-        self.boat_name = self.get_parameter('boat_name').value
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        self.goal_topic = rospy.get_param('~goal_topic', '/goal_pose')
+        self.pose_topic = rospy.get_param('~pose_topic', '/world/default/pose/info')
+        self.boat_cmd_topic = rospy.get_param('~boat_cmd_topic', '/model/simple_boat/cmd_vel')
+        self.scan_topic = rospy.get_param('~scan_topic', '/boat/scan')
+        self.scan_range_topic = rospy.get_param('~scan_range_topic', '/boat/scan_range')
+        self.boat_name = rospy.get_param('~boat_name', 'landing_boat')
         self.accepted_goal_frames = set(
-            self.get_parameter('accepted_goal_frames').value
+            rospy.get_param('~accepted_goal_frames', ['map', 'world', 'default'])
         )
-        self.control_rate = float(self.get_parameter('control_rate').value)
-        self.arrival_radius = float(self.get_parameter('arrival_radius').value)
-        self.slow_radius = float(self.get_parameter('slow_radius').value)
-        self.max_speed = float(self.get_parameter('max_speed').value)
-        self.min_speed = float(self.get_parameter('min_speed').value)
-        self.turn_gain = float(self.get_parameter('turn_gain').value)
-        self.max_turn = float(self.get_parameter('max_turn').value)
+        self.control_rate = float(rospy.get_param('~control_rate', 10.0))
+        self.arrival_radius = float(rospy.get_param('~arrival_radius', 0.8))
+        self.slow_radius = float(rospy.get_param('~slow_radius', 5.0))
+        self.max_speed = float(rospy.get_param('~max_speed', 2.6))
+        self.min_speed = float(rospy.get_param('~min_speed', 0.35))
+        self.turn_gain = float(rospy.get_param('~turn_gain', 1.5))
+        self.max_turn = float(rospy.get_param('~max_turn', 1.8))
         self.heading_slowdown_yaw = float(
-            self.get_parameter('heading_slowdown_yaw').value
+            rospy.get_param('~heading_slowdown_yaw', 1.0)
         )
         self.stale_pose_timeout = float(
-            self.get_parameter('stale_pose_timeout').value
+            rospy.get_param('~stale_pose_timeout', 1.0)
         )
-        self.marker_topic = self.get_parameter('marker_topic').value
-        self.enable_avoidance = bool(self.get_parameter('enable_avoidance').value)
+        self.marker_topic = rospy.get_param('~marker_topic', '/boat/navigation_markers')
+        self.enable_avoidance = bool(rospy.get_param('~enable_avoidance', True))
         self.obstacle_slow_distance = float(
-            self.get_parameter('obstacle_slow_distance').value
+            rospy.get_param('~obstacle_slow_distance', 18.0)
         )
         self.obstacle_stop_distance = float(
-            self.get_parameter('obstacle_stop_distance').value
+            rospy.get_param('~obstacle_stop_distance', 4.0)
         )
         self.obstacle_turn_gain = float(
-            self.get_parameter('obstacle_turn_gain').value
+            rospy.get_param('~obstacle_turn_gain', 2.8)
         )
         self.obstacle_clear_distance = float(
-            self.get_parameter('obstacle_clear_distance').value
+            rospy.get_param('~obstacle_clear_distance', 21.0)
         )
         self.avoidance_hold_time = float(
-            self.get_parameter('avoidance_hold_time').value
+            rospy.get_param('~avoidance_hold_time', 3.0)
         )
         self.avoidance_filter_alpha = float(
-            self.get_parameter('avoidance_filter_alpha').value
+            rospy.get_param('~avoidance_filter_alpha', 0.35)
         )
         self.avoidance_min_speed = float(
-            self.get_parameter('avoidance_min_speed').value
+            rospy.get_param('~avoidance_min_speed', 0.55)
         )
         self.scan_stale_timeout = float(
-            self.get_parameter('scan_stale_timeout').value
+            rospy.get_param('~scan_stale_timeout', 1.0)
         )
-        self.lidar_offset_x = float(self.get_parameter('lidar_offset_x').value)
-        self.lidar_offset_y = float(self.get_parameter('lidar_offset_y').value)
-        self.lidar_offset_z = float(self.get_parameter('lidar_offset_z').value)
-        self.boat_frame_id = self.get_parameter('boat_frame_id').value
-        self.lidar_frame_id = self.get_parameter('lidar_frame_id').value
+        self.lidar_offset_x = float(rospy.get_param('~lidar_offset_x', 0.9075))
+        self.lidar_offset_y = float(rospy.get_param('~lidar_offset_y', 0.0))
+        self.lidar_offset_z = float(rospy.get_param('~lidar_offset_z', 1.5625))
+        self.boat_frame_id = rospy.get_param('~boat_frame_id', 'landing_boat/base_link')
+        self.lidar_frame_id = rospy.get_param('~lidar_frame_id', 'landing_boat/hull/front_lidar')
 
         self.gz_node = GzTransportNode()
         self.boat_pub = self.gz_node.advertise(self.boat_cmd_topic, Twist)
         self.gz_node.subscribe(Pose_V, self.pose_topic, self._on_pose_v)
-        self.marker_pub = self.create_publisher(MarkerArray, self.marker_topic, 1)
-        self.scan_range_pub = self.create_publisher(
-            LaserScan,
+        self.marker_pub = rospy.Publisher(
+            self.marker_topic,
+            MarkerArray,
+            queue_size=1,
+            latch=True,
+        )
+        self.scan_range_pub = rospy.Publisher(
             self.scan_range_topic,
-            1,
-        )
-        self.tf_broadcaster = TransformBroadcaster(self)
-
-        self.goal_sub = self.create_subscription(
-            PoseStamped,
-            self.goal_topic,
-            self._on_goal,
-            10,
-        )
-        self.scan_sub = self.create_subscription(
             LaserScan,
-            self.scan_topic,
-            self._on_scan,
-            10,
+            queue_size=1,
         )
-        self.timer = self.create_timer(1.0 / self.control_rate, self._on_timer)
+        self.tf_broadcaster = TransformBroadcaster()
+
+        self.goal_sub = rospy.Subscriber(
+            self.goal_topic,
+            PoseStamped,
+            self._on_goal,
+            queue_size=10,
+        )
+        self.scan_sub = rospy.Subscriber(
+            self.scan_topic,
+            LaserScan,
+            self._on_scan,
+            queue_size=10,
+        )
+        self.timer = rospy.Timer(
+            rospy.Duration(1.0 / self.control_rate),
+            self._on_timer,
+        )
 
         self.boat_pose = None
         self.last_pose_time = 0.0
@@ -168,26 +174,25 @@ class RvizGoalBoatControl(Node):
         self.angular_cmd_state = 0.0
         self.arrived = False
 
-        self.get_logger().info(
+        rospy.loginfo(
             'Waiting for RViz goals on %s. Use 2D Goal Pose in frame map/world.'
             % self.goal_topic
         )
-        self.get_logger().info(
+        rospy.loginfo(
             'Reading boat pose from %s and publishing Gazebo Twist to %s.'
             % (self.pose_topic, self.boat_cmd_topic)
         )
-        self.get_logger().info(
+        rospy.loginfo(
             'Publishing RViz navigation reference markers on %s.'
             % self.marker_topic
         )
-        self.get_logger().info(
+        rospy.loginfo(
             'Local obstacle avoidance is %s; reading LaserScan from %s.'
             % ('enabled' if self.enable_avoidance else 'disabled', self.scan_topic)
         )
 
-    def destroy_node(self):
+    def shutdown(self):
         self.publish_cmd(0.0, 0.0)
-        super().destroy_node()
 
     def _on_pose_v(self, msg):
         for pose in msg.pose:
@@ -200,14 +205,14 @@ class RvizGoalBoatControl(Node):
     def _on_goal(self, msg):
         frame_id = msg.header.frame_id.lstrip('/')
         if frame_id and frame_id not in self.accepted_goal_frames:
-            self.get_logger().warn(
+            rospy.logwarn(
                 'Goal frame "%s" is not in %s; treating coordinates as Gazebo world XY.'
                 % (frame_id, sorted(self.accepted_goal_frames))
             )
 
         self.goal_xy = (msg.pose.position.x, msg.pose.position.y)
         self.arrived = False
-        self.get_logger().info(
+        rospy.loginfo(
             'New boat goal: x=%.2f y=%.2f frame=%s'
             % (self.goal_xy[0], self.goal_xy[1], frame_id or '<empty>')
         )
@@ -217,7 +222,7 @@ class RvizGoalBoatControl(Node):
         self.last_scan_time = time.monotonic()
         self.publish_scan_range(msg)
 
-    def _on_timer(self):
+    def _on_timer(self, _event):
         self.publish_markers()
         self.publish_lidar_tf()
 
@@ -245,7 +250,7 @@ class RvizGoalBoatControl(Node):
         if distance <= self.arrival_radius:
             self.publish_cmd(0.0, 0.0)
             if not self.arrived:
-                self.get_logger().info(
+                rospy.loginfo(
                     'Arrived at RViz goal: distance=%.2f m' % distance
                 )
                 self.arrived = True
@@ -449,7 +454,7 @@ class RvizGoalBoatControl(Node):
 
     def publish_markers(self):
         markers = MarkerArray()
-        stamp = self.get_clock().now().to_msg()
+        stamp = rospy.Time.now()
 
         markers.markers.append(
             self.make_marker(
@@ -613,7 +618,7 @@ class RvizGoalBoatControl(Node):
         if self.boat_pose is None:
             return
 
-        stamp = self.get_clock().now().to_msg()
+        stamp = rospy.Time.now()
         boat_tf = TransformStamped()
         boat_tf.header.stamp = stamp
         boat_tf.header.frame_id = 'map'
@@ -696,25 +701,22 @@ class RvizGoalBoatControl(Node):
     def throttled_log(self, text, period=2.0):
         now = time.monotonic()
         if now - self.last_log_time >= period:
-            self.get_logger().info(text)
+            rospy.loginfo(text)
             self.last_log_time = now
 
 
-def main(args=None):
-    rclpy.init(args=args)
+def main():
+    rospy.init_node('rviz_goal_boat_control')
+
     node = RvizGoalBoatControl()
+    rospy.on_shutdown(node.shutdown)
 
     try:
-        rclpy.spin(node)
+        rospy.spin()
     except KeyboardInterrupt:
         pass
     finally:
-        try:
-            node.destroy_node()
-        except KeyboardInterrupt:
-            pass
-        if rclpy.ok():
-            rclpy.shutdown()
+        node.shutdown()
 
 
 if __name__ == '__main__':

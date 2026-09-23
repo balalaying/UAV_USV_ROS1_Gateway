@@ -132,7 +132,7 @@ map
 ```text
 /fleet/uplink/usv_01/mid360/points
   -> /perception/usv_01/mid360/points_filtered
-  -> /perception/lv_dot_ros2/*
+  -> /perception/lv_dot/*
 
 /fleet/uplink/usv_01/camera/image_raw
   + /perception/usv_01/mid360/points_filtered

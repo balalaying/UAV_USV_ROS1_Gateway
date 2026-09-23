@@ -12,10 +12,10 @@ uint8 CLASS_BUOY=2
 uint8 CLASS_DEBRIS=3
 uint8 CLASS_LANDMARK=4
 
-unique_identifier_msgs/UUID uuid
+uuid_msgs/UniqueID uuid
 string track_id
-builtin_interfaces/Time first_seen
-builtin_interfaces/Time last_update
+time first_seen
+time last_update
 uint8 source_mask
 uint8 classification
 # Human-readable semantic metadata. These fields extend the enum/bitmask

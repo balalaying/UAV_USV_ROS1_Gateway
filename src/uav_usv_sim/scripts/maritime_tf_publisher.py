@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
+
 import math
-import time
 
 from geometry_msgs.msg import TransformStamped
 from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.transport13 import Node as GzTransportNode
 from nav_msgs.msg import Odometry
-import rclpy
-from rclpy.node import Node
+import rospy
 from tf2_ros import TransformBroadcaster
 
 
@@ -17,58 +16,87 @@ def yaw_from_quaternion(q):
     return math.atan2(siny_cosp, cosy_cosp)
 
 
-class MaritimeTfPublisher(Node):
+class MaritimeTfPublisher:
     """Publishes world truth as a consistent map/odom/base TF for test scenes."""
 
     def __init__(self):
-        super().__init__('maritime_tf_publisher')
-
-        self.declare_parameter('pose_topic', '/world/default/pose/info')
-        self.declare_parameter('map_frame_id', 'map')
-        self.declare_parameter('odom_frame_id', 'odom')
-        self.declare_parameter('ownship_name', 'landing_boat')
-        self.declare_parameter('ownship_frame_id', 'landing_boat/base_link')
-        self.declare_parameter('target_name', 'target_vessel')
-        self.declare_parameter('target_frame_id', 'target_vessel/base_link')
-        self.declare_parameter('odom_topic', '/maritime/ownship/odom')
-
-        self.pose_topic = self.get_parameter('pose_topic').value
-        self.map_frame_id = self.get_parameter('map_frame_id').value
-        self.odom_frame_id = self.get_parameter('odom_frame_id').value
-        self.ownship_name = self.get_parameter('ownship_name').value
-        self.ownship_frame_id = self.get_parameter('ownship_frame_id').value
-        self.target_name = self.get_parameter('target_name').value
-        self.target_frame_id = self.get_parameter('target_frame_id').value
+        self.pose_topic = rospy.get_param(
+            '~pose_topic',
+            '/world/default/pose/info',
+        )
+        self.map_frame_id = rospy.get_param(
+            '~map_frame_id',
+            'map',
+        )
+        self.odom_frame_id = rospy.get_param(
+            '~odom_frame_id',
+            'odom',
+        )
+        self.ownship_name = rospy.get_param(
+            '~ownship_name',
+            'landing_boat',
+        )
+        self.ownship_frame_id = rospy.get_param(
+            '~ownship_frame_id',
+            'landing_boat/base_link',
+        )
+        self.target_name = rospy.get_param(
+            '~target_name',
+            'target_vessel',
+        )
+        self.target_frame_id = rospy.get_param(
+            '~target_frame_id',
+            'target_vessel/base_link',
+        )
+        self.odom_topic = rospy.get_param(
+            '~odom_topic',
+            '/maritime/ownship/odom',
+        )
 
         self.gz_node = GzTransportNode()
-        self.gz_node.subscribe(Pose_V, self.pose_topic, self._on_pose)
-        self.tf_broadcaster = TransformBroadcaster(self)
-        self.odom_pub = self.create_publisher(
-            Odometry,
-            self.get_parameter('odom_topic').value,
-            20,
+        self.gz_node.subscribe(
+            Pose_V,
+            self.pose_topic,
+            self._on_pose,
         )
+
+        self.tf_broadcaster = TransformBroadcaster()
+
+        self.odom_pub = rospy.Publisher(
+            self.odom_topic,
+            Odometry,
+            queue_size=20,
+        )
+
         self.previous_pose = None
         self.previous_time = None
-        self.get_logger().info(
-            'Publishing test-scene TF: map -> odom -> %s and map -> %s.'
-            % (self.ownship_frame_id, self.target_frame_id)
+
+        rospy.loginfo(
+            'Publishing test-scene TF: map -> odom -> %s and map -> %s.',
+            self.ownship_frame_id,
+            self.target_frame_id,
         )
 
     def _on_pose(self, msg):
         ownship = None
         target = None
+
         for pose in msg.pose:
             if pose.name == self.ownship_name:
                 ownship = pose
             elif pose.name == self.target_name:
                 target = pose
+
         if ownship is None:
             return
 
-        now = self.get_clock().now()
-        stamp = now.to_msg()
-        transforms = [self._identity_map_to_odom(stamp)]
+        now = rospy.Time.now()
+        stamp = now
+
+        transforms = [
+            self._identity_map_to_odom(stamp)
+        ]
+
         transforms.append(
             self._pose_transform(
                 stamp,
@@ -77,6 +105,7 @@ class MaritimeTfPublisher(Node):
                 ownship,
             )
         )
+
         if target is not None:
             transforms.append(
                 self._pose_transform(
@@ -86,6 +115,7 @@ class MaritimeTfPublisher(Node):
                     target,
                 )
             )
+
         self.tf_broadcaster.sendTransform(transforms)
         self._publish_odom(ownship, now, stamp)
 
@@ -100,72 +130,82 @@ class MaritimeTfPublisher(Node):
     @staticmethod
     def _pose_transform(stamp, parent, child, pose):
         transform = TransformStamped()
+
         transform.header.stamp = stamp
         transform.header.frame_id = parent
         transform.child_frame_id = child
+
         transform.transform.translation.x = pose.position.x
         transform.transform.translation.y = pose.position.y
         transform.transform.translation.z = pose.position.z
+
         transform.transform.rotation.x = pose.orientation.x
         transform.transform.rotation.y = pose.orientation.y
         transform.transform.rotation.z = pose.orientation.z
         transform.transform.rotation.w = pose.orientation.w
+
         return transform
 
     def _publish_odom(self, pose, now, stamp):
         vx = 0.0
         wz = 0.0
+
         if self.previous_pose is not None and self.previous_time is not None:
-            dt = (now - self.previous_time).nanoseconds * 1e-9
+            dt = (now - self.previous_time).to_sec()
+
             if dt > 1e-4:
                 dx = pose.position.x - self.previous_pose.position.x
                 dy = pose.position.y - self.previous_pose.position.y
+
                 yaw = yaw_from_quaternion(pose.orientation)
                 previous_yaw = yaw_from_quaternion(
                     self.previous_pose.orientation
                 )
-                vx = (math.cos(yaw) * dx + math.sin(yaw) * dy) / dt
+
+                vx = (
+                    math.cos(yaw) * dx
+                    + math.sin(yaw) * dy
+                ) / dt
+
                 yaw_delta = math.atan2(
                     math.sin(yaw - previous_yaw),
                     math.cos(yaw - previous_yaw),
                 )
+
                 wz = yaw_delta / dt
 
         odom = Odometry()
         odom.header.stamp = stamp
         odom.header.frame_id = self.odom_frame_id
         odom.child_frame_id = self.ownship_frame_id
+
         odom.pose.pose.position.x = pose.position.x
         odom.pose.pose.position.y = pose.position.y
         odom.pose.pose.position.z = pose.position.z
+
         odom.pose.pose.orientation.x = pose.orientation.x
         odom.pose.pose.orientation.y = pose.orientation.y
         odom.pose.pose.orientation.z = pose.orientation.z
         odom.pose.pose.orientation.w = pose.orientation.w
+
         odom.twist.twist.linear.x = vx
         odom.twist.twist.angular.z = wz
+
         self.odom_pub.publish(odom)
+
         self.previous_pose = pose
         self.previous_time = now
 
 
-def main(args=None):
-    rclpy.init(args=args)
-    node = MaritimeTfPublisher()
+def main():
+    rospy.init_node('maritime_tf_publisher')
+
+    MaritimeTfPublisher()
+
     try:
-        rclpy.spin(node)
+        rospy.spin()
     except KeyboardInterrupt:
         pass
-    finally:
-        try:
-            node.destroy_node()
-        except KeyboardInterrupt:
-            pass
-        if rclpy.ok():
-            try:
-                rclpy.shutdown()
-            except KeyboardInterrupt:
-                pass
 
 
 if __name__ == '__main__':

@@ -32,7 +32,7 @@ README, and the launch file itself. See [Launch index](docs/LAUNCH_INDEX.md).
 | `uav_usv_uav_control` | official | PX4 / DDS / offboard UAV agents | Keep unchanged. |
 | `uav_usv_usv_control` | official | USV motion and safety control agents | Keep unchanged. |
 | `uav_usv_lv_dot_core` | official | ROS-independent native LV-DOT algorithm layer | Keep unchanged. |
-| `uav_usv_lv_dot_ros2` | official | Lifecycle ROS 2 LV-DOT wrapper and diagnostics | Keep unchanged. |
+| `uav_usv_lv_dot` | official | Lifecycle ROS 2 LV-DOT wrapper and diagnostics | Keep unchanged. |
 | `uav_usv_perception` | official | Sensor adapters, preprocessing, camera-LiDAR association, fusion, visualization helpers | Keep; distinguish runtime nodes from validation tools in documentation. |
 | `uav_usv_mission` | official | Capture, task, Gazebo bridge, world-model and behavior-shadow nodes, Qt client | Keep; no behavior changes in cleanup. |
 | `uav_usv_base_station` | official | Read-only base-station service and base-station reference state | Keep as the client data boundary. |
@@ -56,7 +56,7 @@ No package is recommended for deletion in this first phase.
 | `uav_usv_bringup/fleet_dynamic_capture.launch.py` | Fleet capture runtime composition without the live-perception presentation set. |
 | `uav_usv_bringup/simulation_332_scenario.launch.py` | 332 Gazebo scenario only; use for environment and model inspection. |
 | `uav_usv_base_station/base_station_service.launch.py` | Standalone read-only Base Station Service. |
-| `uav_usv_lv_dot_ros2/lv_dot_ros2.launch.py` | Native LV-DOT lifecycle wrapper. |
+| `uav_usv_lv_dot/lv_dot.launch.py` | Native LV-DOT lifecycle wrapper. |
 | `uav_usv_perception/perception_layer.launch.py` | Standard perception adapters, fusion and source mux. |
 | `uav_usv_perception/camera_lidar_fusion.launch.py` | Camera-LiDAR fusion composition. |
 | `uav_usv_fleet_gateway/remote_sensor_dashboard.launch.py` | Web/gateway sensor dashboard demonstration. |

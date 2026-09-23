@@ -1,0 +1,239 @@
+syntax = "proto3";
+
+package uavusv.gateway.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum RuntimeMode { RUNTIME_MODE_UNSPECIFIED = 0; SIMULATION = 1; REAL = 2; }
+enum Priority { PRIORITY_UNSPECIFIED = 0; AUTONOMOUS_HOLD = 1; MISSION = 2; MANUAL = 3; EMERGENCY = 4; }
+enum ControlStatus { CONTROL_STATUS_UNSPECIFIED = 0; CREATED = 1; VALIDATING = 2; DISPATCHED = 3; ACCEPTED = 4; EXECUTING = 5; SUCCEEDED = 6; REJECTED = 7; FAILED = 8; CANCELLED = 9; TIMEOUT = 10; EXPIRED = 11; }
+enum TargetScope { TARGET_SCOPE_UNSPECIFIED = 0; SYSTEM = 1; MISSION_SCOPE = 2; DEVICE = 3; DEVICE_GROUP = 4; }
+enum SnapshotMode { SNAPSHOT_MODE_UNSPECIFIED = 0; LATEST_STATE = 1; TIME_ALIGNED = 2; }
+
+message GatewayEnvelope {
+  string spec_version = 1;
+  string message_type = 2;
+  string message_id = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  uint64 monotonic_ns = 5;
+  string stream_id = 6;
+  uint64 sequence = 7;
+  string source = 8;
+  string mission_id = 9;
+  string run_id = 10;
+  string device_code = 11;
+  string frame_id = 12;
+  string correlation_id = 13;
+
+  oneof body {
+    GatewayHello gateway_hello = 20;
+    GatewayHeartbeat gateway_heartbeat = 21;
+    ControlCommand control_command = 22;
+    ControlAck control_ack = 23;
+    ControlFeedback control_feedback = 24;
+    ControlResult control_result = 25;
+    MissionStatus mission_status = 26;
+    PoseBatch pose_batch = 27;
+    DeviceStatus device_status = 28;
+    DetectionBatch visual_detections = 29;
+    DetectionBatch lidar_detections = 30;
+    DetectionBatch radar_detections = 31;
+    DetectionBatch fused_tracks = 32;
+    SystemError system_error = 33;
+    LidarPointCloud lidar_pointcloud = 34;
+    RadarScan radar_scan = 35;
+    CameraFrame camera_frame = 36;
+  }
+}
+
+message GatewayHello {
+  string instance_id = 1;
+  repeated string supported_versions = 2;
+  repeated RuntimeMode runtime_modes = 3;
+  repeated string capabilities = 4;
+  bool binary_telemetry = 5;
+  string boot_id = 6;
+}
+
+message GatewayHeartbeat {
+  string instance_id = 1;
+  string boot_id = 2;
+  uint64 uptime_ms = 3;
+  double cpu_percent = 4;
+  double memory_percent = 5;
+}
+
+message ParameterValue {
+  oneof value {
+    string string_value = 1;
+    int64 int_value = 2;
+    double double_value = 3;
+    bool bool_value = 4;
+  }
+}
+
+message CommandTarget {
+  TargetScope scope = 1;
+  repeated string device_codes = 2;
+}
+
+message ControlCommand {
+  string command_id = 1;
+  string client_request_id = 2;
+  string command = 3;
+  Priority priority = 4;
+  string issued_by = 5;
+  google.protobuf.Timestamp deadline_at = 6;
+  CommandTarget target = 7;
+  map<string, ParameterValue> parameters = 8;
+}
+
+message ControlAck {
+  string command_id = 1;
+  ControlStatus status = 2;
+  string code = 3;
+  string message = 4;
+  bool retryable = 5;
+}
+
+message ControlFeedback {
+  string command_id = 1;
+  ControlStatus status = 2;
+  float progress = 3;
+  string phase = 4;
+  string message = 5;
+  repeated string active_device_codes = 6;
+}
+
+message ControlResult {
+  string command_id = 1;
+  ControlStatus status = 2;
+  string code = 3;
+  string message = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp completed_at = 6;
+  map<string, ParameterValue> metrics = 7;
+}
+
+message MissionStatus {
+  string mission_id = 1;
+  string run_id = 2;
+  string state = 3;
+  string phase = 4;
+  float progress = 5;
+  string active_command_id = 6;
+  repeated string active_device_codes = 7;
+}
+
+message Vector3 { double x = 1; double y = 2; double z = 3; }
+message Quaternion { double x = 1; double y = 2; double z = 3; double w = 4; }
+message GeoPosition { double latitude_deg = 1; double longitude_deg = 2; double altitude_msl_m = 3; }
+
+message VehiclePoseSample {
+  string device_code = 1;
+  google.protobuf.Timestamp source_timestamp = 2;
+  uint64 source_sequence = 3;
+  uint32 age_ms = 4;
+  bool fresh = 5;
+  bool position_valid = 6;
+  Vector3 local_position_enu_m = 7;
+  GeoPosition global_position = 8;
+  Quaternion orientation = 9;
+  Vector3 linear_velocity_mps = 10;
+  double heading_deg = 11;
+}
+
+message PoseBatch {
+  SnapshotMode snapshot_mode = 1;
+  google.protobuf.Timestamp snapshot_time = 2;
+  bool complete = 3;
+  repeated string expected_device_codes = 4;
+  repeated string missing_device_codes = 5;
+  repeated string stale_device_codes = 6;
+  repeated VehiclePoseSample vehicles = 7;
+  uint32 freshness_threshold_ms = 8;
+}
+
+message DeviceStatus {
+  string device_code = 1;
+  string connection_state = 2;
+  string operation_state = 3;
+  string control_mode = 4;
+  bool armed = 5;
+  double battery_percent = 6;
+  double signal_rssi_dbm = 7;
+  double speed_mps = 8;
+  double heading_deg = 9;
+  uint32 gps_fix_type = 10;
+  uint32 satellite_count = 11;
+  string health = 12;
+  string active_command_id = 13;
+  string flight_state = 14;
+}
+
+message BoundingBox { double x = 1; double y = 2; double width = 3; double height = 4; }
+
+message Detection {
+  string track_id = 1;
+  string classification = 2;
+  double confidence = 3;
+  uint32 source_mask = 4;
+  BoundingBox box = 5;
+  double range_m = 6;
+  double azimuth_deg = 7;
+  double elevation_deg = 8;
+  double radial_velocity_mps = 9;
+  Vector3 local_position_enu_m = 10;
+}
+
+message DetectionBatch {
+  string sensor_id = 1;
+  uint64 sensor_frame_sequence = 2;
+  google.protobuf.Timestamp source_timestamp = 3;
+  repeated Detection detections = 4;
+}
+
+// Raw LiDAR point cloud.
+// Mid360 and LV-DOT are treated as LiDAR sensors.
+// xyz is packed as [x0, y0, z0, x1, y1, z1, ...] in meters.
+message LidarPointCloud {
+  string sensor_id = 1;
+  uint64 sensor_frame_sequence = 2;
+  google.protobuf.Timestamp source_timestamp = 3;
+  uint32 point_count = 4;
+  repeated float xyz = 5 [packed = true];
+}
+
+// Raw radar scan corresponding to ROS sensor_msgs/LaserScan.
+// Detection results are transmitted separately using radar_detections.
+message RadarScan {
+  string sensor_id = 1;
+  uint64 sensor_frame_sequence = 2;
+  google.protobuf.Timestamp source_timestamp = 3;
+  float angle_min_rad = 4;
+  float angle_max_rad = 5;
+  float angle_increment_rad = 6;
+  float range_min_m = 7;
+  float range_max_m = 8;
+  repeated float ranges_m = 9 [packed = true];
+  repeated float intensities = 10 [packed = true];
+}
+
+// JPEG camera frame used for the first-stage backend integration.
+// Formal low-latency multi-camera video will migrate to WebRTC.
+message CameraFrame {
+  string camera_id = 1;
+  uint64 frame_sequence = 2;
+  google.protobuf.Timestamp source_timestamp = 3;
+  uint32 width = 4;
+  uint32 height = 5;
+  string encoding = 6;
+  bytes jpeg_data = 7;
+}
+
+message SystemError {
+  string code = 1;
+  string message = 2;
+  bool retryable = 3;
+  map<string, string> details = 4;
+}

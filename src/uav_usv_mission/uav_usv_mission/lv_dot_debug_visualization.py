@@ -19,6 +19,7 @@ from visualization_msgs.msg import Marker
 
 from uav_usv_mission.perception_topdown import marker_segments_3d
 from uav_usv_mission.perception_topdown import tracked_object_dict
+from uav_usv_mission.pyqtgraph_compat import gl_text_item
 
 
 DEBUG_STYLE = {
@@ -441,7 +442,7 @@ class LvDotDebugWidget(QWidget):
     def _label(self, item, text, color):
         if not self.visibility['labels'] or not self._drawing_labels:
             return
-        label = gl.GLTextItem(
+        label = gl_text_item(
             pos=(item['x'] + 0.4, item['y'] + 0.4, item['z'] + 0.8),
             color=pg.mkColor(color), text=text,
             font=QFont('Sans Serif', 10),

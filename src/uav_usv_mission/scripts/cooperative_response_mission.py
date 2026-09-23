@@ -6,7 +6,7 @@ from collections import deque
 from dataclasses import dataclass
 from itertools import permutations
 
-from builtin_interfaces.msg import Duration
+from uav_usv_ros1_compat.time_messages import Duration
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseArray
 from geometry_msgs.msg import PoseStamped
@@ -17,9 +17,9 @@ from gz.msgs10.boolean_pb2 import Boolean
 from gz.msgs10.marker_pb2 import Marker as GzMarker
 from gz.msgs10.twist_pb2 import Twist
 from gz.transport13 import Node as GzTransportNode
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
 from uav_usv_interfaces.msg import TrackedObject
@@ -75,8 +75,8 @@ class CooperativeResponseMission(Node):
         self.declare_parameter('radar_avoid_radius', 58.0)
         self.declare_parameter('patrol_waypoint_lead', 0.85)
         self.declare_parameter('gazebo_tactical_markers', False)
-        self.declare_parameter('px4_uav_enabled', False)
-        self.declare_parameter('px4_uav_model', 'x500_mono_cam_down_0')
+        self.declare_parameter('ardupilot_uav_enabled', False)
+        self.declare_parameter('ardupilot_uav_model', 'uav_01')
 
         self.base_x = float(self.get_parameter('base_x').value)
         self.base_y = float(self.get_parameter('base_y').value)
@@ -99,11 +99,11 @@ class CooperativeResponseMission(Node):
         self.uav_x = self.base_x
         self.uav_y = self.base_y
         self.uav_z = 48.0
-        self.px4_uav_enabled = bool(
-            self.get_parameter('px4_uav_enabled').value
+        self.ardupilot_uav_enabled = bool(
+            self.get_parameter('ardupilot_uav_enabled').value
         )
-        self.px4_uav_model = str(
-            self.get_parameter('px4_uav_model').value
+        self.ardupilot_uav_model = str(
+            self.get_parameter('ardupilot_uav_model').value
         )
         self.base_radar_points = []
         self.base_radar_stamp = 0.0
@@ -254,7 +254,7 @@ class CooperativeResponseMission(Node):
             for vessel in self.own_boats + self.enemy_boats
         }
         for pose in msg.pose:
-            if self.px4_uav_enabled and pose.name == self.px4_uav_model:
+            if self.ardupilot_uav_enabled and pose.name == self.ardupilot_uav_model:
                 self.uav_x = pose.position.x
                 self.uav_y = pose.position.y
                 self.uav_z = pose.position.z
@@ -593,7 +593,7 @@ class CooperativeResponseMission(Node):
             )
 
     def _update_uav(self, now):
-        if self.px4_uav_enabled:
+        if self.ardupilot_uav_enabled:
             return
         if self.retreat_enemy is not None:
             alpha = 0.15
@@ -977,14 +977,14 @@ class CooperativeResponseMission(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = CooperativeResponseMission()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

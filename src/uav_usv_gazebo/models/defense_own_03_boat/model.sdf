@@ -17,6 +17,14 @@
         </inertia>
       </inertial>
 
+      <!-- Keep the ArduPilot IMU on the canonical link so Gazebo supplies
+           gravity / specific force to ArduRover's EKF. -->
+      <sensor name="ardupilot_imu" type="imu">
+        <pose degrees="true">0 0 0 180 0 0</pose>
+        <always_on>true</always_on>
+        <update_rate>1000</update_rate>
+      </sensor>
+
       <collision name="hull_collision">
         <pose>0 0 -0.0625 0 0 0</pose>
         <geometry>
@@ -564,17 +572,5 @@
       <update_frequency>30</update_frequency>
     </plugin>
 
-    <plugin
-      filename="libBoatWaveFollower.so"
-      name="gz::sim::systems::BoatWaveFollower">
-      <mean_z>0.55</mean_z>
-      <heave_amplitude>0.11</heave_amplitude>
-      <roll_amplitude>0.055</roll_amplitude>
-      <pitch_amplitude>0.045</pitch_amplitude>
-      <primary_frequency>1.1</primary_frequency>
-      <secondary_frequency>1.7</secondary_frequency>
-      <wave_number_x>0.35</wave_number_x>
-      <wave_number_y>0.22</wave_number_y>
-    </plugin>
   </model>
 </sdf>

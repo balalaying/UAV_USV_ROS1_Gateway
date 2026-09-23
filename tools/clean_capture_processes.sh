@@ -1,63 +1,38 @@
 #!/usr/bin/env bash
 set -u
 
-echo "[1/4] Stopping UAV-USV processes..."
-
-project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+echo "[1/3] Stopping UAV-USV ROS 1, ArduPilot and Gazebo processes..."
 
 patterns=(
-  "fleet_dynamic_capture_live_perception.launch.py"
-  "fleet_dynamic_capture.launch.py"
-  "camera_lidar_fusion.launch.py"
-  "minimal_dynamic_capture.launch.py"
-  "$project_root/install/"
+  "heterogeneous_332_qt_ros1.launch"
   "capture_manager"
   "target_tracker"
   "capture_visualizer"
-  "uav_dds_fleet_agent"
-  "usv_fleet_agent"
-  "MicroXRCEAgent"
+  "uav_fleet_agent"
+  "usv_gz_fleet_agent"
+  "arducopter"
+  "ardurover"
   "gz sim"
   "gz-sim"
-  "parameter_bridge"
-  "lifecycle_manager"
-)
-
-exact_names=(
-  "px4"
-  "rviz2"
-  "controller_server"
-  "planner_server"
-  "behavior_server"
-  "bt_navigator"
-  "waypoint_follower"
-  "map_server"
 )
 
 for signal in INT TERM KILL; do
   for pattern in "${patterns[@]}"; do
     pkill "-${signal}" -u "$USER" -f "$pattern" 2>/dev/null || true
   done
-
-  for name in "${exact_names[@]}"; do
-    pkill "-${signal}" -u "$USER" -x "$name" 2>/dev/null || true
-  done
-
   if [[ "$signal" != "KILL" ]]; then
     sleep 2
   fi
 done
 
-echo "[2/4] Stopping ROS 2 daemon..."
-ros2 daemon stop >/dev/null 2>&1 || true
-
-echo "[3/4] Remaining related processes:"
+echo "[2/3] Remaining related processes:"
 pgrep -a -u "$USER" -f \
-'minimal_dynamic_capture|capture_manager|target_tracker|capture_visualizer|fleet_agent|MicroXRCEAgent|px4|gz sim|gz-sim|rviz2|controller_server|planner_server|bt_navigator|parameter_bridge' \
+'heterogeneous_332|capture_manager|target_tracker|capture_visualizer|fleet_agent|arducopter|ardurover|gz sim|gz-sim' \
 || echo "None"
 
-echo "[4/4] Relevant UDP ports:"
-ss -lunp 2>/dev/null | grep -E '8888|14540|14550|14580|18570' \
-|| echo "No related UDP ports detected"
+echo "[3/3] Relevant ArduPilot ports:"
+ss -ltnup 2>/dev/null | grep -E \
+'5760|5770|5780|5790|5800|5810|9002|9012|9022|9032|9042|9052' \
+|| echo "No related ports detected"
 
-echo "Cleanup complete."
+echo "Cleanup complete. Runtime logs were retained."

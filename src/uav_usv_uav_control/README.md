@@ -1,11 +1,11 @@
 # uav_usv_uav_control
 
-Ownership: UAV and PX4 team.
+Ownership: UAV and ArduPilot team.
 
 Future contents:
 
-- PX4 connection and Offboard state machine.
+- ArduPilot MAVLink connection and GUIDED-mode state machine.
 - Takeoff, waypoint flight, return-to-vessel, and moving-deck landing.
-- Migration path from pymavlink to `px4_msgs`/uXRCE-DDS.
+- Shared ROS 1 FleetCommand and VehicleState contracts.
 
 The active cooperative mission remains in `uav_usv_sim`.

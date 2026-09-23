@@ -1,4 +1,4 @@
-"""Dependency-free asyncio RFC6455 server for read-only fleet data."""
+"""Dependency-free RFC6455 server: legacy JSON telemetry plus Protobuf v1 control."""
 
 import asyncio
 import base64
@@ -132,9 +132,10 @@ class AsyncClientQueue:
 
 
 class ClientConnection:
-    def __init__(self, writer, address, queue_size, on_drop):
+    def __init__(self, writer, address, queue_size, on_drop, path=''):
         self.writer = writer
         self.address = address
+        self.path = str(path)
         self.queue = AsyncClientQueue(queue_size, on_drop)
         self.active = True
         self.send_lock = asyncio.Lock()
@@ -176,7 +177,9 @@ class FleetWebSocketServer:
     def __init__(self, host, port, path, protocol, hello_factory,
                  snapshot_factory, queue_size=100, max_clients=8,
                  heartbeat_interval=15.0, sent_callback=None,
-                 drop_callback=None, command_handler=None):
+                 drop_callback=None, command_handler=None,
+                 protocol_v1=None, hello_factory_v1=None,
+                 command_handler_v1=None):
         self.host = str(host)
         self.port = int(port)
         self.path = str(path)
@@ -189,6 +192,9 @@ class FleetWebSocketServer:
         self.sent_callback = sent_callback or (lambda count: None)
         self.drop_callback = drop_callback or (lambda count: None)
         self.command_handler = command_handler
+        self.protocol_v1 = protocol_v1
+        self.hello_factory_v1 = hello_factory_v1
+        self.command_handler_v1 = command_handler_v1
         self.running = False
         self._clients = set()
         self._client_count = 0
@@ -275,7 +281,7 @@ class FleetWebSocketServer:
         client = None
         try:
             path, headers = await self._read_handshake(reader)
-            if path != self.path:
+            if path not in (self.path, '/uav_usv/v1'):
                 await self._reject(writer, '404 Not Found')
                 return
             if headers.get('upgrade', '').lower() != 'websocket':
@@ -300,7 +306,7 @@ class FleetWebSocketServer:
 
             client = ClientConnection(
                 writer, writer.get_extra_info('peername'),
-                self.queue_size, self.drop_callback)
+                self.queue_size, self.drop_callback, path=path)
             self._send_initial(client)
             self._clients.add(client)
             self._set_client_count()
@@ -315,6 +321,12 @@ class FleetWebSocketServer:
                 elif opcode == 0x1:
                     self._handle_text(
                         client, payload.decode('utf-8'))
+                elif (
+                    opcode == 0x2
+                    and client.path == '/uav_usv/v1'
+                ):
+                    self._handle_binary_v1(
+                        client, bytes(payload))
         except (
             asyncio.IncompleteReadError, ConnectionError, OSError,
             UnicodeDecodeError, ValueError,
@@ -327,16 +339,42 @@ class FleetWebSocketServer:
                 await client.close()
 
     def _send_initial(self, client):
+        if client.path == '/uav_usv/v1':
+            if self.protocol_v1 is None or self.hello_factory_v1 is None:
+                return
+            payload = self.protocol_v1.dumps(
+                'gateway.hello',
+                'gateway.lifecycle',
+                self.hello_factory_v1(),
+            )
+            self._send_client(
+                client, payload, priority=2, opcode=0x2)
+            return
+
         self._send_client(client, self.protocol.dumps(
             'gateway_hello', self.hello_factory()), priority=2)
         self._send_client(client, self.protocol.dumps(
             'fleet_snapshot', self.snapshot_factory()), priority=2)
 
-    def _send_client(self, client, text, priority=0):
-        if client.enqueue(text, priority):
+    def _send_client(self, client, payload, priority=0, opcode=0x1):
+        if client.enqueue(payload, priority, opcode):
             self.sent_callback(1)
             return True
         return False
+
+    def _handle_binary_v1(self, client, payload):
+        if self.command_handler_v1 is None:
+            return
+
+        response = self.command_handler_v1(payload)
+
+        if response is not None:
+            self._send_client(
+                client,
+                response,
+                priority=2,
+                opcode=0x2,
+            )
 
     def _handle_text(self, client, text):
         try:
@@ -394,7 +432,35 @@ class FleetWebSocketServer:
     def _broadcast_in_loop(self, text, priority):
         sent = 0
         for client in tuple(self._clients):
-            if client.active and client.enqueue(text, priority):
+            if (
+                client.active
+                and client.path == self.path
+                and client.enqueue(text, priority)
+            ):
+                sent += 1
+        if sent:
+            self.sent_callback(sent)
+
+    def broadcast_path(self, path, payload, priority=0, opcode=0x1):
+        if not self.running or self._loop is None:
+            return 0
+        self._loop.call_soon_threadsafe(
+            self._broadcast_path_in_loop,
+            str(path),
+            payload,
+            int(priority),
+            int(opcode),
+        )
+        return self.client_count
+
+    def _broadcast_path_in_loop(self, path, payload, priority, opcode):
+        sent = 0
+        for client in tuple(self._clients):
+            if (
+                client.active
+                and client.path == path
+                and client.enqueue(payload, priority, opcode)
+            ):
                 sent += 1
         if sent:
             self.sent_callback(sent)

@@ -32,13 +32,13 @@
 
       <visual name="h01_left"><pose>-15.8 0 19.60 0 0 0</pose><geometry><box><size>0.8 5.0 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
       <visual name="h01_right"><pose>-12.2 0 19.60 0 0 0</pose><geometry><box><size>0.8 5.0 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
-      <visual name="h01_cross"><pose>-14 0 19.60 0 0 0</pose><geometry><box><size>3.6 0.8 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="h01_cross"><pose>-14 0 19.61 0 0 0</pose><geometry><box><size>3.6 0.8 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
       <visual name="h02_left"><pose>-1.8 0 19.60 0 0 0</pose><geometry><box><size>0.8 5.0 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
       <visual name="h02_right"><pose>1.8 0 19.60 0 0 0</pose><geometry><box><size>0.8 5.0 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
-      <visual name="h02_cross"><pose>0 0 19.60 0 0 0</pose><geometry><box><size>3.6 0.8 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="h02_cross"><pose>0 0 19.61 0 0 0</pose><geometry><box><size>3.6 0.8 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
       <visual name="h03_left"><pose>12.2 0 19.60 0 0 0</pose><geometry><box><size>0.8 5.0 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
       <visual name="h03_right"><pose>15.8 0 19.60 0 0 0</pose><geometry><box><size>0.8 5.0 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
-      <visual name="h03_cross"><pose>14 0 19.60 0 0 0</pose><geometry><box><size>3.6 0.8 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
+      <visual name="h03_cross"><pose>14 0 19.61 0 0 0</pose><geometry><box><size>3.6 0.8 0.08</size></box></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material></visual>
     </link>
   </model>
 </sdf>

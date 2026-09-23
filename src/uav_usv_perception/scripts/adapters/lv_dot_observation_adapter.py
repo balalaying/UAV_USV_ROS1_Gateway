@@ -6,16 +6,18 @@ import hashlib
 import json
 import math
 
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.time_fields import time_is_zero
+from uav_usv_ros1_compat.time_fields import time_parts
 from std_msgs.msg import String
 from uav_usv_interfaces.msg import TrackedObject
 from uav_usv_interfaces.msg import TrackedObjectArray
 
 
 def _stamp_is_zero(stamp):
-    return int(stamp.sec) == 0 and int(stamp.nanosec) == 0
+    return time_is_zero(stamp)
 
 
 def _uuid_is_zero(uuid_value):
@@ -82,7 +84,7 @@ class LvDotObservationAdapter(Node):
     def __init__(self):
         super().__init__('lv_dot_observation_adapter')
         self.declare_parameter(
-            'input_topic', '/perception/lv_dot_ros2/dynamic_tracks'
+            'input_topic', '/perception/lv_dot/dynamic_tracks'
         )
         self.declare_parameter(
             'output_topic', '/perception/lv_dot/observations'
@@ -119,6 +121,7 @@ class LvDotObservationAdapter(Node):
         self.publisher.publish(output)
         self.message_count += 1
 
+        seconds, nanoseconds = time_parts(output.header.stamp)
         status = {
             'mode': 'shadow',
             'input_topic': self.input_topic,
@@ -126,8 +129,8 @@ class LvDotObservationAdapter(Node):
             'message_count': self.message_count,
             'frame_id': output.header.frame_id,
             'timestamp': {
-                'sec': int(output.header.stamp.sec),
-                'nanosec': int(output.header.stamp.nanosec),
+                'sec': seconds,
+                'nanosec': nanoseconds,
             },
             'compatibility': {
                 'dynamic_probability': 'mapped_to_confidence',
@@ -146,16 +149,16 @@ class LvDotObservationAdapter(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = LvDotObservationAdapter()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

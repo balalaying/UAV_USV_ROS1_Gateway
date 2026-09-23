@@ -7,10 +7,11 @@ import math
 from geometry_msgs.msg import Point
 from geometry_msgs.msg import PoseArray
 from nav_msgs.msg import Path
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
+from uav_usv_ros1_compat.time_fields import set_time_fields
 from std_msgs.msg import String
 from uav_usv_interfaces.msg import CaptureAssignmentArray
 from uav_usv_interfaces.msg import CaptureState
@@ -140,7 +141,7 @@ class CaptureVisualizer(Node):
         marker.type = marker_type
         marker.action = Marker.ADD
         marker.pose.orientation.w = 1.0
-        marker.lifetime.sec = 1
+        set_time_fields(marker.lifetime, seconds=1)
         return marker
 
     @staticmethod
@@ -418,16 +419,16 @@ class CaptureVisualizer(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = CaptureVisualizer()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

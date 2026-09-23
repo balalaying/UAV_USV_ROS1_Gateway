@@ -267,7 +267,11 @@ def prepare(args):
                 visual_scale=args.visual_scale,
             )
 
-        runtime_model_name = model_name + '_mid360_runtime'
+        # Each generated SDF carries a vehicle-specific topic and frame.
+        # Include the ID so shared source models cannot overwrite each other.
+        runtime_model_name = (
+            model_name + '_' + vehicle_id + '_mid360_runtime'
+        )
         output_model_dir = os.path.join(
             args.output_root, 'models', runtime_model_name
         )
@@ -321,10 +325,15 @@ def main():
     parser.add_argument('--max-range', type=float, default=70.0)
     parser.add_argument('--visual-scale', type=float, default=1.0)
     parser.add_argument('--model-scale', type=float, default=1.0)
-    parser.add_argument(
-        '--enable-mid360', action=argparse.BooleanOptionalAction,
-        default=True,
+    # BooleanOptionalAction requires Python 3.9; Ubuntu 20.04 uses 3.8.
+    mid360_group = parser.add_mutually_exclusive_group()
+    mid360_group.add_argument(
+        '--enable-mid360', dest='enable_mid360', action='store_true'
     )
+    mid360_group.add_argument(
+        '--disable-mid360', dest='enable_mid360', action='store_false'
+    )
+    parser.set_defaults(enable_mid360=True)
     args = parser.parse_args()
 
     if args.update_rate <= 0.0:

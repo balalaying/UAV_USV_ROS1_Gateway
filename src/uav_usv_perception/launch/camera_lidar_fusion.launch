@@ -1,0 +1,15 @@
+<launch>
+  <arg name="vehicle_id" default="usv_01"/>
+  <node pkg="uav_usv_perception" type="usv_camera_detection_node.py"
+        name="usv_camera_detection" output="screen">
+    <param name="vehicle_id" value="$(arg vehicle_id)"/>
+  </node>
+  <node pkg="uav_usv_perception" type="vision_guided_lidar_roi_node.py"
+        name="vision_guided_lidar_roi" output="screen">
+    <param name="vehicle_id" value="$(arg vehicle_id)"/>
+  </node>
+  <node pkg="uav_usv_perception" type="camera_lidar_association_node.py"
+        name="camera_lidar_association" output="screen">
+    <param name="vehicle_id" value="$(arg vehicle_id)"/>
+  </node>
+</launch>

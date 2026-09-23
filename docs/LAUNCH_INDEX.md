@@ -34,7 +34,7 @@ World Model, `BS` Base Station Service.
 
 | Path | Class | Purpose | GZ | PX4 | P | Qt | WM | BS | Co-run with main | Canonical successor |
 |---|---|---|---:|---:|---:|---:|---:|---:|---|---|
-| `uav_usv_lv_dot_ros2/launch/lv_dot_ros2.launch.py` | perception | Native LV-DOT lifecycle node | N | N | Y | N | N | N | Conditional | main-managed LV-DOT |
+| `uav_usv_lv_dot/launch/lv_dot.launch.py` | perception | Native LV-DOT lifecycle node | N | N | Y | N | N | N | Conditional | main-managed LV-DOT |
 | `uav_usv_perception/launch/perception_layer.launch.py` | perception | Standard adapters, fusion and source mux | N | N | Y | N | N | N | Conditional | main-managed perception |
 | `uav_usv_perception/launch/camera_lidar_fusion.launch.py` | perception | Camera-LiDAR fusion composition | N | N | Y | N | N | N | Conditional | main-managed fusion |
 | `uav_usv_bringup/launch/mid360_sensor_demo.launch.py` | validation | Isolated Mid-360 sensor demo | Y | N | Y | optional | N | N | No | main or sensor validation |

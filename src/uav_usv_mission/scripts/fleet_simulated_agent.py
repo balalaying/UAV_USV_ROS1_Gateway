@@ -8,14 +8,15 @@ from gz.transport13 import Node as GzTransportNode
 from nav_msgs.msg import Odometry
 import numpy as np
 import cv2
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.executors import MultiThreadedExecutor
-from rclpy.node import Node
-from rclpy.callback_groups import ReentrantCallbackGroup
-from rclpy.qos import DurabilityPolicy
-from rclpy.qos import QoSProfile
-from rclpy.qos import ReliabilityPolicy
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.executors import MultiThreadedExecutor
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.callback_groups import ReentrantCallbackGroup
+from uav_usv_ros1_compat.qos import DurabilityPolicy
+from uav_usv_ros1_compat.qos import QoSProfile
+from uav_usv_ros1_compat.qos import ReliabilityPolicy
+from uav_usv_ros1_compat.time_fields import time_to_seconds
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import LaserScan
 from uav_usv_interfaces.msg import CommandAck
@@ -165,7 +166,7 @@ class FleetSimulatedAgent(Node):
 
     @staticmethod
     def _stamp_seconds(stamp):
-        return float(stamp.sec) + float(stamp.nanosec) * 1e-9
+        return time_to_seconds(stamp)
 
     def _now_seconds(self):
         return self.get_clock().now().nanoseconds * 1e-9
@@ -460,7 +461,7 @@ class FleetSimulatedAgent(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = FleetSimulatedAgent()
     executor = MultiThreadedExecutor(num_threads=8)
     executor.add_node(node)
@@ -471,8 +472,8 @@ def main(args=None):
     finally:
         executor.shutdown()
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

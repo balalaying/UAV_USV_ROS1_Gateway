@@ -1,18 +1,14 @@
 <?xml version="1.0"?>
-<package format="3">
+<package format="2">
   <name>uav_usv_usv_control</name>
   <version>0.1.0</version>
-  <description>USV velocity, heading, PID, actuator allocation, and safety control.</description>
+  <description>ROS 1 Gazebo Transport controller for the 332 USVs.</description>
   <maintainer email="team@example.com">UAV-USV Team</maintainer>
   <license>Apache-2.0</license>
-  <buildtool_depend>ament_cmake</buildtool_depend>
-  <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend>action_msgs</exec_depend>
-  <exec_depend>lifecycle_msgs</exec_depend>
-  <exec_depend>nav2_msgs</exec_depend>
-  <exec_depend>nav_msgs</exec_depend>
-  <exec_depend>rclpy</exec_depend>
-  <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>uav_usv_interfaces</exec_depend>
-  <export><build_type>ament_cmake</build_type></export>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>uav_usv_interfaces</depend>
+  <depend>uav_usv_ros1_compat</depend>
+  <export/>
 </package>

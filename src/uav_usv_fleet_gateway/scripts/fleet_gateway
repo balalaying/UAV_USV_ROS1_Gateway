@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+from uav_usv_fleet_gateway.gateway_node import main
+if __name__ == '__main__':
+    main()

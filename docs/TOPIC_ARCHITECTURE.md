@@ -18,7 +18,7 @@ adapter/fusion layer, not by a display client.
 | Raw uplink sensors | `/fleet/uplink/<vehicle_id>/mid360/points`, `/fleet/uplink/<vehicle_id>/camera/image_raw`, `/fleet/uplink/<vehicle_id>/camera/camera_info` | Gazebo bridges/adapters | Vehicle-scoped source data. |
 | Sensor health | `/fleet/sensor_status` | sensor adapters | Health, rate, latency and online state only. |
 | Processed per-USV point cloud | `/perception/<usv_id>/mid360/points_filtered` | mid360 preprocessor | Standard LV-DOT and visualization input. |
-| LV-DOT diagnostics | `/perception/lv_dot_ros2/diagnostics/*`, `/perception/lv_dot_ros2/tracks`, `/perception/lv_dot_ros2/dynamic_tracks` | native LV-DOT ROS 2 | Diagnostic tracks remain Shadow inputs; no direct control use. |
+| LV-DOT diagnostics | `/perception/lv_dot/diagnostics/*`, `/perception/lv_dot/tracks`, `/perception/lv_dot/dynamic_tracks` | native LV-DOT ROS 2 | Diagnostic tracks remain Shadow inputs; no direct control use. |
 | Standard observations | `/perception/lv_dot/observations`, `/perception/<vehicle_id>/observations` | observation adapters | Sensor-agnostic `TrackedObjectArray` form. |
 | Fleet fusion | `/perception/fused/tracks`, `/fleet/perception/usv_tracks`, `/fleet/perception/fused_targets` | perception fusion | Map-frame aggregate products. |
 | Source selection | `/fleet/perception/targets` | perception source mux | Stable task-layer target input; default source is `ground_truth`. |

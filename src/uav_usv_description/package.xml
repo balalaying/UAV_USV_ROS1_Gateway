@@ -1,12 +1,16 @@
 <?xml version="1.0"?>
-<package format="3">
+<package format="2">
   <name>uav_usv_description</name>
   <version>0.1.0</version>
   <description>Robot descriptions, meshes, collision geometry, inertia, and sensor extrinsics.</description>
+
   <maintainer email="team@example.com">UAV-USV Team</maintainer>
   <license>Apache-2.0</license>
-  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>xacro</exec_depend>
-  <export><build_type>ament_cmake</build_type></export>
+
+  <export/>
 </package>

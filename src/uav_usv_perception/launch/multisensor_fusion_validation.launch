@@ -1,0 +1,10 @@
+<launch>
+  <node pkg="uav_usv_perception" type="lv_dot_observation_adapter.py"
+        name="lv_dot_observation_adapter" output="screen"/>
+  <node pkg="uav_usv_perception" type="uav_visual_observation_node.py"
+        name="uav_visual_observation_node" output="screen"/>
+  <node pkg="uav_usv_perception" type="perception_fusion_node.py"
+        name="multisensor_shadow_fusion" output="screen"/>
+  <node pkg="uav_usv_perception" type="multisensor_validation_evaluator.py"
+        name="multisensor_validation_evaluator" output="screen"/>
+</launch>

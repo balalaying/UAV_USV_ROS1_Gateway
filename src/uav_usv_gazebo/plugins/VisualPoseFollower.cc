@@ -61,7 +61,7 @@ class VisualPoseFollower
     if (!linkPose)
       return;
 
-    // Recover the model origin from the moving canonical link. PX4 models may
+    // Recover the model origin from the moving canonical link. Flight models may
     // keep the model Pose component at its spawn value while physics updates
     // the canonical link.
     const math::Pose3d targetPose = worldPose(targetLink, _ecm) *

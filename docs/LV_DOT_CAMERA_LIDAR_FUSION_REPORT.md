@@ -41,8 +41,8 @@ therefore keeps the LiDAR geometry while adding the camera classification.
 |---|---|---|---|
 | Input | `/fleet/uplink/usv_01/camera/image_raw` | `sensor_msgs/Image` | `usv_01/camera_link` |
 | Input | `/fleet/uplink/usv_01/camera/camera_info` | `sensor_msgs/CameraInfo` | `usv_01/camera_link` |
-| Input | `/perception/lv_dot_ros2/diagnostics/lidar_bboxes` | `visualization_msgs/MarkerArray` | `map` |
-| Input | `/perception/lv_dot_ros2/tracks` | `uav_usv_interfaces/TrackedObjectArray` | `map` |
+| Input | `/perception/lv_dot/diagnostics/lidar_bboxes` | `visualization_msgs/MarkerArray` | `map` |
+| Input | `/perception/lv_dot/tracks` | `uav_usv_interfaces/TrackedObjectArray` | `map` |
 | Output | `/perception/usv_01/camera/detections` | `vision_msgs/Detection2DArray` | camera frame |
 | Output | `/perception/usv_01/camera/detections/image` | `sensor_msgs/Image` | camera frame |
 | Output | `/perception/usv_01/camera_lidar/observations` | `uav_usv_interfaces/TrackedObjectArray` | `map` |
@@ -138,7 +138,7 @@ Build and test commands:
 ```bash
 colcon build --packages-select \
   uav_usv_interfaces uav_usv_gazebo uav_usv_lv_dot_core \
-  uav_usv_lv_dot_ros2 uav_usv_perception uav_usv_mission \
+  uav_usv_lv_dot uav_usv_perception uav_usv_mission \
   uav_usv_bringup --symlink-install
 colcon test --packages-select uav_usv_perception uav_usv_mission
 colcon test-result --verbose
@@ -162,7 +162,7 @@ One live overlap sample from the complete fleet world:
 The fused observation contained:
 
 ```text
-track_id: lv_dot_ros2_track_001105
+track_id: lv_dot_track_001105
 source_mask: 11
 class_name: vessel
 sensor_source: camera+lidar

@@ -1,0 +1,15 @@
+<launch>
+  <arg name="auto_start" default="false"/>
+  <arg name="target_id" default="enemy_ship"/>
+  <arg name="publish_output" default="screen"/>
+
+  <node pkg="uav_usv_cooperative_algorithms"
+        type="gbsflacs_capture_controller.py"
+        name="gbsflacs_capture_controller"
+        output="$(arg publish_output)">
+    <rosparam command="load"
+              file="$(find uav_usv_cooperative_algorithms)/config/gbsflacs_332.yaml"/>
+    <param name="auto_start" value="$(arg auto_start)"/>
+    <param name="target_id" value="$(arg target_id)"/>
+  </node>
+</launch>

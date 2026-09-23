@@ -65,9 +65,9 @@ Qt QTimer (40 ms)
 | 过滤点云输入 | `/perception/usv_01/mid360/points_filtered` | `sensor_msgs/PointCloud2` | 投影节点输入，主世界默认值 |
 | 轻量点集 | `/perception/visualization/usv_01/topdown_points` | `geometry_msgs/PoseArray` | Qt点云图层 |
 | 投影状态 | `/perception/visualization/usv_01/topdown_status` | `std_msgs/String` JSON | 频率、点数、延迟、TF失败和丢帧统计 |
-| 聚类框 | `/perception/lv_dot_ros2/diagnostics/lidar_bboxes` | `visualization_msgs/MarkerArray` | 紫色框 |
-| 全部Track | `/perception/lv_dot_ros2/tracks` | `TrackedObjectArray` | 黄色目标 |
-| 动态Track | `/perception/lv_dot_ros2/dynamic_tracks` | `TrackedObjectArray` | 红色目标 |
+| 聚类框 | `/perception/lv_dot/diagnostics/lidar_bboxes` | `visualization_msgs/MarkerArray` | 紫色框 |
+| 全部Track | `/perception/lv_dot/tracks` | `TrackedObjectArray` | 黄色目标 |
+| 动态Track | `/perception/lv_dot/dynamic_tracks` | `TrackedObjectArray` | 红色目标 |
 | 融合目标 | `/perception/fused/tracks` | `TrackedObjectArray` | 绿色目标 |
 | 真值 | `/perception/ground_truth/tracks` | `TrackedObjectArray` | 蓝色对照 |
 | 舰队状态 | `/fleet/state` | `VehicleState` | UAV/USV位置、航向和速度 |

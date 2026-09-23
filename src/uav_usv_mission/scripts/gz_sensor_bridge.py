@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Bridge Gazebo Harmonic sensor messages to ROS 2 without ABI mixing."""
+"""Bridge Gazebo Harmonic sensor messages to ROS 1 without ABI mixing."""
 
 import math
+import subprocess
 import threading
 import time
 
@@ -10,9 +11,9 @@ from gz.msgs10.image_pb2 import Image as GzImage
 from gz.msgs10.laserscan_pb2 import LaserScan as GzLaserScan
 from gz.transport13 import Node as GzNode
 import numpy as np
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import LaserScan
@@ -26,27 +27,29 @@ class GzSensorBridge(Node):
         self.received = {}
         self.shutting_down = False
 
-        self.declare_parameter('world_name', 'cooperative_response_sim')
+        self.declare_parameter('world_name', 'heterogeneous_332')
         self.declare_parameter(
-            'uav_ids', ['uav_01', 'uav_02', 'uav_03', 'uav_04']
+            'uav_ids', ['uav_01', 'uav_02', 'uav_03']
         )
         self.declare_parameter(
             'uav_model_names', [
-                'x500_mono_cam_down_0',
-                'x500_mono_cam_down_1',
-                'x500_mono_cam_down_2',
-                'x500_mono_cam_down_3',
+                'uav_01',
+                'uav_02',
+                'uav_03',
             ]
         )
         self.declare_parameter(
-            'usv_ids', ['usv_01', 'usv_02', 'usv_03', 'usv_04']
+            'usv_ids', ['usv_01', 'usv_02', 'usv_03']
         )
         self.declare_parameter(
-            'usv_source_names', ['own_01', 'own_02', 'own_03', 'own_04']
+            'usv_source_names', ['own_01', 'own_02', 'own_03']
         )
-        self.declare_parameter('bridge_usv_scans', False)
+        self.declare_parameter('bridge_usv_scans', True)
         self.declare_parameter('bridge_usv_depth', True)
         self.declare_parameter('bridge_base_radar', True)
+        self.declare_parameter(
+            'base_radar_source_topic', '/defense/own_01/scan'
+        )
         self.declare_parameter('camera_max_rate', 15.0)
         self.declare_parameter('usv_camera_horizontal_fov', 1.047)
         world_name = str(self.get_parameter('world_name').value)
@@ -72,23 +75,62 @@ class GzSensorBridge(Node):
         camera_min_period = (
             1.0 / camera_max_rate if camera_max_rate > 0.0 else 0.0
         )
+        available_topics = self._wait_for_sensor_topics(20.0)
 
         camera_topics = []
         depth_topics = []
-        for vehicle_id, model_name in zip(uav_ids, uav_models):
+        uav_image_candidates = sorted(
+            topic for topic in available_topics
+            if topic.endswith('/image')
+            and any(token in topic.lower() for token in ('x500', 'mono_cam', '/model/uav_'))
+        )
+        uav_info_candidates = sorted(
+            topic for topic in available_topics
+            if topic.endswith('/camera_info')
+            and any(token in topic.lower() for token in ('x500', 'mono_cam', '/model/uav_'))
+        )
+        for index, (vehicle_id, model_name) in enumerate(zip(uav_ids, uav_models)):
+            expected_image = (
+                '/world/%s/model/%s/link/camera_link/'
+                'sensor/camera/image' % (world_name, model_name)
+            )
+            expected_info = (
+                '/world/%s/model/%s/link/camera_link/'
+                'sensor/camera/camera_info' % (world_name, model_name)
+            )
+            image_source = self._resolve_topic(
+                    available_topics,
+                    expected_image,
+                    (vehicle_id, 'camera', 'image'),
+                    suffix='/image',
+                )
+            info_source = self._resolve_topic(
+                    available_topics,
+                    expected_info,
+                    (vehicle_id, 'camera', 'camera_info'),
+                    suffix='/camera_info',
+                )
+            if not any(vehicle_id in topic for topic in available_topics):
+                if index < len(uav_image_candidates):
+                    image_source = uav_image_candidates[index]
+                if index < len(uav_info_candidates):
+                    info_source = uav_info_candidates[index]
             camera_topics.append((
-                '/world/%s/model/%s/link/camera_link/'
-                'sensor/camera/image' % (world_name, model_name),
-                '/fleet/uplink/%s/camera' % vehicle_id,
+                image_source,
+                '/fleet/uplink/%s/camera/image_raw' % vehicle_id,
                 vehicle_id + '/camera_link',
-                '/world/%s/model/%s/link/camera_link/'
-                'sensor/camera/camera_info' % (world_name, model_name),
+                info_source,
                 '/fleet/uplink/%s/camera_info_raw' % vehicle_id,
                 False,
             ))
         for vehicle_id, source_name in zip(usv_ids, usv_sources):
+            expected_camera = '/defense/%s/front_camera' % source_name
             camera_topics.append((
-                '/defense/%s/front_camera' % source_name,
+                self._resolve_topic(
+                    available_topics,
+                    expected_camera,
+                    (source_name, 'front_camera'),
+                ),
                 '/fleet/uplink/%s/camera' % vehicle_id,
                 vehicle_id + '/camera_link',
                 '',
@@ -97,7 +139,11 @@ class GzSensorBridge(Node):
             ))
             if bool(self.get_parameter('bridge_usv_depth').value):
                 depth_topics.append((
-                    '/defense/%s/depth_camera' % source_name,
+                    self._resolve_topic(
+                        available_topics,
+                        '/defense/%s/depth_camera' % source_name,
+                        (source_name, 'depth_camera'),
+                    ),
                     '/fleet/uplink/%s/depth/image_raw' % vehicle_id,
                     vehicle_id + '/depth_camera_link',
                     '/fleet/uplink/%s/depth/camera_info' % vehicle_id,
@@ -174,7 +220,13 @@ class GzSensorBridge(Node):
         if bool(self.get_parameter('bridge_usv_scans').value):
             for vehicle_id, source_name in zip(usv_ids, usv_sources):
                 gz_topic = '/defense/%s/scan' % source_name
-                ros_topic = '/%s/scan_raw' % vehicle_id
+                gz_topic = self._resolve_topic(
+                    available_topics,
+                    gz_topic,
+                    (source_name, 'scan'),
+                    suffix='/scan',
+                )
+                ros_topic = '/fleet/uplink/%s/scan' % vehicle_id
                 publisher = self.create_publisher(
                     LaserScan, ros_topic, qos_profile_sensor_data
                 )
@@ -191,14 +243,43 @@ class GzSensorBridge(Node):
                 LaserScan, radar_topic, qos_profile_sensor_data
             )
             self.sensor_publishers[radar_topic] = radar_publisher
+            configured_radar_source = str(
+                self.get_parameter('base_radar_source_topic').value
+            ).strip()
+            base_radar_source = configured_radar_source or '/base/radar/scan'
+            if not configured_radar_source:
+                base_radar_source = self._resolve_topic(
+                    available_topics,
+                    '/base/radar/scan',
+                    ('base', 'radar', 'scan'),
+                    suffix='/scan',
+                )
+            if (
+                not configured_radar_source
+                and base_radar_source == '/base/radar/scan'
+            ):
+                scan_candidates = [
+                    topic for topic in available_topics
+                    if topic.endswith('/scan')
+                ]
+                if scan_candidates and base_radar_source not in available_topics:
+                    base_radar_source = scan_candidates[0]
+                    self.get_logger().warn(
+                        'No dedicated base radar found; using %s as Qt radar'
+                        % base_radar_source
+                    )
+            self.get_logger().info(
+                'Qt base radar source: %s -> %s'
+                % (base_radar_source, radar_topic)
+            )
             if not self.gz_node.subscribe(
                 GzLaserScan,
-                '/base/radar/scan',
+                base_radar_source,
                 self._scan_callback(
                     radar_publisher, radar_topic, 'base_radar'
                 ),
             ):
-                raise RuntimeError('Unable to subscribe to /base/radar/scan')
+                raise RuntimeError('Unable to subscribe to ' + base_radar_source)
 
         self.create_timer(5.0, self._report)
         self.get_logger().info(
@@ -211,6 +292,51 @@ class GzSensorBridge(Node):
                 self.get_parameter('bridge_base_radar').value,
             )
         )
+
+    def _wait_for_sensor_topics(self, timeout):
+        """Wait briefly for Gazebo discovery, keeping explicit paths as fallback."""
+        deadline = time.monotonic() + float(timeout)
+        topics = []
+        while time.monotonic() < deadline:
+            try:
+                output = subprocess.check_output(
+                    ['gz', 'topic', '-l'],
+                    stderr=subprocess.DEVNULL,
+                    timeout=3.0,
+                    universal_newlines=True,
+                )
+                topics = [line.strip() for line in output.splitlines() if line.strip()]
+            except (OSError, subprocess.SubprocessError):
+                pass
+            sensor_ready = any(
+                topic.endswith(('/image', '/front_camera', '/scan'))
+                for topic in topics
+            )
+            if sensor_ready:
+                break
+            time.sleep(0.5)
+        self.get_logger().info(
+            'Gazebo discovery returned %d topics' % len(topics)
+        )
+        return topics
+
+    @staticmethod
+    def _resolve_topic(topics, expected, tokens, suffix=''):
+        if expected in topics or not topics:
+            return expected
+        lowered = tuple(str(token).lower() for token in tokens)
+        candidates = []
+        for topic in topics:
+            value = topic.lower()
+            if suffix and not value.endswith(suffix.lower()):
+                continue
+            score = sum(token in value for token in lowered)
+            if score:
+                candidates.append((score, -len(topic), topic))
+        if not candidates:
+            return expected
+        candidates.sort(reverse=True)
+        return candidates[0][2]
 
     def _camera_callback(
         self,
@@ -225,7 +351,7 @@ class GzSensorBridge(Node):
 
         def callback(source):
             nonlocal last_publish
-            if self.shutting_down or not rclpy.ok():
+            if self.shutting_down or not ros1.ok():
                 return
             now = time.monotonic()
             if min_period > 0.0 and now - last_publish < min_period:
@@ -277,7 +403,7 @@ class GzSensorBridge(Node):
                         self._camera_info_from_image(msg, horizontal_fov)
                     )
             except Exception:
-                if not self.shutting_down and rclpy.ok():
+                if not self.shutting_down and ros1.ok():
                     raise
             self._count(topic)
         return callback
@@ -294,18 +420,18 @@ class GzSensorBridge(Node):
         info.width = width
         info.height = height
         info.distortion_model = 'plumb_bob'
-        info.d = [0.0] * 5
-        info.k = [
+        info.D = [0.0] * 5
+        info.K = [
             focal, 0.0, center_x,
             0.0, focal, center_y,
             0.0, 0.0, 1.0,
         ]
-        info.r = [
+        info.R = [
             1.0, 0.0, 0.0,
             0.0, 1.0, 0.0,
             0.0, 0.0, 1.0,
         ]
-        info.p = [
+        info.P = [
             focal, 0.0, center_x, 0.0,
             0.0, focal, center_y, 0.0,
             0.0, 0.0, 1.0, 0.0,
@@ -323,7 +449,7 @@ class GzSensorBridge(Node):
 
         def callback(source):
             nonlocal last_publish
-            if self.shutting_down or not rclpy.ok():
+            if self.shutting_down or not ros1.ok():
                 return
             now = time.monotonic()
             if now - last_publish < min_period:
@@ -337,14 +463,14 @@ class GzSensorBridge(Node):
             msg.distortion_model = distortion_models.get(
                 int(source.distortion.model), 'plumb_bob'
             )
-            msg.d = [float(value) for value in source.distortion.k]
-            msg.k = self._fixed_array(source.intrinsics.k, 9)
-            msg.r = self._fixed_array(source.rectification_matrix, 9)
-            msg.p = self._fixed_array(source.projection.p, 12)
+            msg.D = [float(value) for value in source.distortion.k]
+            msg.K = self._fixed_array(source.intrinsics.k, 9)
+            msg.R = self._fixed_array(source.rectification_matrix, 9)
+            msg.P = self._fixed_array(source.projection.p, 12)
             try:
                 publisher.publish(msg)
             except Exception:
-                if not self.shutting_down and rclpy.ok():
+                if not self.shutting_down and ros1.ok():
                     raise
             self._count(topic)
 
@@ -358,7 +484,7 @@ class GzSensorBridge(Node):
 
     def _scan_callback(self, publisher, topic, frame_id):
         def callback(source):
-            if self.shutting_down or not rclpy.ok():
+            if self.shutting_down or not ros1.ok():
                 return
             msg = LaserScan()
             msg.header.stamp = self.get_clock().now().to_msg()
@@ -378,7 +504,7 @@ class GzSensorBridge(Node):
             try:
                 publisher.publish(msg)
             except Exception:
-                if not self.shutting_down and rclpy.ok():
+                if not self.shutting_down and ros1.ok():
                     raise
             self._count(topic)
         return callback
@@ -399,17 +525,17 @@ class GzSensorBridge(Node):
 
 
 def main():
-    rclpy.init()
+    ros1.init(name='gz_sensor_bridge')
     node = GzSensorBridge()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
         node.shutting_down = True
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

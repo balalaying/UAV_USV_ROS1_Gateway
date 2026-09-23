@@ -1,0 +1,5 @@
+<launch>
+  <include file="$(find uav_usv_fleet_gateway)/launch/mobile_fleet_demo.launch"/>
+  <node pkg="uav_usv_fleet_gateway" type="fleet_sensor_stream_adapter"
+        name="fleet_sensor_stream_adapter" output="screen"/>
+</launch>

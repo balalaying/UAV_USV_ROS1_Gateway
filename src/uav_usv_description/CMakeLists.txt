@@ -1,8 +1,10 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.0.2)
 project(uav_usv_description)
 
-find_package(ament_cmake REQUIRED)
+find_package(catkin REQUIRED)
 
-install(FILES README.md DESTINATION share/${PROJECT_NAME})
+catkin_package()
 
-ament_package()
+install(FILES README.md
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)

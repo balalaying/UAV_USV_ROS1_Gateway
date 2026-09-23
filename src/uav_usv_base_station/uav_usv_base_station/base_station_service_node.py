@@ -3,10 +3,10 @@
 
 import json
 
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
 from .service_cache import BaseStationServiceCache
@@ -123,16 +123,16 @@ class BaseStationServiceNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = BaseStationServiceNode()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

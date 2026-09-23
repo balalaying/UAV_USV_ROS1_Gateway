@@ -39,7 +39,7 @@
 
 ## LV-DOT Phase 5兼容映射
 
-`/perception/lv_dot_ros2/dynamic_tracks`只包含已经通过连续动态投票的轨迹。
+`/perception/lv_dot/dynamic_tracks`只包含已经通过连续动态投票的轨迹。
 标准适配器发布`/perception/lv_dot/observations`时采用以下非破坏性映射：
 
 | LV-DOT内部含义 | V1正式字段 | 旁路状态 |

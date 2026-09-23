@@ -6,11 +6,12 @@ import math
 import time
 
 import numpy as np
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-from rclpy.time import Time
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
+from uav_usv_ros1_compat.time import Time
+from uav_usv_ros1_compat.time_fields import time_to_nanoseconds
 from sensor_msgs.msg import PointCloud2, PointField
 from std_srvs.srv import SetBool
 from tf2_ros import Buffer, TransformListener
@@ -124,7 +125,7 @@ class Mid360Preprocessor(Node):
         )
         self.create_timer(1.0, self._publish_status)
         self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_listener = TransformListener(self.tf_buffer)
 
         self.arrival_times = deque(maxlen=100)
         self.last_arrival = 0.0
@@ -272,10 +273,7 @@ class Mid360Preprocessor(Node):
         self.last_message_time = msg.header.stamp
         self.last_cloud_frame = msg.header.frame_id or self.frame_id
         now_ns = self.get_clock().now().nanoseconds
-        stamp_ns = (
-            int(msg.header.stamp.sec) * 1000000000
-            + int(msg.header.stamp.nanosec)
-        )
+        stamp_ns = time_to_nanoseconds(msg.header.stamp)
         self.last_latency = max(0.0, (now_ns - stamp_ns) / 1e9)
         self.last_processing_ms = (time.perf_counter() - started) * 1000.0
         self.last_input_points = point_count
@@ -345,16 +343,16 @@ class Mid360Preprocessor(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = Mid360Preprocessor()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

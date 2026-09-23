@@ -7,10 +7,10 @@ import json
 import re
 import time
 
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import String
 from uav_usv_interfaces.msg import TrackedObjectArray
@@ -98,10 +98,10 @@ class LvDotDebugVisualizationNode(Node):
         defaults = {
             'filtered_cloud_topic': '/perception/usv_01/mid360/points_filtered',
             'bboxes_topic': (
-                '/perception/lv_dot_ros2/diagnostics/lidar_bboxes'
+                '/perception/lv_dot/diagnostics/lidar_bboxes'
             ),
-            'tracks_topic': '/perception/lv_dot_ros2/tracks',
-            'dynamic_topic': '/perception/lv_dot_ros2/dynamic_tracks',
+            'tracks_topic': '/perception/lv_dot/tracks',
+            'dynamic_topic': '/perception/lv_dot/dynamic_tracks',
             'debug_cloud_topic': '/perception/lv_dot/debug/cloud',
             'debug_clusters_topic': '/perception/lv_dot/debug/clusters',
             'debug_bboxes_topic': '/perception/lv_dot/debug/bboxes',
@@ -203,16 +203,16 @@ class LvDotDebugVisualizationNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = LvDotDebugVisualizationNode()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

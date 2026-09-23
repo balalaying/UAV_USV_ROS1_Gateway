@@ -11,22 +11,24 @@ import sys
 import time
 
 import numpy as np
-import rclpy
+import uav_usv_ros1_compat as ros1
 from geometry_msgs.msg import Point
-from rclpy.duration import Duration
-from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-from rclpy.time import Time
+from uav_usv_ros1_compat.duration import Duration
+from uav_usv_ros1_compat.executors import ExternalShutdownException, MultiThreadedExecutor
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
+from uav_usv_ros1_compat.time import Time
+from uav_usv_ros1_compat.time_fields import set_time_fields
+from uav_usv_ros1_compat.time_fields import time_to_seconds
 from sensor_msgs.msg import CameraInfo, PointCloud2, PointField
-from sensor_msgs_py import point_cloud2
+from sensor_msgs import point_cloud2
 from std_msgs.msg import String
 from tf2_ros import Buffer, TransformException, TransformListener
 from uav_usv_interfaces.msg import AffiliatedDetection2DArray
 from uav_usv_interfaces.msg import TrackedObject, TrackedObjectArray
 from visualization_msgs.msg import Marker, MarkerArray
 
-# See the camera adapter for why both locations are required under colcon.
+# See the camera adapter for why both locations are required in catkin.
 for _module_dir in (
     Path(sys.argv[0]).resolve().parent,
     Path(__file__).resolve().parents[1] / 'vision_guided',
@@ -46,7 +48,7 @@ from vision_guided_core import unproject_camera_pixels
 
 
 def stamp_seconds(stamp):
-    return float(stamp.sec) + 1e-9 * float(stamp.nanosec)
+    return time_to_seconds(stamp)
 
 
 def stable_uuid(text):
@@ -99,7 +101,7 @@ class VisionGuidedLidarRoiNode(Node):
             'detections_topic': '/perception/usv_01/camera/affiliated_detections',
             'camera_info_topic': '/fleet/uplink/usv_01/camera/camera_info',
             'points_topic': '/perception/usv_01/mid360/points_filtered',
-            'tracks_topic': '/perception/lv_dot_ros2/tracks',
+            'tracks_topic': '/perception/lv_dot/tracks',
             'observations_topic': '/perception/usv_01/vision_guided/observations',
             'roi_cloud_topic': '/perception/usv_01/vision_guided/roi_cloud',
             'roi_clusters_topic': '/perception/usv_01/vision_guided/roi_clusters',
@@ -182,7 +184,7 @@ class VisionGuidedLidarRoiNode(Node):
         self.first_seen = {}
         self.last_status_wall = 0.0
         self.tf_buffer = Buffer(cache_time=Duration(seconds=8.0))
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_listener = TransformListener(self.tf_buffer)
         self.observations_pub = self.create_publisher(
             TrackedObjectArray, str(self.get_parameter('observations_topic').value),
             qos_profile_sensor_data,
@@ -398,7 +400,7 @@ class VisionGuidedLidarRoiNode(Node):
         marker.pose = tracked.pose.pose
         marker.scale = tracked.dimensions
         marker.color.r, marker.color.g, marker.color.b, marker.color.a = 0.1, 1.0, 0.25, 0.30
-        marker.lifetime.nanosec = 300000000
+        set_time_fields(marker.lifetime, nanoseconds=300000000)
         return marker
 
     @staticmethod
@@ -412,7 +414,7 @@ class VisionGuidedLidarRoiNode(Node):
         marker.scale.x = marker.scale.y = 0.12
         marker.color.r, marker.color.g, marker.color.b, marker.color.a = 0.1, 1.0, 0.2, 1.0
         marker.points = [Point(x=float(p[0]), y=float(p[1]), z=float(p[2])) for p in points]
-        marker.lifetime.nanosec = 300000000
+        set_time_fields(marker.lifetime, nanoseconds=300000000)
         return marker
 
     @staticmethod
@@ -445,7 +447,7 @@ class VisionGuidedLidarRoiNode(Node):
             Point(x=float(point[0]), y=float(point[1]), z=float(point[2]))
             for point in points_map
         ]
-        marker.lifetime.nanosec = 300000000
+        set_time_fields(marker.lifetime, nanoseconds=300000000)
         return marker
 
     def _on_cloud(self, message):
@@ -725,12 +727,12 @@ class VisionGuidedLidarRoiNode(Node):
         })
         message = String()
         message.data = json.dumps(payload, sort_keys=True)
-        if not rclpy.ok():
+        if not ros1.ok():
             return
         try:
             self.status_pub.publish(message)
         except Exception as exc:  # Context can close between the check and publish.
-            if rclpy.ok():
+            if ros1.ok():
                 self.get_logger().warning(
                     'Unable to publish ROI status: %s' % exc,
                     throttle_duration_sec=5.0,
@@ -738,7 +740,7 @@ class VisionGuidedLidarRoiNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = VisionGuidedLidarRoiNode()
     executor = MultiThreadedExecutor(num_threads=3)
     executor.add_node(node)
@@ -749,8 +751,8 @@ def main(args=None):
     finally:
         executor.shutdown()
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

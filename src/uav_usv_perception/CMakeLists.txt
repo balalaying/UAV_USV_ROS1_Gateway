@@ -1,9 +1,29 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.0.2)
 project(uav_usv_perception)
 
-find_package(ament_cmake REQUIRED)
+find_package(catkin REQUIRED COMPONENTS
+  geographic_msgs
+  geometry_msgs
+  rospy
+  rosgraph_msgs
+  sensor_msgs
+  std_msgs
+  std_srvs
+  tf2_ros
+  tf2_msgs
+  uav_usv_interfaces
+  uav_usv_ros1_compat
+  vision_msgs
+  visualization_msgs
+)
 
-install(PROGRAMS
+catkin_package(CATKIN_DEPENDS
+  geographic_msgs geometry_msgs rospy rosgraph_msgs sensor_msgs std_msgs
+  std_srvs tf2_ros tf2_msgs uav_usv_interfaces uav_usv_ros1_compat
+  vision_msgs visualization_msgs
+)
+
+catkin_install_python(PROGRAMS
   scripts/gz_pointcloud_bridge.py
   scripts/fleet_gazebo_labels.py
   scripts/mid360_demo_motion.py
@@ -15,17 +35,12 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(PROGRAMS
+catkin_install_python(PROGRAMS
   scripts/adapters/ground_truth_adapter.py
-  scripts/adapters/lv_dot_adapter.py
-  scripts/adapters/lv_dot_egress_relay.py
-  scripts/adapters/lv_dot_ingress_relay.py
   scripts/adapters/lv_dot_observation_adapter.py
-  scripts/adapters/lv_dot_pose_adapter.py
   scripts/adapters/uav_visual_observation_node.py
   scripts/adapters/usv_camera_detection_node.py
   scripts/evaluation/lv_dot_fusion_evaluator.py
-  scripts/evaluation/lv_dot_shadow_evaluator.py
   scripts/evaluation/multisensor_validation_evaluator.py
   scripts/fusion/perception_fusion_node.py
   scripts/fusion/perception_source_mux.py
@@ -42,60 +57,8 @@ install(FILES
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(
-  DIRECTORY config docs launch rviz
-  DESTINATION share/${PROJECT_NAME}
+install(DIRECTORY config docs launch rviz
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
   PATTERN "__pycache__" EXCLUDE
 )
-install(FILES README.md DESTINATION share/${PROJECT_NAME})
-
-if(BUILD_TESTING)
-  find_package(ament_cmake_pytest REQUIRED)
-  ament_add_pytest_test(
-    test_track_association
-    test/test_track_association.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/tracking
-  )
-  ament_add_pytest_test(
-    test_lv_dot_tuning_helpers
-    test/test_lv_dot_tuning_helpers.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts
-  )
-  ament_add_pytest_test(
-    test_lv_dot_phase5_adapter
-    test/test_lv_dot_phase5_adapter.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/adapters
-  )
-  ament_add_pytest_test(
-    test_uav_visual_observation
-    test/test_uav_visual_observation.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/adapters
-  )
-  ament_add_pytest_test(
-    test_perception_fusion_batching
-    test/test_perception_fusion_batching.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/fusion:${CMAKE_CURRENT_SOURCE_DIR}/scripts/tracking
-  )
-  ament_add_pytest_test(
-    test_qt_pointcloud_projection
-    test/test_qt_pointcloud_projection.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/visualization
-  )
-  ament_add_pytest_test(
-    test_lv_dot_debug_visualization
-    test/test_lv_dot_debug_visualization.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/visualization
-  )
-  ament_add_pytest_test(
-    test_camera_lidar_fusion
-    test/test_camera_lidar_fusion.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/adapters:${CMAKE_CURRENT_SOURCE_DIR}/scripts/fusion:${CMAKE_CURRENT_SOURCE_DIR}/scripts/vision_guided
-  )
-  ament_add_pytest_test(
-    test_vision_guided_perception
-    test/test_vision_guided_perception.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/scripts/vision_guided:${CMAKE_CURRENT_SOURCE_DIR}/scripts/adapters:${CMAKE_CURRENT_SOURCE_DIR}/scripts/fusion
-  )
-endif()
-
-ament_package()
+install(FILES README.md DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

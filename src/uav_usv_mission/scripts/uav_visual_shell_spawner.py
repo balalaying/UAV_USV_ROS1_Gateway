@@ -6,7 +6,7 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 
-from ament_index_python.packages import get_package_share_directory
+from uav_usv_ros1_compat.packages import get_package_share_directory
 from gz.msgs10.boolean_pb2 import Boolean
 from gz.msgs10.empty_pb2 import Empty
 from gz.msgs10.entity_factory_pb2 import EntityFactory
@@ -16,10 +16,10 @@ from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.msgs10.scene_pb2 import Scene
 from gz.msgs10.visual_pb2 import Visual
 from gz.transport13 import Node as GzNode
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
 from uav_usv_interfaces.msg import CaptureAssignmentArray
 from uav_usv_interfaces.msg import VehicleState
 
@@ -281,7 +281,7 @@ class UavVisualShellSpawner(Node):
                     self.hidden_sources.add(vehicle_id)
                     self.get_logger().info(
                         'Showing only %s enlarged shell; source visuals hidden '
-                        'and PX4 physics remains active' % vehicle_id
+                        'and ArduPilot physics remains active' % vehicle_id
                     )
             else:
                 self.visibility_passes[vehicle_id] = 0
@@ -379,16 +379,16 @@ class UavVisualShellSpawner(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = UavVisualShellSpawner()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

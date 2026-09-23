@@ -1,47 +1,30 @@
 <?xml version="1.0"?>
-<package format="3">
+<package format="2">
   <name>uav_usv_sim</name>
   <version>0.1.0</version>
   <description>Integrated UAV-USV Gazebo simulation assets and control tools.</description>
+
   <maintainer email="dji@example.com">dji</maintainer>
   <license>Apache-2.0</license>
 
-  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>catkin</buildtool_depend>
 
-  <exec_depend>ament_index_python</exec_depend>
-  <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend>geographic_msgs</exec_depend>
-  <exec_depend>launch</exec_depend>
-  <exec_depend>launch_ros</exec_depend>
-  <exec_depend>nav2_bringup</exec_depend>
-  <exec_depend>nav2_behaviors</exec_depend>
-  <exec_depend>nav2_bt_navigator</exec_depend>
-  <exec_depend>nav2_controller</exec_depend>
-  <exec_depend>nav2_costmap_2d</exec_depend>
-  <exec_depend>nav2_lifecycle_manager</exec_depend>
-  <exec_depend>nav2_mppi_controller</exec_depend>
-  <exec_depend>nav2_msgs</exec_depend>
-  <exec_depend>nav2_planner</exec_depend>
-  <exec_depend>nav2_smoother</exec_depend>
-  <exec_depend>nav2_velocity_smoother</exec_depend>
-  <exec_depend>nav2_waypoint_follower</exec_depend>
-  <exec_depend>nav_msgs</exec_depend>
+  <depend>rospy</depend>
+  <depend>geometry_msgs</depend>
+  <depend>geographic_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>tf2_ros</depend>
+  <depend>visualization_msgs</depend>
+  <depend>robot_state_publisher</depend>
+  <depend>xacro</depend>
+  <depend>uav_usv_interfaces</depend>
+  <depend>uuid_msgs</depend>
+
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-pymavlink</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
-  <exec_depend>rclpy</exec_depend>
-  <exec_depend>robot_state_publisher</exec_depend>
-  <exec_depend>ros_gz_bridge</exec_depend>
-  <exec_depend>rviz2</exec_depend>
-  <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>std_srvs</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
-  <exec_depend>uav_usv_interfaces</exec_depend>
-  <exec_depend>unique_identifier_msgs</exec_depend>
-  <exec_depend>visualization_msgs</exec_depend>
-  <exec_depend>xacro</exec_depend>
 
-  <export>
-    <build_type>ament_cmake</build_type>
-  </export>
+  <export/>
 </package>

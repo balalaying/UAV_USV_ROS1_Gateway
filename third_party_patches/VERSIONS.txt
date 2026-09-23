@@ -1,0 +1,22 @@
+UAV_USV third-party dependency snapshot
+========================================
+
+ArduPilot
+remote: https://github.com/ArduPilot/ardupilot.git
+commit: 2a3dc4b7bf2507120f7378a7b2fde73185e0c325
+
+ArduPilot Gazebo
+remote: https://github.com/ArduPilot/ardupilot_gazebo.git
+commit: 082a0fe231f6e63bc8d1598f1cba461d9e2ea7f5
+local modification:
+  src/ArduPilotPlugin.cc
+patch:
+  third_party_patches/ardupilot_gazebo_ArduPilotPlugin.patch
+
+RapidJSON
+remote: https://github.com/Tencent/rapidjson.git
+commit: f54b0e47a08782a6131cc3d60f94d038fa6e0a51
+
+ArduPilot littlefs
+remote: https://github.com/ArduPilot/littlefs.git
+commit: 34be692aafaaf4319a18e415b08aa4332697408b

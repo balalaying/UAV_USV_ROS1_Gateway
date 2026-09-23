@@ -1,0 +1,58 @@
+mode: idle
+control_rate: 1.0
+command_refresh_seconds: 2.0
+command_change_threshold: 1.5
+state_timeout: 2.5
+world_model_timeout: 2.5
+
+uav_ids: [uav_01, uav_02, uav_03]
+usv_ids: [usv_01, usv_02, usv_03]
+enemy_entity_id: enemy_ship
+friendly_entity_id: friendly_ship
+
+uav_takeoff_altitude: 12.0
+uav_ready_altitude: 25.0
+uav_capture_altitude: 30.0
+uav_escort_altitude: 30.0
+uav_min_operating_altitude: 12.0
+uav_max_operating_altitude: 45.0
+uav_max_speed: 3.0
+usv_max_speed: 10.0
+# Six-vehicle navigation is dispatched as one batch. The next batch waits for
+# every command in the current batch to finish; no fixed-length route segments
+# or per-vehicle route reservation delays are used.
+coordinated_batch_refresh_seconds: 5.0
+coordinated_min_move_m: 3.0
+auto_capture_after_guard: true
+escort_hold_seconds: 20.0
+guard_hold_seconds: 20.0
+escort_formation_tolerance: 4.0
+final_formation_spacing: 24.0
+final_formation_tolerance: 3.0
+
+# FleetCommand safety layer adapted from the supplied escort algorithm:
+# inverse-distance repulsion, protected-circle bypass, and route reservation.
+collision_avoidance_enabled: true
+uav_collision_clearance: 6.0
+usv_collision_clearance: 12.0
+uav_repulsion_range: 15.0
+usv_repulsion_range: 30.0
+collision_repulsion_gain: 100.0
+friendly_avoid_radius: 15.0
+enemy_avoid_radius: 10.0
+safety_circle_margin: 2.0
+
+capture_radius: 50.0
+capture_guard_radius: 18.0
+capture_min_agents: 5
+capture_target_static_for_planner: true
+
+escort_sensor_radius: 350.0
+escort_ring_radius: 30.0
+escort_guard_arc_radius: 35.0
+escort_support_radius: 30.0
+escort_blocker_ratio: 0.38
+escort_blocker_min: 15.0
+escort_blocker_max: 35.0
+escort_reserve_count: 0
+seed: 42

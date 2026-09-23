@@ -1,0 +1,15 @@
+<launch>
+  <arg name="mode" default="idle"/>
+  <arg name="auto_start" default="false"/>
+  <arg name="publish_commands" default="true"/>
+
+  <node pkg="uav_usv_cooperative_algorithms"
+        type="cooperative_algorithm_controller.py"
+        name="cooperative_algorithm_controller"
+        output="screen">
+    <rosparam command="load" file="$(find uav_usv_cooperative_algorithms)/config/heterogeneous_332_algorithms.yaml"/>
+    <param name="mode" value="$(arg mode)"/>
+    <param name="auto_start" value="$(arg auto_start)"/>
+    <param name="publish_commands" value="$(arg publish_commands)"/>
+  </node>
+</launch>

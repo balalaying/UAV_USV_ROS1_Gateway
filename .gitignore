@@ -1,12 +1,14 @@
-# Colcon generated directories
+# Catkin generated directories
 build/
-install/
+devel/
 log/
 
 # Python caches
 __pycache__/
 *.py[cod]
 .pytest_cache/
+*.bak*
+*.save
 
 # CMake and compiler products
 CMakeCache.txt
@@ -32,5 +34,8 @@ bags/
 # Generated simulation files
 *.sdf.tmp
 
-# Large third-party source trees downloaded by setup scripts
-third_party/PX4-Autopilot/
+# External third-party repositories
+# Re-clone using versions recorded in third_party_patches/VERSIONS.txt
+third_party/ardupilot/
+third_party/ardupilot_gazebo/
+third_party/rapidjson/

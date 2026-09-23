@@ -12,23 +12,33 @@
     <plugin filename="libRandomVesselMotion.so" name="gz::sim::systems::RandomVesselMotion">
       <command_topic>cmd_vel</command_topic>
       <seed>332</seed>
-      <min_speed>8.0</min_speed><max_speed>12.0</max_speed>
-      <min_cruise_seconds>3</min_cruise_seconds><max_cruise_seconds>8</max_cruise_seconds>
+      <!-- Seeded slow random patrol in open water west of the protected ship.
+           The geofence keeps it more than 100 m from friendly_ship and its
+           speed remains well below the configured 10 m/s guard USVs. -->
+      <min_speed>0.45</min_speed><max_speed>0.90</max_speed>
+      <min_cruise_seconds>5</min_cruise_seconds><max_cruise_seconds>11</max_cruise_seconds>
       <min_stop_seconds>0.5</min_stop_seconds><max_stop_seconds>1.5</max_stop_seconds>
-      <stop_probability>0.12</stop_probability>
+      <!-- Keep the target continuously underway; randomness comes from its
+           heading, turn duration and cruise speed rather than full stops. -->
+      <stop_probability>0.0</stop_probability>
       <max_heading_change>1.75</max_heading_change><turn_rate>0.45</turn_rate>
-      <!-- Keep the random target around the physical shore base so it stays
-           inside the 300 m base-station demonstration radar. -->
-      <operating_center_x>-35</operating_center_x>
-      <operating_center_y>-190</operating_center_y>
-      <operating_radius>210</operating_radius><boundary_margin>35</boundary_margin>
-      <!-- Active geofence: keep the high-speed target in the open water south
-           of Catalina.  Four-second prediction starts the turn before the
-           velocity controller can tunnel into the shoreline collision. -->
-      <patrol_min_x>-240</patrol_min_x><patrol_max_x>170</patrol_max_x>
-      <patrol_min_y>-400</patrol_min_y><patrol_max_y>-245</patrol_max_y>
-      <patrol_lookahead_seconds>4.0</patrol_lookahead_seconds>
-      <patrol_boundary_margin>12</patrol_boundary_margin>
+      <operating_center_x>-330</operating_center_x>
+      <operating_center_y>-355</operating_center_y>
+      <operating_radius>65</operating_radius><boundary_margin>15</boundary_margin>
+      <!-- This western patrol box prevents random legs from targeting the
+           friendly vessel at (-150,-355), while preserving visible turns. -->
+      <patrol_min_x>-385</patrol_min_x><patrol_max_x>-270</patrol_max_x>
+      <patrol_min_y>-420</patrol_min_y><patrol_max_y>-290</patrol_max_y>
+      <patrol_lookahead_seconds>10.0</patrol_lookahead_seconds>
+      <patrol_boundary_margin>18</patrol_boundary_margin>
+      <!-- Dynamic collision avoidance uses the same inverse-distance
+           repulsion idea as the supplied GBSFLACS programs. -->
+      <avoid_radius>30</avoid_radius>
+      <avoid_heading_gain>2.0</avoid_heading_gain>
+      <avoid_model>friendly_ship</avoid_model>
+      <avoid_model>usv_01</avoid_model>
+      <avoid_model>usv_02</avoid_model>
+      <avoid_model>usv_03</avoid_model>
     </plugin>
   </model>
 </sdf>

@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <model name="ardupilot_uav_03">
+    <include merge="true"><uri>model://ardupilot_x500_mono_cam_down</uri></include>
+    <plugin name="ArduPilotPlugin" filename="ArduPilotPlugin">
+      <fdm_addr>127.0.0.1</fdm_addr><fdm_port_in>9022</fdm_port_in>
+      <connectionTimeoutMaxCount>5</connectionTimeoutMaxCount><lock_step>0</lock_step><no_time_sync>1</no_time_sync>
+      <modelXYZToAirplaneXForwardZDown degrees="true">0 0 0 180 0 0</modelXYZToAirplaneXForwardZDown><gazeboXYZToNED degrees="true">0 0 0 180 0 90</gazeboXYZToNED>
+      <imuName>base_link::imu_sensor</imuName>
+      <control channel="0"><jointName>rotor_0_joint</jointName><type>COMMAND</type><multiplier>1000</multiplier><servo_min>1000</servo_min><servo_max>2000</servo_max><cmd_topic>/model/uav_03/ardupilot/motor_0</cmd_topic></control>
+      <control channel="1"><jointName>rotor_1_joint</jointName><type>COMMAND</type><multiplier>1000</multiplier><servo_min>1000</servo_min><servo_max>2000</servo_max><cmd_topic>/model/uav_03/ardupilot/motor_1</cmd_topic></control>
+      <control channel="2"><jointName>rotor_2_joint</jointName><type>COMMAND</type><multiplier>1000</multiplier><servo_min>1000</servo_min><servo_max>2000</servo_max><cmd_topic>/model/uav_03/ardupilot/motor_2</cmd_topic></control>
+      <control channel="3"><jointName>rotor_3_joint</jointName><type>COMMAND</type><multiplier>1000</multiplier><servo_min>1000</servo_min><servo_max>2000</servo_max><cmd_topic>/model/uav_03/ardupilot/motor_3</cmd_topic></control>
+    </plugin>
+    <plugin name="uav_usv_gazebo::ArduPilotMotorBridge" filename="ArduPilotMotorBridge"><motor0_topic>/model/uav_03/ardupilot/motor_0</motor0_topic><motor1_topic>/model/uav_03/ardupilot/motor_1</motor1_topic><motor2_topic>/model/uav_03/ardupilot/motor_2</motor2_topic><motor3_topic>/model/uav_03/ardupilot/motor_3</motor3_topic><output_topic>/uav_03/command/motor_speed</output_topic><max_rot_velocity>1000.0</max_rot_velocity><command_scale>1.9</command_scale></plugin>
+  </model>
+</sdf>

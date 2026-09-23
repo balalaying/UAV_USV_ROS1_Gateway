@@ -4,7 +4,7 @@ string sensor_id
 string uplink_topic
 string message_type
 string frame_id
-builtin_interfaces/Time last_message_time
+time last_message_time
 float32 measured_rate_hz
 float32 age_seconds
 float32 latency_seconds

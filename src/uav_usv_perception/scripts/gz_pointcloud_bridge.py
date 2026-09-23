@@ -9,16 +9,17 @@ the field enum keeps the public ROS interface standard and lossless.
 from gz.msgs10.pointcloud_packed_pb2 import PointCloudPacked
 from gz.msgs10.clock_pb2 import Clock as GzClock
 from gz.transport13 import Node as GzTransportNode
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import (
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import (
     DurabilityPolicy,
     HistoryPolicy,
     QoSProfile,
     ReliabilityPolicy,
     qos_profile_sensor_data,
 )
+from uav_usv_ros1_compat.time_fields import set_time_fields
 from rosgraph_msgs.msg import Clock as RosClock
 from sensor_msgs.msg import PointCloud2, PointField
 import threading
@@ -99,24 +100,28 @@ class GzPointCloudBridge(Node):
 
     def _on_clock(self, gz_msg):
         with self.callback_lock:
-            if self.stopping or not rclpy.ok():
+            if self.stopping or not ros1.ok():
                 return
             clock = RosClock()
-            clock.clock.sec = gz_msg.sim.sec
-            clock.clock.nanosec = gz_msg.sim.nsec
+            set_time_fields(
+                clock.clock, gz_msg.sim.sec, gz_msg.sim.nsec
+            )
             self.clock_publisher.publish(clock)
 
     def _on_pointcloud(self, gz_msg):
         with self.callback_lock:
-            if self.stopping or not rclpy.ok():
+            if self.stopping or not ros1.ok():
                 return
 
             ros_msg = PointCloud2()
             if self.stamp_mode == 'node':
                 ros_msg.header.stamp = self.get_clock().now().to_msg()
             else:
-                ros_msg.header.stamp.sec = gz_msg.header.stamp.sec
-                ros_msg.header.stamp.nanosec = gz_msg.header.stamp.nsec
+                set_time_fields(
+                    ros_msg.header.stamp,
+                    gz_msg.header.stamp.sec,
+                    gz_msg.header.stamp.nsec,
+                )
             ros_msg.header.frame_id = self.frame_id
             ros_msg.height = gz_msg.height
             ros_msg.width = gz_msg.width
@@ -150,10 +155,10 @@ class GzPointCloudBridge(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = GzPointCloudBridge()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
@@ -161,9 +166,9 @@ def main(args=None):
             node.destroy_node()
         except KeyboardInterrupt:
             pass
-        if rclpy.ok():
+        if ros1.ok():
             try:
-                rclpy.shutdown()
+                ros1.shutdown()
             except KeyboardInterrupt:
                 pass
 

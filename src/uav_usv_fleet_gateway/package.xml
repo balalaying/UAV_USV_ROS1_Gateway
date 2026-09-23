@@ -2,31 +2,19 @@
 <package format="3">
   <name>uav_usv_fleet_gateway</name>
   <version>0.1.0</version>
-  <description>Read-only ROS 2 to WebSocket gateway and mobile fleet demo.</description>
+  <description>ROS 1 fleet WebSocket gateway with legacy telemetry and Protobuf v1 bidirectional control.</description>
   <maintainer email="team@example.com">UAV-USV Team</maintainer>
   <license>Apache-2.0</license>
 
-  <buildtool_depend>ament_python</buildtool_depend>
-
-  <exec_depend>python3</exec_depend>
-  <exec_depend>ament_index_python</exec_depend>
-  <exec_depend>launch</exec_depend>
-  <exec_depend>launch_ros</exec_depend>
-  <exec_depend>rclpy</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
-  <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>sensor_msgs_py</exec_depend>
-  <exec_depend>visualization_msgs</exec_depend>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>uav_usv_interfaces</depend>
+  <depend>uav_usv_ros1_compat</depend>
+  <exec_depend>python3-protobuf</exec_depend>
+  <depend>visualization_msgs</depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
-  <exec_depend>uav_usv_interfaces</exec_depend>
-
-  <test_depend>ament_copyright</test_depend>
-  <test_depend>ament_flake8</test_depend>
-  <test_depend>ament_pep257</test_depend>
-  <test_depend>python3-pytest</test_depend>
-
-  <export>
-    <build_type>ament_python</build_type>
-  </export>
+  <export/>
 </package>

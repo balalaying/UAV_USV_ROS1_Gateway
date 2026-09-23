@@ -7,16 +7,17 @@ import json
 import math
 import time
 
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.time_fields import time_to_seconds
 from std_msgs.msg import String
 from uav_usv_interfaces.msg import TrackedObject
 from uav_usv_interfaces.msg import TrackedObjectArray
 
 
 def _stamp_seconds(stamp):
-    return float(stamp.sec) + float(stamp.nanosec) * 1e-9
+    return time_to_seconds(stamp)
 
 
 def _position(tracked):
@@ -389,16 +390,16 @@ class LvDotFusionEvaluator(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = LvDotFusionEvaluator()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

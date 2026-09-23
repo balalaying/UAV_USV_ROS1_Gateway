@@ -7,9 +7,9 @@ import threading
 from geometry_msgs.msg import TransformStamped
 from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.transport13 import Node as GzNode
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
 from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 
 
@@ -50,8 +50,8 @@ class UavCameraTf(Node):
         self.gz_node = GzNode()
         self.pose_lock = threading.Lock()
         self.poses = {}
-        self.dynamic_broadcaster = TransformBroadcaster(self)
-        self.static_broadcaster = StaticTransformBroadcaster(self)
+        self.dynamic_broadcaster = TransformBroadcaster()
+        self.static_broadcaster = StaticTransformBroadcaster()
         self._publish_mounts()
         pose_topic = str(self.get_parameter('pose_topic').value)
         if not self.gz_node.subscribe(Pose_V, pose_topic, self._on_pose):
@@ -137,16 +137,16 @@ class UavCameraTf(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = UavCameraTf()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

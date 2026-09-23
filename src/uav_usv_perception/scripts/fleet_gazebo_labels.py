@@ -7,9 +7,9 @@ import threading
 from gz.msgs10.marker_pb2 import Marker
 from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.transport13 import Node as GzNode
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
 
 
 class FleetGazeboLabels(Node):
@@ -147,16 +147,16 @@ class FleetGazeboLabels(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = FleetGazeboLabels()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

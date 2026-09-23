@@ -134,7 +134,7 @@ independent, passive layers:
 The normal LiDAR-only box remains sourced from:
 
 ```text
-/perception/lv_dot_ros2/diagnostics/lidar_bboxes
+/perception/lv_dot/diagnostics/lidar_bboxes
 ```
 
 USV-02 is lateral to USV-01 and outside the forward camera's useful field of

@@ -9,7 +9,7 @@ def test_bbox_debug_marker_becomes_cluster_center_marker():
     clear.action = Marker.DELETEALL
     bbox = Marker()
     bbox.header.frame_id = 'map'
-    bbox.ns = 'lv_dot_ros2/lidar_bboxes'
+    bbox.ns = 'lv_dot/lidar_bboxes'
     bbox.id = 7
     bbox.action = Marker.ADD
     bbox.type = Marker.LINE_LIST

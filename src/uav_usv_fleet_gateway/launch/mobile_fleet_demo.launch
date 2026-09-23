@@ -1,0 +1,12 @@
+<launch>
+  <arg name="world_model_topic" default="/fleet/world_model"/>
+  <arg name="world_model_summary_topic" default="/fleet/world_model_summary"/>
+  <node pkg="uav_usv_fleet_gateway" type="fleet_gateway"
+        name="fleet_gateway" output="screen">
+    <param name="world_model_topic" value="$(arg world_model_topic)"/>
+    <param name="world_model_summary_topic" value="$(arg world_model_summary_topic)"/>
+    <param name="enable_world_model_publish" value="true"/>
+    <param name="enable_world_model_summary_publish" value="true"/>
+    <param name="include_world_model_in_snapshot" value="true"/>
+  </node>
+</launch>

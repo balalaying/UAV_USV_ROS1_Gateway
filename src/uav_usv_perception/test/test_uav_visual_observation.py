@@ -1,6 +1,6 @@
 import random
 
-from builtin_interfaces.msg import Time
+from uav_usv_ros1_compat.time_messages import Time
 from sensor_msgs.msg import CameraInfo
 from uav_usv_interfaces.msg import TrackedObject
 

@@ -14,12 +14,14 @@ import time
 import uuid
 
 from geometry_msgs.msg import TransformStamped
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy
-from rclpy.qos import QoSProfile
-from rclpy.qos import qos_profile_sensor_data
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import DurabilityPolicy
+from uav_usv_ros1_compat.qos import QoSProfile
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
+from uav_usv_ros1_compat.time_fields import time_dict
+from uav_usv_ros1_compat.time_fields import time_to_seconds
 from std_msgs.msg import String
 from tf2_msgs.msg import TFMessage
 from uav_usv_interfaces.msg import CaptureAssignmentArray
@@ -36,15 +38,11 @@ from uav_usv_mission.world_model_contract import stream_is_usable
 
 
 def _stamp_to_float(stamp):
-    return float(stamp.sec) + float(stamp.nanosec) * 1.0e-9
+    return time_to_seconds(stamp)
 
 
 def _stamp_dict(stamp):
-    return {
-        'sec': int(stamp.sec),
-        'nanosec': int(stamp.nanosec),
-        'seconds': _stamp_to_float(stamp),
-    }
+    return time_dict(stamp)
 
 
 def _header_dict(header):
@@ -1034,16 +1032,16 @@ class FleetWorldModelNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = FleetWorldModelNode()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

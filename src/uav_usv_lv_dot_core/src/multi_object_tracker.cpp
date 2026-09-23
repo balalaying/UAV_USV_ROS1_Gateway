@@ -93,7 +93,7 @@ double cosine_similarity(const std::array<double, 9> &left,
 
 std::string track_name(std::uint64_t identifier) {
   std::ostringstream stream;
-  stream << "lv_dot_ros2_track_" << std::setw(6) << std::setfill('0')
+  stream << "lv_dot_track_" << std::setw(6) << std::setfill('0')
          << identifier;
   return stream.str();
 }

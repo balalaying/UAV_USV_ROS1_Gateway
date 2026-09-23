@@ -1,0 +1,8 @@
+<launch>
+  <node pkg="uav_usv_fleet_gateway" type="fleet_gateway"
+        name="fleet_gateway" output="screen">
+    <param name="enable_world_model_publish" value="false"/>
+    <param name="enable_world_model_summary_publish" value="true"/>
+    <param name="include_world_model_in_snapshot" value="false"/>
+  </node>
+</launch>

@@ -29,7 +29,7 @@
     <plugin filename="gz-sim-air-pressure-system" name="gz::sim::systems::AirPressure"/>
     <plugin filename="gz-sim-magnetometer-system" name="gz::sim::systems::Magnetometer"/>
     <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
-    <physics type="ode"><max_step_size>0.004</max_step_size><real_time_factor>1</real_time_factor><real_time_update_rate>250</real_time_update_rate></physics>
+    <physics type="ode"><max_step_size>0.001</max_step_size><real_time_factor>1</real_time_factor><real_time_update_rate>1000</real_time_update_rate></physics>
     <gravity>0 0 -9.8</gravity>
     <scene><grid>false</grid><ambient>0.75 0.78 0.82 1</ambient><background>0.82 0.9 0.96 1</background><shadows>true</shadows></scene>
     <spherical_coordinates><surface_model>EARTH_WGS84</surface_model><world_frame_orientation>ENU</world_frame_orientation><latitude_deg>47.397971057728974</latitude_deg><longitude_deg>8.5461637398001464</longitude_deg><elevation>0</elevation><heading_deg>0</heading_deg></spherical_coordinates>
@@ -53,11 +53,11 @@
     <include><uri>model://sim332_island_uav_base</uri><name>island_uav_base</name><pose>-75 -215 0 0 0 0.559</pose></include>
     <include><uri>model://mountain_shore_command_base</uri><name>shore_command_base</name><pose>-35 -190 17.5 0 0 0.559</pose></include>
 
-    <!-- Display IDs: UAV_01, UAV_02, UAV_03. Lower-case entity IDs preserve
-         the existing PX4 model binding and ROS namespace convention. -->
-    <include><uri>model://x500_mono_cam_down</uri><name>uav_01</name><pose>-86.86 -222.43 19.75 0 0 0.559</pose></include>
-    <include><uri>model://x500_mono_cam_down</uri><name>uav_02</name><pose>-75.00 -215.00 19.75 0 0 0.559</pose></include>
-    <include><uri>model://x500_mono_cam_down</uri><name>uav_03</name><pose>-63.14 -207.57 19.75 0 0 0.559</pose></include>
+    <!-- Display IDs: UAV_01, UAV_02, UAV_03. Each model binds a unique
+         ArduCopter JSON-FDM port while preserving ROS/Gazebo entity IDs. -->
+    <include><uri>model://ardupilot_uav_01</uri><name>uav_01</name><pose>-86.86 -222.43 19.75 0 0 0.559</pose></include>
+    <include><uri>model://ardupilot_uav_02</uri><name>uav_02</name><pose>-75.00 -215.00 19.75 0 0 0.559</pose></include>
+    <include><uri>model://ardupilot_uav_03</uri><name>uav_03</name><pose>-63.14 -207.57 19.75 0 0 0.559</pose></include>
 
     <!-- Display IDs: USV_01 blue, USV_02 green, USV_03 cyan. -->
     <include><uri>model://sim332_usv_blue</uri><name>usv_01</name><pose>-120 -305 0 0 0 0.10</pose></include>
@@ -65,7 +65,8 @@
     <include><uri>model://sim332_usv_cyan</uri><name>usv_03</name><pose>-30 -305 0 0 0 -0.05</pose></include>
 
     <include><uri>model://sim332_friendly_ship</uri><name>friendly_ship</name><pose>-150 -355 0 0 0 0.25</pose></include>
-    <include><uri>model://sim332_enemy_ship</uri><name>enemy_ship</name><pose>-80 -345 0 0 0 2.60</pose></include>
+    <!-- Start 160 m west of friendly_ship and clear of all UAV/USV berths. -->
+    <include><uri>model://sim332_enemy_ship</uri><name>enemy_ship</name><pose>-310 -355 0 0 0 3.14159</pose></include>
 
     <light name="sun" type="directional"><pose>0 0 100 0 0 0</pose><cast_shadows>true</cast_shadows><intensity>1.1</intensity><direction>-0.35 0.2 -0.92</direction><diffuse>0.92 0.92 0.88 1</diffuse><specular>0.25 0.25 0.25 1</specular></light>
   </world>

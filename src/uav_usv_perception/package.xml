@@ -5,32 +5,26 @@
   <description>MID-360, UAV camera, AIS, object tracking, and multi-sensor fusion.</description>
   <maintainer email="team@example.com">UAV-USV Team</maintainer>
   <license>Apache-2.0</license>
-  <buildtool_depend>ament_cmake</buildtool_depend>
-  <exec_depend>geographic_msgs</exec_depend>
-  <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend>ament_index_python</exec_depend>
-  <exec_depend>launch</exec_depend>
-  <exec_depend>launch_ros</exec_depend>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>geographic_msgs</depend>
+  <depend>geometry_msgs</depend>
   <exec_depend>python3-gz-msgs10</exec_depend>
   <exec_depend>python3-gz-transport13</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
-  <exec_depend>rclpy</exec_depend>
-  <exec_depend>rcl_interfaces</exec_depend>
-  <exec_depend>rosgraph_msgs</exec_depend>
-  <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>sensor_msgs_py</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
-  <exec_depend>std_srvs</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
-  <exec_depend>tf2_msgs</exec_depend>
-  <exec_depend>uav_usv_interfaces</exec_depend>
-  <exec_depend>unique_identifier_msgs</exec_depend>
-  <exec_depend>vision_msgs</exec_depend>
-  <exec_depend>visualization_msgs</exec_depend>
-  <exec_depend>rviz2</exec_depend>
+  <depend>rospy</depend>
+  <depend>rosgraph_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_msgs</depend>
+  <depend>uav_usv_interfaces</depend>
+  <depend>uav_usv_ros1_compat</depend>
+  <depend>vision_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <exec_depend>rviz</exec_depend>
   <exec_depend>uav_usv_mission</exec_depend>
   <exec_depend>uav_usv_sim</exec_depend>
-  <test_depend>ament_cmake_pytest</test_depend>
-  <export><build_type>ament_cmake</build_type></export>
+  <export/>
 </package>

@@ -132,7 +132,7 @@ TEST(DetectorCore, FiltersTransformsClustersAndStartsTracks) {
   ASSERT_EQ(result.lidar_clusters.size(), 1U);
   ASSERT_EQ(result.tracks.size(), 1U);
   EXPECT_EQ(result.tracks[0].lifecycle, core::TrackLifecycle::kNew);
-  EXPECT_EQ(result.tracks[0].track_id, "lv_dot_ros2_track_000001");
+  EXPECT_EQ(result.tracks[0].track_id, "lv_dot_track_000001");
   EXPECT_NEAR(result.lidar_clusters[0].center[0], 11.0, 1.0e-5);
   EXPECT_NEAR(result.lidar_clusters[0].center[1], -3.0, 1.0e-5);
   EXPECT_NEAR(result.lidar_clusters[0].center[2], 1.033333333, 1.0e-5);

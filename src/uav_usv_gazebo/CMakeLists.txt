@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(uav_usv_gazebo)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(ament_cmake REQUIRED)
+find_package(catkin REQUIRED)
 find_package(PkgConfig REQUIRED)
 
 pkg_check_modules(GZ_SIM REQUIRED gz-sim8)
@@ -11,6 +13,8 @@ pkg_check_modules(GZ_TRANSPORT REQUIRED gz-transport13)
 pkg_check_modules(GZ_MSGS REQUIRED gz-msgs10)
 pkg_check_modules(GZ_COMMON REQUIRED gz-common5)
 pkg_check_modules(GZ_RENDERING REQUIRED gz-rendering8)
+
+catkin_package()
 
 function(add_gz_system_plugin target source)
   add_library(${target} SHARED ${source})
@@ -41,10 +45,44 @@ add_gz_system_plugin(BoatWaveFollower plugins/BoatWaveFollower.cc)
 add_gz_system_plugin(DroneDeckFollower plugins/DroneDeckFollower.cc)
 add_gz_system_plugin(VisualPoseFollower plugins/VisualPoseFollower.cc)
 add_gz_system_plugin(RandomVesselMotion plugins/RandomVesselMotion.cc)
+add_gz_system_plugin(ArduPilotMotorBridge plugins/ArduPilotMotorBridge.cc)
+add_gz_system_plugin(ArduPilotRoverBridge plugins/ArduPilotRoverBridge.cc)
 
-# VRX-compatible spectral wavefield and visualisation.  These targets are
-# kept separate from the legacy visual-only Gerstner model so the experimental
-# water world can be run without changing the default worlds.
+set(ARDUPILOT_GAZEBO_ROOT
+  "${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/ardupilot_gazebo")
+if(NOT EXISTS "${ARDUPILOT_GAZEBO_ROOT}/src/ArduPilotPlugin.cc")
+  message(FATAL_ERROR
+    "Missing official ArduPilot Gazebo source: ${ARDUPILOT_GAZEBO_ROOT}")
+endif()
+add_library(ArduPilotPlugin SHARED
+  "${ARDUPILOT_GAZEBO_ROOT}/src/ArduPilotPlugin.cc"
+  "${ARDUPILOT_GAZEBO_ROOT}/src/SocketUDP.cc"
+  "${ARDUPILOT_GAZEBO_ROOT}/src/Util.cc"
+)
+target_include_directories(ArduPilotPlugin PRIVATE
+  "${ARDUPILOT_GAZEBO_ROOT}/include"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/rapidjson/include"
+  ${GZ_SIM_INCLUDE_DIRS}
+  ${GZ_PLUGIN_INCLUDE_DIRS}
+  ${GZ_MATH_INCLUDE_DIRS}
+  ${GZ_TRANSPORT_INCLUDE_DIRS}
+  ${GZ_MSGS_INCLUDE_DIRS}
+)
+target_link_directories(ArduPilotPlugin PRIVATE
+  ${GZ_SIM_LIBRARY_DIRS}
+  ${GZ_PLUGIN_LIBRARY_DIRS}
+  ${GZ_MATH_LIBRARY_DIRS}
+  ${GZ_TRANSPORT_LIBRARY_DIRS}
+  ${GZ_MSGS_LIBRARY_DIRS}
+)
+target_link_libraries(ArduPilotPlugin PRIVATE
+  ${GZ_SIM_LIBRARIES}
+  ${GZ_PLUGIN_LIBRARIES}
+  ${GZ_MATH_LIBRARIES}
+  ${GZ_TRANSPORT_LIBRARIES}
+  ${GZ_MSGS_LIBRARIES}
+)
+
 add_library(VrxWavefield SHARED
   plugins/vrx_wavefield/Wavefield.cc
 )
@@ -127,29 +165,32 @@ install(TARGETS
   DroneDeckFollower
   VisualPoseFollower
   RandomVesselMotion
+  ArduPilotMotorBridge
+  ArduPilotRoverBridge
+  ArduPilotPlugin
   VrxWavefield
   VrxWaveVisual
   VrxWavefieldPublisher
-  LIBRARY DESTINATION lib/${PROJECT_NAME}/plugins
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}/plugins
 )
 
 install(PROGRAMS
   tools/run_gz_world.sh
+  tools/run_gz_world_mid360.sh
   tools/prepare_coastline.sh
   tools/build_coastline_assets.py
   tools/prepare_fleet_mid360.py
-  tools/run_vrx_water_preview.sh
-  tools/sync_to_px4.sh
-  DESTINATION lib/${PROJECT_NAME}
+  tools/verify_repo_models.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 install(DIRECTORY
   models
   worlds
   config
-  DESTINATION share/${PROJECT_NAME}
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
-install(FILES README.md DESTINATION share/${PROJECT_NAME})
-
-ament_package()
+install(FILES README.md
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)

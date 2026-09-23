@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.0.2)
 project(uav_usv_navigation)
 
-find_package(ament_cmake REQUIRED)
+find_package(catkin REQUIRED COMPONENTS move_base uav_usv_interfaces uav_usv_usv_control)
 
-install(FILES README.md DESTINATION share/${PROJECT_NAME})
+catkin_package(CATKIN_DEPENDS move_base uav_usv_interfaces uav_usv_usv_control)
 
-ament_package()
+install(FILES README.md DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

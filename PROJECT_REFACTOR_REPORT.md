@@ -26,7 +26,7 @@ launches living beside the current 332 integrated workflow.
 
 - **Official runtime packages:** `uav_usv_interfaces`, `uav_usv_gazebo`,
   `uav_usv_bringup`, `uav_usv_uav_control`, `uav_usv_usv_control`,
-  `uav_usv_lv_dot_core`, `uav_usv_lv_dot_ros2`, `uav_usv_perception`,
+  `uav_usv_lv_dot_core`, `uav_usv_lv_dot`, `uav_usv_perception`,
   `uav_usv_mission`, `uav_usv_base_station`, and `uav_usv_fleet_gateway`.
 - **Official compatibility package:** `uav_usv_sim`. It still owns working
   early simulation, PX4/Nav2 and teaching flows and must not be removed.

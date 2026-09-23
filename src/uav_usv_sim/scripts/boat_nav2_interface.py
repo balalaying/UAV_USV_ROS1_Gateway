@@ -11,16 +11,7 @@ from gz.msgs10.twist_pb2 import Twist as GzTwist
 from gz.transport13 import Node as GzTransportNode
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import Odometry
-import rclpy
-from rclpy.duration import Duration
-from rclpy._rclpy_pybind11 import RCLError
-from rcl_interfaces.msg import SetParametersResult
-from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy
-from rclpy.qos import HistoryPolicy
-from rclpy.qos import QoSProfile
-from rclpy.qos import ReliabilityPolicy
-from rclpy.qos import qos_profile_sensor_data
+import rospy
 from sensor_msgs.msg import LaserScan
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker
@@ -87,262 +78,260 @@ class VelocityPid:
         )
 
 
-class BoatNav2Interface(Node):
+class BoatNav2Interface:
     """Adapts the Gazebo boat simulation to the ROS interfaces Nav2 expects."""
 
     def __init__(self):
-        super().__init__('boat_nav2_interface')
 
-        self.declare_parameter('pose_topic', '/world/default/pose/info')
-        self.declare_parameter('model_pose_topic', '/boat/pose')
-        self.declare_parameter('boat_cmd_topic', '/model/simple_boat/cmd_vel')
-        self.declare_parameter('cmd_vel_topic', '/cmd_vel')
-        self.declare_parameter('odom_topic', '/odom')
-        self.declare_parameter('map_topic', '/map')
-        self.declare_parameter('scan_topic', '/boat/scan_raw')
-        self.declare_parameter('filtered_scan_topic', '/boat/scan')
-        self.declare_parameter('scan_range_topic', '/boat/scan_range')
-        self.declare_parameter('boat_name', 'landing_boat')
-        self.declare_parameter('map_frame_id', 'map')
-        self.declare_parameter('odom_frame_id', 'odom')
-        self.declare_parameter('base_frame_id', 'landing_boat/base_link')
-        self.declare_parameter('lidar_frame_id', 'landing_boat/hull/front_lidar')
-        self.declare_parameter('lidar_offset_x', 0.9075)
-        self.declare_parameter('lidar_offset_y', 0.0)
-        self.declare_parameter('lidar_offset_z', 1.5625)
-        self.declare_parameter('map_resolution', 0.5)
-        self.declare_parameter('map_width', 240.0)
-        self.declare_parameter('map_height', 180.0)
-        self.declare_parameter('map_publish_period', 2.0)
-        self.declare_parameter('publish_empty_map', True)
-        self.declare_parameter('cmd_timeout', 0.8)
-        self.declare_parameter('marker_topic', '/boat/nav2_reference_markers')
-        self.declare_parameter('control_frequency', 20.0)
-        self.declare_parameter('enable_velocity_pid', True)
-        self.declare_parameter('linear_kp', 0.18)
-        self.declare_parameter('linear_ki', 0.03)
-        self.declare_parameter('linear_kd', 0.01)
-        self.declare_parameter('linear_integral_limit', 0.5)
-        self.declare_parameter('angular_kp', 0.28)
-        self.declare_parameter('angular_ki', 0.04)
-        self.declare_parameter('angular_kd', 0.015)
-        self.declare_parameter('angular_integral_limit', 0.8)
-        self.declare_parameter('derivative_filter_alpha', 0.2)
-        self.declare_parameter('velocity_measurement_alpha', 0.3)
-        self.declare_parameter('linear_setpoint_alpha', 0.45)
-        self.declare_parameter('angular_setpoint_alpha', 0.6)
-        self.declare_parameter('max_linear_output', 2.8)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         # Zero keeps the established Nav2 behavior.  A positive value is a
         # runtime ceiling used by the base-station speed-control page.
-        self.declare_parameter('speed_limit_mps', 0.0)
-        self.declare_parameter('speed_multiplier', 1.0)
-        self.declare_parameter('min_linear_output', -0.65)
-        self.declare_parameter('max_angular_output', 2.2)
-        self.declare_parameter('command_deadband', 0.01)
-        self.declare_parameter('enable_lidar_safety', True)
-        self.declare_parameter('safety_slow_distance', 9.0)
-        self.declare_parameter('safety_stop_distance', 3.8)
-        self.declare_parameter('safety_escape_distance', 2.2)
-        self.declare_parameter('safety_release_distance', 4.8)
-        self.declare_parameter('safety_reverse_speed', -0.42)
-        self.declare_parameter('safety_turn_rate', 0.9)
-        self.declare_parameter('safety_blocked_timeout', 1.5)
-        self.declare_parameter('safety_min_escape_duration', 2.5)
-        self.declare_parameter('safety_max_escape_duration', 6.0)
-        self.declare_parameter('max_scan_tilt', 0.025)
-        self.declare_parameter('filter_wave_points', True)
-        self.declare_parameter('min_obstacle_world_z', 0.9)
 
-        self.pose_topic = self.get_parameter('pose_topic').value
-        self.model_pose_topic = self.get_parameter('model_pose_topic').value
-        self.boat_cmd_topic = self.get_parameter('boat_cmd_topic').value
-        self.cmd_vel_topic = self.get_parameter('cmd_vel_topic').value
-        self.odom_topic = self.get_parameter('odom_topic').value
-        self.map_topic = self.get_parameter('map_topic').value
-        self.scan_topic = self.get_parameter('scan_topic').value
-        self.filtered_scan_topic = self.get_parameter(
-            'filtered_scan_topic'
-        ).value
-        self.scan_range_topic = self.get_parameter('scan_range_topic').value
-        self.boat_name = self.get_parameter('boat_name').value
-        self.map_frame_id = self.get_parameter('map_frame_id').value
-        self.odom_frame_id = self.get_parameter('odom_frame_id').value
-        self.base_frame_id = self.get_parameter('base_frame_id').value
-        self.lidar_frame_id = self.get_parameter('lidar_frame_id').value
-        self.lidar_offset_x = float(self.get_parameter('lidar_offset_x').value)
-        self.lidar_offset_y = float(self.get_parameter('lidar_offset_y').value)
-        self.lidar_offset_z = float(self.get_parameter('lidar_offset_z').value)
-        self.map_resolution = float(self.get_parameter('map_resolution').value)
-        self.map_width = float(self.get_parameter('map_width').value)
-        self.map_height = float(self.get_parameter('map_height').value)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        self.pose_topic = rospy.get_param('~pose_topic', '/world/default/pose/info')
+        self.model_pose_topic = rospy.get_param('~model_pose_topic', '/boat/pose')
+        self.boat_cmd_topic = rospy.get_param('~boat_cmd_topic', '/model/simple_boat/cmd_vel')
+        self.cmd_vel_topic = rospy.get_param('~cmd_vel_topic', '/cmd_vel')
+        self.odom_topic = rospy.get_param('~odom_topic', '/odom')
+        self.map_topic = rospy.get_param('~map_topic', '/map')
+        self.scan_topic = rospy.get_param('~scan_topic', '/boat/scan_raw')
+        self.filtered_scan_topic = rospy.get_param('~filtered_scan_topic', '/boat/scan')
+        self.scan_range_topic = rospy.get_param('~scan_range_topic', '/boat/scan_range')
+        self.boat_name = rospy.get_param('~boat_name', 'landing_boat')
+        self.map_frame_id = rospy.get_param('~map_frame_id', 'map')
+        self.odom_frame_id = rospy.get_param('~odom_frame_id', 'odom')
+        self.base_frame_id = rospy.get_param('~base_frame_id', 'landing_boat/base_link')
+        self.lidar_frame_id = rospy.get_param('~lidar_frame_id', 'landing_boat/hull/front_lidar')
+        self.lidar_offset_x = float(rospy.get_param('~lidar_offset_x', 0.9075))
+        self.lidar_offset_y = float(rospy.get_param('~lidar_offset_y', 0.0))
+        self.lidar_offset_z = float(rospy.get_param('~lidar_offset_z', 1.5625))
+        self.map_resolution = float(rospy.get_param('~map_resolution', 0.5))
+        self.map_width = float(rospy.get_param('~map_width', 240.0))
+        self.map_height = float(rospy.get_param('~map_height', 180.0))
         self.map_publish_period = float(
-            self.get_parameter('map_publish_period').value
+            rospy.get_param('~map_publish_period', 2.0)
         )
         self.publish_empty_map = bool(
-            self.get_parameter('publish_empty_map').value
+            rospy.get_param('~publish_empty_map', True)
         )
-        self.cmd_timeout = float(self.get_parameter('cmd_timeout').value)
-        self.marker_topic = self.get_parameter('marker_topic').value
+        self.cmd_timeout = float(rospy.get_param('~cmd_timeout', 0.8))
+        self.marker_topic = rospy.get_param('~marker_topic', '/boat/nav2_reference_markers')
         self.control_frequency = max(
             1.0,
-            float(self.get_parameter('control_frequency').value),
+            float(rospy.get_param('~control_frequency', 20.0)),
         )
         self.enable_velocity_pid = bool(
-            self.get_parameter('enable_velocity_pid').value
+            rospy.get_param('~enable_velocity_pid', True)
         )
         derivative_filter_alpha = float(
-            self.get_parameter('derivative_filter_alpha').value
+            rospy.get_param('~derivative_filter_alpha', 0.2)
         )
         self.velocity_measurement_alpha = clamp(
-            float(self.get_parameter('velocity_measurement_alpha').value),
+            float(rospy.get_param('~velocity_measurement_alpha', 0.3)),
             0.01,
             1.0,
         )
         self.linear_setpoint_alpha = clamp(
-            float(self.get_parameter('linear_setpoint_alpha').value),
+            float(rospy.get_param('~linear_setpoint_alpha', 0.45)),
             0.01,
             1.0,
         )
         self.angular_setpoint_alpha = clamp(
-            float(self.get_parameter('angular_setpoint_alpha').value),
+            float(rospy.get_param('~angular_setpoint_alpha', 0.6)),
             0.01,
             1.0,
         )
         self.max_linear_output = max(
             0.0,
-            float(self.get_parameter('max_linear_output').value),
+            float(rospy.get_param('~max_linear_output', 2.8)),
         )
         self.speed_limit_mps = max(
             0.0,
-            float(self.get_parameter('speed_limit_mps').value),
+            float(rospy.get_param('~speed_limit_mps', 0.0)),
         )
         self.speed_multiplier = max(
-            0.25, float(self.get_parameter('speed_multiplier').value)
+            0.25, float(rospy.get_param('~speed_multiplier', 1.0))
         )
-        self.add_on_set_parameters_callback(self._on_parameters)
         self.min_linear_output = min(
             0.0,
-            float(self.get_parameter('min_linear_output').value),
+            float(rospy.get_param('~min_linear_output', -0.65)),
         )
         self.max_angular_output = max(
             0.0,
-            float(self.get_parameter('max_angular_output').value),
+            float(rospy.get_param('~max_angular_output', 2.2)),
         )
         self.command_deadband = max(
             0.0,
-            float(self.get_parameter('command_deadband').value),
+            float(rospy.get_param('~command_deadband', 0.01)),
         )
         self.enable_lidar_safety = bool(
-            self.get_parameter('enable_lidar_safety').value
+            rospy.get_param('~enable_lidar_safety', True)
         )
         self.safety_slow_distance = max(
             0.1,
-            float(self.get_parameter('safety_slow_distance').value),
+            float(rospy.get_param('~safety_slow_distance', 9.0)),
         )
         self.safety_stop_distance = clamp(
-            float(self.get_parameter('safety_stop_distance').value),
+            float(rospy.get_param('~safety_stop_distance', 3.8)),
             0.1,
             self.safety_slow_distance,
         )
         self.safety_escape_distance = clamp(
-            float(self.get_parameter('safety_escape_distance').value),
+            float(rospy.get_param('~safety_escape_distance', 2.2)),
             0.1,
             self.safety_stop_distance,
         )
         self.safety_release_distance = max(
             self.safety_stop_distance,
-            float(self.get_parameter('safety_release_distance').value),
+            float(rospy.get_param('~safety_release_distance', 4.8)),
         )
         self.safety_reverse_speed = clamp(
-            float(self.get_parameter('safety_reverse_speed').value),
+            float(rospy.get_param('~safety_reverse_speed', -0.42)),
             self.min_linear_output,
             0.0,
         )
         self.safety_turn_rate = clamp(
-            abs(float(self.get_parameter('safety_turn_rate').value)),
+            abs(float(rospy.get_param('~safety_turn_rate', 0.9))),
             0.1,
             self.max_angular_output,
         )
         self.safety_blocked_timeout = max(
             0.1,
-            float(self.get_parameter('safety_blocked_timeout').value),
+            float(rospy.get_param('~safety_blocked_timeout', 1.5)),
         )
         self.safety_min_escape_duration = max(
             0.1,
-            float(self.get_parameter('safety_min_escape_duration').value),
+            float(rospy.get_param('~safety_min_escape_duration', 2.5)),
         )
         self.safety_max_escape_duration = max(
             self.safety_min_escape_duration,
-            float(self.get_parameter('safety_max_escape_duration').value),
+            float(rospy.get_param('~safety_max_escape_duration', 6.0)),
         )
         self.max_scan_tilt = max(
             0.0,
-            float(self.get_parameter('max_scan_tilt').value),
+            float(rospy.get_param('~max_scan_tilt', 0.025)),
         )
         self.filter_wave_points = bool(
-            self.get_parameter('filter_wave_points').value
+            rospy.get_param('~filter_wave_points', True)
         )
         self.min_obstacle_world_z = float(
-            self.get_parameter('min_obstacle_world_z').value
+            rospy.get_param('~min_obstacle_world_z', 0.9)
         )
         self.linear_pid = VelocityPid(
-            float(self.get_parameter('linear_kp').value),
-            float(self.get_parameter('linear_ki').value),
-            float(self.get_parameter('linear_kd').value),
-            float(self.get_parameter('linear_integral_limit').value),
+            float(rospy.get_param('~linear_kp', 0.18)),
+            float(rospy.get_param('~linear_ki', 0.03)),
+            float(rospy.get_param('~linear_kd', 0.01)),
+            float(rospy.get_param('~linear_integral_limit', 0.5)),
             derivative_filter_alpha,
         )
         self.angular_pid = VelocityPid(
-            float(self.get_parameter('angular_kp').value),
-            float(self.get_parameter('angular_ki').value),
-            float(self.get_parameter('angular_kd').value),
-            float(self.get_parameter('angular_integral_limit').value),
+            float(rospy.get_param('~angular_kp', 0.28)),
+            float(rospy.get_param('~angular_ki', 0.04)),
+            float(rospy.get_param('~angular_kd', 0.015)),
+            float(rospy.get_param('~angular_integral_limit', 0.8)),
             derivative_filter_alpha,
         )
 
         self.gz_node = GzTransportNode()
         self.gz_cmd_pub = self.gz_node.advertise(self.boat_cmd_topic, GzTwist)
 
-        transient_qos = QoSProfile(
-            history=HistoryPolicy.KEEP_LAST,
-            depth=1,
-            reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL,
-        )
         self.map_pub = None
         if self.publish_empty_map:
-            self.map_pub = self.create_publisher(
-                OccupancyGrid,
+            self.map_pub = rospy.Publisher(
                 self.map_topic,
-                transient_qos,
+                OccupancyGrid,
+                queue_size=1,
+                latch=True,
             )
-        self.odom_pub = self.create_publisher(
-            Odometry, self.odom_topic, 20
+        self.odom_pub = rospy.Publisher(
+            self.odom_topic,
+            Odometry,
+            queue_size=20,
         )
-        self.scan_pub = self.create_publisher(
-            LaserScan,
+        self.scan_pub = rospy.Publisher(
             self.filtered_scan_topic,
-            qos_profile_sensor_data,
-        )
-        self.scan_range_pub = self.create_publisher(LaserScan, self.scan_range_topic, 1)
-        self.marker_pub = self.create_publisher(
-            MarkerArray,
-            self.marker_topic,
-            transient_qos,
-        )
-        self.tf_broadcaster = TransformBroadcaster(self)
-
-        self.cmd_sub = self.create_subscription(
-            RosTwist,
-            self.cmd_vel_topic,
-            self._on_cmd_vel,
-            10,
-        )
-        self.scan_sub = self.create_subscription(
             LaserScan,
+            queue_size=10,
+        )
+        self.scan_range_pub = rospy.Publisher(
+            self.scan_range_topic,
+            LaserScan,
+            queue_size=1,
+        )
+        self.marker_pub = rospy.Publisher(
+            self.marker_topic,
+            MarkerArray,
+            queue_size=1,
+            latch=True,
+        )
+        self.tf_broadcaster = TransformBroadcaster()
+
+        self.cmd_sub = rospy.Subscriber(
+            self.cmd_vel_topic,
+            RosTwist,
+            self._on_cmd_vel,
+            queue_size=10,
+        )
+        self.scan_sub = rospy.Subscriber(
             self.scan_topic,
+            LaserScan,
             self._on_scan,
-            qos_profile_sensor_data,
+            queue_size=10,
         )
 
         self.boat_pose = None
@@ -372,19 +361,22 @@ class BoatNav2Interface(Node):
 
         self.map_timer = None
         if self.publish_empty_map:
-            self.map_timer = self.create_timer(
-                self.map_publish_period,
+            self.map_timer = rospy.Timer(
+                rospy.Duration(self.map_publish_period),
                 self.publish_map,
             )
-        self.control_timer = self.create_timer(
-            1.0 / self.control_frequency,
+        self.control_timer = rospy.Timer(
+            rospy.Duration(1.0 / self.control_frequency),
             self.update_velocity_control,
         )
-        self.marker_timer = self.create_timer(1.0, self.publish_reference_markers)
+        self.marker_timer = rospy.Timer(
+            rospy.Duration(1.0),
+            self.publish_reference_markers,
+        )
 
         if self.publish_empty_map:
             self.publish_map()
-        self.get_logger().info(
+        rospy.loginfo(
             'Nav2 interface ready: %s -> PID -> %s, odom=%s, '
             'empty_map=%s, scan=%s -> %s, pose=%s, velocity_pid=%s.'
             % (
@@ -399,11 +391,13 @@ class BoatNav2Interface(Node):
             )
         )
 
-    def destroy_node(self):
-        self.gz_node.unsubscribe(self.pose_topic)
-        self.gz_node.unsubscribe(self.model_pose_topic)
+    def shutdown(self):
+        try:
+            self.gz_node.unsubscribe(self.pose_topic)
+            self.gz_node.unsubscribe(self.model_pose_topic)
+        except Exception:
+            pass
         self.publish_gz_cmd(0.0, 0.0)
-        super().destroy_node()
 
     def _on_pose_v(self, msg):
         for pose in msg.pose:
@@ -416,13 +410,13 @@ class BoatNav2Interface(Node):
         self.process_pose(msg)
 
     def process_pose(self, pose):
-        if not rclpy.ok():
+        if not not rospy.is_shutdown():
             return
-        now = self.get_clock().now()
-        stamp = now.to_msg()
+        now = rospy.Time.now()
+        stamp = now
         dt = None
         if self.previous_pose_time is not None:
-            dt = (now - self.previous_pose_time).nanoseconds * 1e-9
+            dt = (now - self.previous_pose_time).to_sec()
 
         vx = 0.0
         wz = 0.0
@@ -444,11 +438,7 @@ class BoatNav2Interface(Node):
         alpha = self.velocity_measurement_alpha
         self.filtered_velocity[0] += alpha * (vx - self.filtered_velocity[0])
         self.filtered_velocity[1] += alpha * (wz - self.filtered_velocity[1])
-        try:
-            self.publish_tf_and_odom(pose, stamp, vx, wz)
-        except RCLError:
-            if rclpy.ok():
-                raise
+        self.publish_tf_and_odom(pose, stamp, vx, wz)
 
     def _on_cmd_vel(self, msg):
         self.last_cmd_time = time.monotonic()
@@ -468,30 +458,6 @@ class BoatNav2Interface(Node):
                 self.max_angular_output,
             ),
         )
-
-    def _on_parameters(self, parameters):
-        for parameter in parameters:
-            if parameter.name == 'speed_limit_mps':
-                value = float(parameter.value)
-                if value < 0.0 or value > self.max_linear_output * 2.0:
-                    return SetParametersResult(
-                        successful=False,
-                        reason='speed_limit_mps is outside the supported range',
-                    )
-                self.speed_limit_mps = value
-                if value > 0.0:
-                    self.target_cmd = (
-                        min(self.target_cmd[0], value), self.target_cmd[1]
-                    )
-            elif parameter.name == 'speed_multiplier':
-                value = float(parameter.value)
-                if value < 0.25 or value > 2.0:
-                    return SetParametersResult(
-                        successful=False,
-                        reason='speed_multiplier must be in [0.25, 2.0]',
-                    )
-                self.speed_multiplier = value
-        return SetParametersResult(successful=True)
 
     def _on_scan(self, msg):
         filtered_msg = copy.deepcopy(msg)
@@ -576,7 +542,7 @@ class BoatNav2Interface(Node):
             1.0 if self.left_clearance >= self.right_clearance else -1.0
         )
         self.reset_velocity_control()
-        self.get_logger().warn(
+        rospy.logwarn(
             'Lidar safety escape (%s): obstacle %.2f m ahead, reversing %s.'
             % (
                 reason,
@@ -597,7 +563,7 @@ class BoatNav2Interface(Node):
             )
             if can_release or elapsed >= self.safety_max_escape_duration:
                 self.safety_escape_active = False
-                self.get_logger().info('Lidar safety escape completed.')
+                rospy.loginfo('Lidar safety escape completed.')
             else:
                 return (
                     self.safety_reverse_speed,
@@ -655,7 +621,7 @@ class BoatNav2Interface(Node):
         msg.angular.z = float(angular_z)
         self.gz_cmd_pub.publish(msg)
 
-    def update_velocity_control(self):
+    def update_velocity_control(self, _event=None):
         now = time.monotonic()
         dt = clamp(now - self.last_control_time, 1e-3, 0.2)
         self.last_control_time = now
@@ -825,18 +791,18 @@ class BoatNav2Interface(Node):
                 if math.hypot(dx, dy) <= radius:
                     grid.data[cy * grid.info.width + cx] = 100
 
-    def publish_map(self):
+    def publish_map(self, _event=None):
         if self.map_pub is None or self.empty_map is None:
             return
-        self.empty_map.header.stamp = self.get_clock().now().to_msg()
+        self.empty_map.header.stamp = rospy.Time.now()
         self.map_pub.publish(self.empty_map)
 
-    def publish_reference_markers(self):
+    def publish_reference_markers(self, _event=None):
         now = time.monotonic()
         if now - self.last_marker_time < 0.9:
             return
         self.last_marker_time = now
-        stamp = self.get_clock().now().to_msg()
+        stamp = rospy.Time.now()
         markers = MarkerArray()
 
         markers.markers.append(
@@ -895,7 +861,7 @@ class BoatNav2Interface(Node):
         marker.color.g = float(g)
         marker.color.b = float(b)
         marker.color.a = float(a)
-        marker.lifetime = Duration(seconds=0.0).to_msg()
+        marker.lifetime = rospy.Duration(0.0)
         return marker
 
     def make_text(self, marker_id, namespace, text, x, y, z, scale, stamp):
@@ -906,20 +872,16 @@ class BoatNav2Interface(Node):
         return marker
 
 
-def main(args=None):
-    rclpy.init(args=args)
+def main():
+    rospy.init_node('boat_move_base_interface')
+
     node = BoatNav2Interface()
+    rospy.on_shutdown(node.shutdown)
+
     try:
-        rclpy.spin(node)
+        rospy.spin()
     except KeyboardInterrupt:
         pass
-    finally:
-        try:
-            node.destroy_node()
-        except KeyboardInterrupt:
-            pass
-        if rclpy.ok():
-            rclpy.shutdown()
 
 
 if __name__ == '__main__':

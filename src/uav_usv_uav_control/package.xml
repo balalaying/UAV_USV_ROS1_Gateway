@@ -1,16 +1,16 @@
 <?xml version="1.0"?>
-<package format="3">
+<package format="2">
   <name>uav_usv_uav_control</name>
   <version>0.1.0</version>
-  <description>PX4 offboard flight, return-to-vessel, and moving-deck landing control.</description>
+  <description>ROS 1 ArduPilot MAVLink fleet control for the 332 UAVs.</description>
   <maintainer email="team@example.com">UAV-USV Team</maintainer>
   <license>Apache-2.0</license>
-  <buildtool_depend>ament_cmake</buildtool_depend>
-  <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend>px4_msgs</exec_depend>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>uav_usv_interfaces</depend>
+  <depend>uav_usv_ros1_compat</depend>
   <exec_depend>python3-pymavlink</exec_depend>
-  <exec_depend>rclpy</exec_depend>
-  <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>uav_usv_interfaces</exec_depend>
-  <export><build_type>ament_cmake</build_type></export>
+  <exec_depend>uav_usv_mission</exec_depend>
+  <export/>
 </package>

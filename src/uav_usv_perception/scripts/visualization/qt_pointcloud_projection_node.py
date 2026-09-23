@@ -7,14 +7,14 @@ import math
 import time
 
 import numpy as np
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-from rclpy.time import Time
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
+from uav_usv_ros1_compat.time import Time
+from uav_usv_ros1_compat.time_fields import time_to_seconds
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import PointField
-from sensor_msgs_py import point_cloud2
 from std_msgs.msg import String
 from tf2_ros import Buffer, TransformException, TransformListener
 
@@ -60,6 +60,39 @@ def quaternion_rotation_matrix(quaternion):
          2.0 * (y * z + x * w),
          1.0 - 2.0 * (x * x + y * y)],
     ], dtype=np.float64)
+
+
+def pointcloud_xyz_array(message):
+    """Decode scalar FLOAT32 XYZ fields from a ROS 1 PointCloud2."""
+    field_by_name = {field.name: field for field in message.fields}
+    fields = []
+    for name in ('x', 'y', 'z'):
+        field = field_by_name.get(name)
+        if (
+            field is None
+            or field.datatype != PointField.FLOAT32
+            or field.count != 1
+        ):
+            raise ValueError(
+                'PointCloud2 requires scalar FLOAT32 %s field' % name
+            )
+        fields.append(field)
+    point_count = int(message.width) * int(message.height)
+    if point_count <= 0:
+        return np.empty((0, 3), dtype=np.float32)
+    if int(message.point_step) <= 0:
+        raise ValueError('PointCloud2 point_step must be positive')
+    endian = '>' if message.is_bigendian else '<'
+    values = []
+    for field in fields:
+        values.append(np.ndarray(
+            shape=(point_count,),
+            dtype=endian + 'f4',
+            buffer=message.data,
+            offset=int(field.offset),
+            strides=(int(message.point_step),),
+        ))
+    return np.column_stack(values)
 
 
 def project_points(
@@ -212,7 +245,7 @@ class QtPointCloudProjectionNode(Node):
             String, self.status_topic, 10
         )
         self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_listener = TransformListener(self.tf_buffer)
         self.last_processed_at = 0.0
         self.arrivals = deque(maxlen=50)
         self.received_frames = 0
@@ -363,11 +396,7 @@ class QtPointCloudProjectionNode(Node):
                 return
         self.pending_cloud = None
         try:
-            points = point_cloud2.read_points_numpy(
-                cloud,
-                field_names=['x', 'y', 'z'],
-                skip_nans=True,
-            )
+            points = pointcloud_xyz_array(cloud)
             projected = project_points(
                 points,
                 rotation,
@@ -386,10 +415,7 @@ class QtPointCloudProjectionNode(Node):
             )
             return
 
-        stamp_seconds = (
-            float(cloud.header.stamp.sec)
-            + float(cloud.header.stamp.nanosec) * 1e-9
-        )
+        stamp_seconds = time_to_seconds(cloud.header.stamp)
         if stamp_seconds < self.last_cloud_stamp:
             self.projected_history.clear()
         self.last_cloud_stamp = stamp_seconds
@@ -421,16 +447,16 @@ class QtPointCloudProjectionNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = QtPointCloudProjectionNode()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

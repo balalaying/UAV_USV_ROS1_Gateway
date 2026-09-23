@@ -1,8 +1,12 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.0.2)
 project(uav_usv_tests)
 
-find_package(ament_cmake REQUIRED)
+find_package(catkin REQUIRED COMPONENTS uav_usv_interfaces)
 
-install(FILES README.md DESTINATION share/${PROJECT_NAME})
+catkin_package(CATKIN_DEPENDS uav_usv_interfaces)
 
-ament_package()
+if(CATKIN_ENABLE_TESTING)
+  find_package(rostest REQUIRED)
+endif()
+
+install(FILES README.md DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

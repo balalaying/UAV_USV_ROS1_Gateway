@@ -17,6 +17,8 @@ from PyQt5.QtWidgets import QWidget
 import pyqtgraph as pg
 from visualization_msgs.msg import Marker
 
+from uav_usv_mission.pyqtgraph_compat import gl_text_item
+
 gl = None
 OPENGL_AVAILABLE = (
     importlib.util.find_spec('pyqtgraph.opengl') is not None
@@ -970,7 +972,7 @@ class PerceptionTopDownWidget(QWidget):
         if self.gl_view is None or not self.layer_visibility['labels']:
             return
         offset = TRACK_LABEL_OFFSET.get(layer, (0.6, 0.6))
-        label = gl.GLTextItem(
+        label = gl_text_item(
             pos=(
                 item['x'] + offset[0],
                 item['y'] + offset[1],
@@ -1054,7 +1056,7 @@ class PerceptionTopDownWidget(QWidget):
                 start,
                 (start[0], start[1], start[2] + axis_length),
             ))
-            label = gl.GLTextItem(
+            label = gl_text_item(
                 pos=(start[0], start[1], start[2] + axis_length + 0.5),
                 color=pg.mkColor('#ffffff'),
                 text='%s/base_link' % item['vehicle_id'],

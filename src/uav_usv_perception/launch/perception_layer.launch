@@ -1,0 +1,11 @@
+<launch>
+  <arg name="pose_topic" default="/world/heterogeneous_332/pose/info"/>
+  <node pkg="uav_usv_perception" type="ground_truth_adapter.py"
+        name="ground_truth_adapter" output="screen">
+    <param name="pose_topic" value="$(arg pose_topic)"/>
+  </node>
+  <node pkg="uav_usv_perception" type="perception_fusion_node.py"
+        name="sensor_perception_fusion" output="screen"/>
+  <node pkg="uav_usv_perception" type="perception_source_mux.py"
+        name="perception_source_mux" output="screen"/>
+</launch>

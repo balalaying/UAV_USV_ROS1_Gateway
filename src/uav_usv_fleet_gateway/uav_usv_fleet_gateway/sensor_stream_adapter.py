@@ -8,20 +8,21 @@ import time
 
 import cv2
 import numpy as np
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
+from uav_usv_ros1_compat.time_fields import time_to_seconds
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import PointCloud2
-from sensor_msgs_py import point_cloud2
+from sensor_msgs import point_cloud2
 from std_msgs.msg import String
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 
 
 def stamp_seconds(stamp):
-    return float(stamp.sec) + float(stamp.nanosec) * 1e-9
+    return time_to_seconds(stamp)
 
 
 def decode_image(message):
@@ -276,16 +277,16 @@ class SensorStreamAdapter(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = SensorStreamAdapter()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

@@ -1,0 +1,8 @@
+<launch>
+  <arg name="start_world" default="false"/>
+  <arg name="start_ardupilot" default="false"/>
+  <include file="$(find uav_usv_bringup)/launch/heterogeneous_332_qt_ros1.launch">
+    <arg name="start_world" value="$(arg start_world)"/>
+    <arg name="start_ardupilot" value="$(arg start_ardupilot)"/>
+  </include>
+</launch>

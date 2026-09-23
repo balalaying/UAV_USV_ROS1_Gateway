@@ -1,37 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WORKSPACE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_ROOT="${UAV_USV_BUILD_ROOT:-/var/tmp/UAV_USV_team_build}"
-INSTALL_ROOT="${UAV_USV_INSTALL_ROOT:-/var/tmp/UAV_USV_team_install}"
-LOG_ROOT="${UAV_USV_LOG_ROOT:-/var/tmp/UAV_USV_team_log}"
+REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKSPACE_ROOT="$(cd "${REPOSITORY_ROOT}/../.." && pwd)"
 
 set +u
-source /opt/ros/humble/setup.bash
+source /opt/ros/noetic/setup.bash
 set -u
 
-find "${WORKSPACE_ROOT}/src" -type f -name '*.py' -print0 \
+find "${REPOSITORY_ROOT}/src" -type f -name '*.py' -print0 \
   | xargs -0 -r python3 -m py_compile
 
-find "${WORKSPACE_ROOT}/src" -type f \
+find "${REPOSITORY_ROOT}/src" -type f \
   \( -name 'package.xml' -o -name '*.sdf' -o -name '*.urdf' -o -name '*.xacro' \) \
   -print0 | xargs -0 -r xmllint --noout
 
 cd "${WORKSPACE_ROOT}"
-colcon --log-base "${LOG_ROOT}" build \
-  --build-base "${BUILD_ROOT}" \
-  --install-base "${INSTALL_ROOT}" \
-  --symlink-install \
-  --event-handlers console_direct+
-
-set +u
-source "${INSTALL_ROOT}/setup.bash"
-set -u
-colcon --log-base "${LOG_ROOT}" test \
-  --build-base "${BUILD_ROOT}" \
-  --install-base "${INSTALL_ROOT}" \
-  --event-handlers console_direct+
-
-colcon --log-base "${LOG_ROOT}" test-result --verbose
+catkin_make
+catkin_make run_tests
+catkin_test_results --verbose "${WORKSPACE_ROOT}/build/test_results"
 
 echo "Workspace checks passed."

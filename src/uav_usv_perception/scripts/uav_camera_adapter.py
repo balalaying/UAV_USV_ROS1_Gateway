@@ -6,11 +6,12 @@ from copy import deepcopy
 import math
 import time
 
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-from rclpy.time import Time
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
+from uav_usv_ros1_compat.time import Time
+from uav_usv_ros1_compat.time_fields import time_to_nanoseconds
 from sensor_msgs.msg import CameraInfo, Image
 from tf2_ros import Buffer, TransformListener
 from uav_usv_interfaces.msg import SensorStatus
@@ -64,7 +65,7 @@ class UavCameraAdapter(Node):
             20,
         )
         self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_listener = TransformListener(self.tf_buffer)
         self.states = {}
         self.image_publishers = {}
         self.info_publishers = {}
@@ -127,10 +128,7 @@ class UavCameraAdapter(Node):
 
         state.last_stamp = msg.header.stamp
         state.last_frame = msg.header.frame_id or state.last_frame
-        stamp_ns = (
-            int(msg.header.stamp.sec) * 1000000000
-            + int(msg.header.stamp.nanosec)
-        )
+        stamp_ns = time_to_nanoseconds(msg.header.stamp)
         state.last_latency = max(
             0.0, (self.get_clock().now().nanoseconds - stamp_ns) / 1e9
         )
@@ -198,16 +196,16 @@ class UavCameraAdapter(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = UavCameraAdapter()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

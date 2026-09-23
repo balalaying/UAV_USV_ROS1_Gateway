@@ -5,6 +5,8 @@
 #include <memory>
 #include <random>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <gz/msgs/twist.pb.h>
 #include <gz/plugin/Register.hh>
@@ -62,6 +64,30 @@ class RandomVesselMotion
         this->patrolLookaheadSeconds);
     this->ReadParameter(_sdf, "patrol_boundary_margin",
         this->patrolBoundaryMargin);
+    this->ReadParameter(_sdf, "route_speed", this->routeSpeed);
+    this->ReadParameter(_sdf, "waypoint_radius", this->waypointRadius);
+    this->ReadParameter(_sdf, "heading_gain", this->headingGain);
+    this->ReadParameter(_sdf, "avoid_radius", this->avoidRadius);
+    this->ReadParameter(_sdf, "avoid_heading_gain", this->avoidHeadingGain);
+
+    if (_sdf->HasElement("waypoint") || _sdf->HasElement("avoid_model"))
+    {
+      auto element = _sdf->GetFirstElement();
+      while (element)
+      {
+        if (element->GetName() == "waypoint" &&
+            element->HasElement("x") && element->HasElement("y"))
+        {
+          this->waypoints.emplace_back(
+              element->Get<double>("x"), element->Get<double>("y"));
+        }
+        else if (element->GetName() == "avoid_model")
+        {
+          this->avoidModels.push_back(element->Get<std::string>());
+        }
+        element = element->GetNextElement();
+      }
+    }
 
     std::uint32_t seed = 332U;
     if (_sdf->HasElement("seed"))
@@ -86,13 +112,38 @@ class RandomVesselMotion
       return;
 
     const double now = std::chrono::duration<double>(_info.simTime).count();
-    if (now + 1e-6 >= this->stateDeadline)
+    if (this->waypoints.empty() && now + 1e-6 >= this->stateDeadline)
       this->AdvanceState(now);
 
     double speed = this->commandedSpeed;
     double yawRate = this->commandedYawRate;
     const auto pose = _ecm.Component<components::Pose>(this->entity);
-    if (pose && this->operatingRadius > 0.0)
+    if (pose && !this->waypoints.empty())
+    {
+      const double x = pose->Data().Pos().X();
+      const double y = pose->Data().Pos().Y();
+      auto target = this->waypoints[this->waypointIndex];
+      double distance = std::hypot(target.first - x, target.second - y);
+      if (distance <= this->waypointRadius)
+      {
+        this->waypointIndex = (this->waypointIndex + 1) % this->waypoints.size();
+        target = this->waypoints[this->waypointIndex];
+        distance = std::hypot(target.first - x, target.second - y);
+      }
+
+      const double desiredYaw = std::atan2(target.second - y, target.first - x);
+      const double rawError = desiredYaw - pose->Data().Rot().Yaw();
+      const double error = std::atan2(std::sin(rawError), std::cos(rawError));
+      yawRate = std::clamp(
+          this->headingGain * error, -this->turnRate, this->turnRate);
+
+      // Keep forward motion visible during turns, while slowing enough to
+      // draw a smooth repeatable S-shaped route instead of cutting corners.
+      const double alignment = std::max(0.25, std::cos(error));
+      speed = std::clamp(
+          this->routeSpeed * alignment, this->minSpeed, this->maxSpeed);
+    }
+    else if (pose && this->operatingRadius > 0.0)
     {
       const double x = pose->Data().Pos().X();
       const double y = pose->Data().Pos().Y();
@@ -143,6 +194,51 @@ class RandomVesselMotion
       }
     }
 
+    // Reuse the reference algorithms' distance-based repulsion for the
+    // independently moving target. This prevents a random leg from steering
+    // the enemy vessel into the protected ship or one of the pursuing USVs.
+    if (pose && this->avoidRadius > 0.0 && !this->avoidModels.empty())
+    {
+      const double x = pose->Data().Pos().X();
+      const double y = pose->Data().Pos().Y();
+      double repulsionX = 0.0;
+      double repulsionY = 0.0;
+      double nearestDistance = this->avoidRadius;
+      for (const auto &modelName : this->avoidModels)
+      {
+        const Entity otherEntity = _ecm.EntityByComponents(
+            components::Name(modelName));
+        if (otherEntity == kNullEntity || otherEntity == this->entity)
+          continue;
+        const auto otherPose = _ecm.Component<components::Pose>(otherEntity);
+        if (!otherPose)
+          continue;
+        const double differenceX = x - otherPose->Data().Pos().X();
+        const double differenceY = y - otherPose->Data().Pos().Y();
+        const double distance = std::hypot(differenceX, differenceY);
+        if (distance <= 1e-6 || distance >= this->avoidRadius)
+          continue;
+        nearestDistance = std::min(nearestDistance, distance);
+        const double magnitude = 1.0 / distance - 1.0 / this->avoidRadius;
+        repulsionX += magnitude * differenceX / distance;
+        repulsionY += magnitude * differenceY / distance;
+      }
+      if (std::hypot(repulsionX, repulsionY) > 1e-9)
+      {
+        const double desiredYaw = std::atan2(repulsionY, repulsionX);
+        const double rawError = desiredYaw - pose->Data().Rot().Yaw();
+        const double error = std::atan2(std::sin(rawError), std::cos(rawError));
+        const double urgency = std::clamp(
+            (this->avoidRadius - nearestDistance) / this->avoidRadius,
+            0.0, 1.0);
+        yawRate = std::clamp(
+            yawRate + this->avoidHeadingGain * urgency * error,
+            -this->turnRate, this->turnRate);
+        speed = std::max(speed, this->minSpeed +
+            urgency * (this->maxSpeed - this->minSpeed));
+      }
+    }
+
     if (now - this->lastPublishTime < 0.1)
       return;
     this->lastPublishTime = now;
@@ -176,7 +272,11 @@ class RandomVesselMotion
     const double delta = this->Uniform(
         -this->maxHeadingChange, this->maxHeadingChange);
     const double direction = delta < 0.0 ? -1.0 : 1.0;
-    this->commandedSpeed = 0.45 * this->Uniform(
+    // Keep the vessel visibly underway while it turns.  The old 0.45 scale
+    // could drop a configured 0.4 m/s patrol below the world-model moving
+    // threshold even though no stop state had been selected.
+    this->commandedSpeed = std::clamp(
+        0.75 * this->Uniform(this->minSpeed, this->maxSpeed),
         this->minSpeed, this->maxSpeed);
     this->commandedYawRate = direction * this->turnRate;
     this->stateDeadline = _now + std::max(
@@ -232,6 +332,14 @@ class RandomVesselMotion
   private: double patrolMaxY{0.0};
   private: double patrolLookaheadSeconds{4.0};
   private: double patrolBoundaryMargin{12.0};
+  private: std::vector<std::pair<double, double>> waypoints;
+  private: std::size_t waypointIndex{0U};
+  private: double routeSpeed{0.32};
+  private: double waypointRadius{5.0};
+  private: double headingGain{1.2};
+  private: double avoidRadius{0.0};
+  private: double avoidHeadingGain{1.5};
+  private: std::vector<std::string> avoidModels;
   private: double commandedSpeed{0.0};
   private: double commandedYawRate{0.0};
   private: double stateDeadline{0.0};

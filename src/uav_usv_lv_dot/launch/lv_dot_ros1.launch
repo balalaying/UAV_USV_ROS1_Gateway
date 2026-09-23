@@ -1,0 +1,11 @@
+<launch>
+  <arg name="vehicle_id" default="usv_01"/>
+  <arg name="points" default="/fleet/uplink/$(arg vehicle_id)/mid360/points_filtered"/>
+  <arg name="output_frame" default="map"/>
+  <node pkg="uav_usv_lv_dot" type="lv_dot_detector_node"
+        name="lv_dot_detector" output="screen">
+    <remap from="~points" to="$(arg points)"/>
+    <param name="vehicle_id" value="$(arg vehicle_id)"/>
+    <param name="output_frame" value="$(arg output_frame)"/>
+  </node>
+</launch>

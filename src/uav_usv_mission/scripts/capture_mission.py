@@ -3,10 +3,10 @@ import math
 import time
 from dataclasses import dataclass
 
-from builtin_interfaces.msg import Duration
+from uav_usv_ros1_compat.time_messages import Duration
 from geometry_msgs.msg import PoseStamped
-import rclpy
-from rclpy.node import Node
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.node import Node
 from std_msgs.msg import String
 from uav_usv_interfaces.msg import ControlLease
 from uav_usv_interfaces.msg import FleetCommand
@@ -434,14 +434,14 @@ class CaptureMission(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = CaptureMission()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

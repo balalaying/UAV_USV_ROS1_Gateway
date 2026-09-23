@@ -1,0 +1,17 @@
+<launch>
+  <arg name="world_model_topic" default="/fleet/world_model"/>
+  <arg name="state_topic" default="/base_station/state"/>
+  <arg name="events_topic" default="/base_station/events"/>
+  <arg name="base_station_x" default="-35.0"/>
+  <arg name="base_station_y" default="-190.0"/>
+  <arg name="base_station_z" default="17.5"/>
+  <node pkg="uav_usv_base_station" type="base_station_service"
+        name="base_station_service" output="screen">
+    <param name="world_model_topic" value="$(arg world_model_topic)"/>
+    <param name="state_topic" value="$(arg state_topic)"/>
+    <param name="events_topic" value="$(arg events_topic)"/>
+    <param name="base_station_x" value="$(arg base_station_x)"/>
+    <param name="base_station_y" value="$(arg base_station_y)"/>
+    <param name="base_station_z" value="$(arg base_station_z)"/>
+  </node>
+</launch>

@@ -11,18 +11,19 @@ import numpy as np
 from PIL import Image as PilImage
 from PIL import ImageDraw
 from PIL import ImageFont
-import rclpy
-from rclpy.callback_groups import ReentrantCallbackGroup
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from rclpy.duration import Duration
-from rclpy.executors import ExternalShutdownException
-from rclpy.executors import MultiThreadedExecutor
-from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy
-from rclpy.qos import QoSProfile
-from rclpy.qos import ReliabilityPolicy
+from uav_usv_mission import ros1_compat as ros1
+from uav_usv_mission.ros1_compat import Duration
+from uav_usv_mission.ros1_compat import ExternalShutdownException
+from uav_usv_mission.ros1_compat import MultiThreadedExecutor
+from uav_usv_mission.ros1_compat import MutuallyExclusiveCallbackGroup
+from uav_usv_mission.ros1_compat import Node
+from uav_usv_mission.ros1_compat import ReentrantCallbackGroup
+from uav_usv_mission.ros1_compat import DurabilityPolicy
+from uav_usv_mission.ros1_compat import QoSProfile
+from uav_usv_mission.ros1_compat import ReliabilityPolicy
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import String
 from uav_usv_interfaces.msg import CommandAck
 from uav_usv_interfaces.msg import ControlLease
@@ -234,6 +235,19 @@ class FleetBaseStation(Node):
                 sensor_qos,
                 self.image_callback_group,
             )
+            depth_topic = self._topic(
+                '/fleet/uplink/%s/depth/image_raw' % usv_id
+            )
+            self._add_image_sensor(
+                usv_id,
+                'depth_camera',
+                depth_topic,
+                self._make_image_callback(
+                    usv_id, depth_topic, frame_key=usv_id + ':depth'
+                ),
+                sensor_qos,
+                self.image_callback_group,
+            )
             scan_topic = self._topic('/fleet/uplink/%s/scan' % usv_id)
             self.trackers[scan_topic] = SensorTracker(
                 usv_id,
@@ -255,6 +269,18 @@ class FleetBaseStation(Node):
                 Odometry,
                 odom_topic,
                 self._make_odom_callback(usv_id),
+                sensor_qos,
+            )
+            points_topic = self._topic(
+                '/fleet/uplink/%s/mid360/points' % usv_id
+            )
+            self.trackers[points_topic] = SensorTracker(
+                usv_id, 'mid360', points_topic, 'sensor_msgs/PointCloud2'
+            )
+            self.create_subscription(
+                PointCloud2,
+                points_topic,
+                self._make_pointcloud_callback(points_topic),
                 sensor_qos,
             )
 
@@ -314,16 +340,23 @@ class FleetBaseStation(Node):
             Image, topic, callback, qos, callback_group=callback_group
         )
 
-    def _make_image_callback(self, vehicle_id, topic):
+    def _make_image_callback(self, vehicle_id, topic, frame_key=None):
+        frame_key = frame_key or vehicle_id
+
         def callback(msg):
             self.trackers[topic].update(len(msg.data))
             with self.camera_lock:
-                self.images[vehicle_id] = msg
-                self.camera_frame_versions[vehicle_id] = (
-                    self.camera_frame_versions.get(vehicle_id, 0) + 1
+                self.images[frame_key] = msg
+                self.camera_frame_versions[frame_key] = (
+                    self.camera_frame_versions.get(frame_key, 0) + 1
                 )
                 self.camera_frame_version += 1
 
+        return callback
+
+    def _make_pointcloud_callback(self, topic):
+        def callback(msg):
+            self.trackers[topic].update(len(msg.data))
         return callback
 
     def _decode_latest_camera_frames(self):
@@ -427,8 +460,20 @@ class FleetBaseStation(Node):
                 'control lease: %s' % action
             )
             return
-        if action == 'TAKEOFF':
-            for uav_id in self.uav_ids:
+        if action == 'TAKEOFF' or action.startswith('TAKEOFF:'):
+            requested = action.split(':', 1)[1].strip().lower() if ':' in action else ''
+            selected_uavs = self.uav_ids
+            if requested:
+                selected_uavs = [
+                    uav_id for uav_id in self.uav_ids
+                    if uav_id.lower() == requested
+                ]
+                if not selected_uavs:
+                    self.get_logger().warn(
+                        'Unknown UAV in TAKEOFF action: %s' % requested
+                    )
+                    return
+            for uav_id in selected_uavs:
                 state_entry = self.vehicle_states.get(uav_id)
                 if state_entry is not None and state_entry[0].armed:
                     self.get_logger().warn(
@@ -441,6 +486,21 @@ class FleetBaseStation(Node):
                     FleetCommand.COMMAND_TAKEOFF,
                     parameters=[self.uav_altitude],
                 )
+        elif action == 'LAND' or action.startswith('LAND:'):
+            requested = action.split(':', 1)[1].strip().lower() if ':' in action else ''
+            selected_uavs = self.uav_ids
+            if requested:
+                selected_uavs = [
+                    uav_id for uav_id in self.uav_ids
+                    if uav_id.lower() == requested
+                ]
+                if not selected_uavs:
+                    self.get_logger().warn(
+                        'Unknown UAV in LAND action: %s' % requested
+                    )
+                    return
+            for uav_id in selected_uavs:
+                self._send_command(uav_id, FleetCommand.COMMAND_LAND)
         elif action == 'HOLD_ALL':
             for vehicle_id in self.uav_ids + self.usv_ids:
                 self._send_command(vehicle_id, FleetCommand.COMMAND_HOLD)
@@ -449,9 +509,15 @@ class FleetBaseStation(Node):
                 self._send_command(
                     vehicle_id, FleetCommand.COMMAND_EMERGENCY_STOP
                 )
-        elif action.startswith('CAPTURE:') or action == 'CANCEL_CAPTURE':
+        elif (
+            action.startswith('CAPTURE:')
+            or action.startswith('ESCORT:')
+            or action in {
+                'CANCEL_CAPTURE', 'RESUME_ALGORITHM', 'STOP_ALGORITHM'
+            }
+        ):
             self.get_logger().info(
-                'Capture action routed to cooperative mission: %s' % action
+                'Algorithm action routed to cooperative mission: %s' % action
             )
         else:
             self.get_logger().warn('Unknown operator action: %s' % action)
@@ -459,8 +525,8 @@ class FleetBaseStation(Node):
     def _future_stamp(self, seconds):
         nanoseconds = self.get_clock().now().nanoseconds + int(seconds * 1e9)
         stamp = self.get_clock().now().to_msg()
-        stamp.sec = nanoseconds // 1000000000
-        stamp.nanosec = nanoseconds % 1000000000
+        stamp.secs = nanoseconds // 1000000000
+        stamp.nsecs = nanoseconds % 1000000000
         return stamp
 
     def _publish_leases(self):
@@ -525,6 +591,23 @@ class FleetBaseStation(Node):
 
     @staticmethod
     def _decode_image(msg):
+        encoding = msg.encoding.lower()
+        if encoding in ('32fc1', '16uc1'):
+            dtype = np.float32 if encoding == '32fc1' else np.uint16
+            row_items = msg.step // np.dtype(dtype).itemsize
+            depth = np.frombuffer(msg.data, dtype=dtype).reshape(
+                msg.height, row_items
+            )[:, :msg.width].astype(np.float32)
+            if encoding == '16uc1':
+                depth *= 0.001
+            valid = np.isfinite(depth) & (depth > 0.0)
+            display = np.zeros(depth.shape, dtype=np.uint8)
+            if np.any(valid):
+                ceiling = max(1.0, float(np.percentile(depth[valid], 95)))
+                display[valid] = np.clip(
+                    depth[valid] * 255.0 / ceiling, 0, 255
+                ).astype(np.uint8)
+            return cv2.applyColorMap(255 - display, cv2.COLORMAP_TURBO)
         channels = {
             'rgb8': 3,
             'bgr8': 3,
@@ -539,7 +622,6 @@ class FleetBaseStation(Node):
         image = rows[:, :msg.width * channels].reshape(
             msg.height, msg.width, channels
         )
-        encoding = msg.encoding.lower()
         if encoding == 'rgb8':
             return cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         if encoding == 'rgba8':
@@ -639,7 +721,7 @@ class FleetBaseStation(Node):
                 ]
                 title = '%s 下视相机' % self._vehicle_display_name(uav_id)
                 if uav_id == 'uav_01':
-                    title = '%s 主感知相机（PX4）' % (
+                    title = '%s 主感知相机（ArduPilot）' % (
                         self._vehicle_display_name(uav_id)
                     )
                 panels.append(
@@ -649,10 +731,20 @@ class FleetBaseStation(Node):
                         tracker,
                     )
                 )
+            for usv_id in self.usv_ids:
+                tracker = self.trackers[
+                    self._topic('/fleet/uplink/%s/depth/image_raw' % usv_id)
+                ]
+                panels.append(
+                    self._camera_panel(
+                        self.camera_frames.get(usv_id + ':depth'),
+                        '%s 深度相机' % self._vehicle_display_name(usv_id),
+                        tracker,
+                    )
+                )
             if not panels:
                 return
-            # Keep the six operational cameras in a compact 3 x 2 layout:
-            # first row USV-01..03, second row UAV-01..03.
+            # Three rows: USV RGB, UAV down cameras, and USV depth cameras.
             columns = 3
             while len(panels) % columns:
                 panels.append(np.zeros_like(panels[0]))
@@ -894,7 +986,7 @@ class FleetBaseStation(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args, name='fleet_base_station')
     node = FleetBaseStation()
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
@@ -908,8 +1000,8 @@ def main(args=None):
             node.destroy_node()
         except (KeyboardInterrupt, ExternalShutdownException):
             pass
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

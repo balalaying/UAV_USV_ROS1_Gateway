@@ -1,4 +1,4 @@
-from builtin_interfaces.msg import Time
+from uav_usv_ros1_compat.time_messages import Time
 from uav_usv_interfaces.msg import TrackedObject
 from uav_usv_interfaces.msg import TrackedObjectArray
 

@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>uav_usv_ros1_compat</name>
+  <version>0.1.0</version>
+  <description>ROS 1 Noetic compatibility API for migrated UAV-USV Python nodes.</description>
+  <maintainer email="team@example.com">UAV-USV Team</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>rospy</build_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>rospkg</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <export/>
+</package>

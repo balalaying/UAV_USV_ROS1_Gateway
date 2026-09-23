@@ -272,7 +272,7 @@ fleet_global_perception_fusion
 - `src/uav_usv_mission/scripts/gz_sensor_bridge.py`
 - `src/uav_usv_sim/scripts/fleet_pose_tf_publisher.py`
 - `src/uav_usv_perception/scripts/mid360_preprocessor.py`
-- `src/uav_usv_lv_dot_ros2/src/detector_node.cpp`
+- `src/uav_usv_lv_dot/src/detector_node.cpp`
 - `src/uav_usv_perception/scripts/fusion/vision_guided_lidar_roi_node.py`
 - `src/uav_usv_perception/scripts/fusion/camera_lidar_association_node.py`
 - `src/uav_usv_perception/scripts/fusion/perception_fusion_node.py`

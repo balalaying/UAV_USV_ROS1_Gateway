@@ -12,7 +12,7 @@ uint8 ACTION_STOP=4
 uint8 ACTION_REPLAN=5
 
 std_msgs/Header header
-unique_identifier_msgs/UUID target_uuid
+uuid_msgs/UniqueID target_uuid
 string track_id
 uint8 encounter_type
 uint8 recommended_action

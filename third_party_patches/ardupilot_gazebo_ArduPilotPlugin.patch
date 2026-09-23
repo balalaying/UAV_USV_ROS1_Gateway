@@ -1,0 +1,64 @@
+diff --git a/src/ArduPilotPlugin.cc b/src/ArduPilotPlugin.cc
+index 8309c37..475b4dd 100755
+--- a/src/ArduPilotPlugin.cc
++++ b/src/ArduPilotPlugin.cc
+@@ -250,6 +250,17 @@ class gz::sim::systems::ArduPilotPluginPrivate
+   /// \brief Set true if have 32 servo channels
+   public: bool have32Channels{false};
+ 
++  /// \brief Derive horizontal IMU acceleration from the reported world
++  /// velocity. This is intended for kinematically driven vehicle models,
++  /// where a velocity controller can bypass the physics-based IMU response.
++  public: bool deriveImuAccelFromVelocity{false};
++
++  public: bool derivedAccelInitialized{false};
++
++  public: double derivedAccelLastTime{0.0};
++
++  public: gz::math::Vector3d derivedAccelLastVelocity{0.0, 0.0, 0.0};
++
+   /// \brief Have we initialized subscription to the IMU data yet?
+   public: bool imuInitialized{false};
+ 
+@@ -520,6 +531,9 @@ void gz::sim::systems::ArduPilotPlugin::Configure(
+     this->dataPtr->have32Channels =
+     sdfClone->Get("have_32_channels", false).first;
+ 
++  this->dataPtr->deriveImuAccelFromVelocity =
++    sdfClone->Get("derive_imu_accel_from_velocity", false).first;
++
+   // Add the signal handler
+   this->dataPtr->sigHandler.AddCallback(
+       std::bind(
+@@ -1860,6 +1874,31 @@ void gz::sim::systems::ArduPilotPlugin::CreateStateJSON(
+     gz::math::Vector3d velWldG = worldLinearVel->Data();
+     gz::math::Vector3d velWldA = wldAToWldG.Rot() * velWldG + wldAToWldG.Pos();
+ 
++    // VelocityControl drives kinematic models without applying forces, so its
++    // reported velocity may change while the physics IMU does not observe the
++    // corresponding horizontal acceleration.  Keep the JSON velocity and IMU
++    // innovations consistent for models which explicitly opt in.
++    if (this->dataPtr->deriveImuAccelFromVelocity)
++    {
++        if (this->dataPtr->derivedAccelInitialized)
++        {
++            const double dt = _simTime - this->dataPtr->derivedAccelLastTime;
++            if (dt > 1e-6)
++            {
++                const gz::math::Vector3d accelWldA =
++                    (velWldA - this->dataPtr->derivedAccelLastVelocity) / dt;
++                const gz::math::Vector3d accelBdyA =
++                    wldAToBdyA.Rot().RotateVectorReverse(accelWldA);
++                linearAccel.X(accelBdyA.X());
++                linearAccel.Y(accelBdyA.Y());
++            }
++        }
++
++        this->dataPtr->derivedAccelLastVelocity = velWldA;
++        this->dataPtr->derivedAccelLastTime = _simTime;
++        this->dataPtr->derivedAccelInitialized = true;
++    }
++
+     // require the duration since sim start in seconds
+     double timestamp = _simTime;
+ 

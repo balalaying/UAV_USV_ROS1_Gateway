@@ -1,0 +1,4 @@
+# 332 mission speed override for all three ArduRover SITL instances.
+# Units are metres per second in current ArduRover.
+CRUISE_SPEED 10
+WP_SPEED 10

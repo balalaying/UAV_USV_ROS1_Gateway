@@ -9,12 +9,12 @@ import uuid
 from geometry_msgs.msg import PoseArray
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
-import rclpy
-from rcl_interfaces.msg import SetParametersResult
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from rclpy.qos import qos_profile_sensor_data
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.parameter_interfaces import SetParametersResult
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
 from std_msgs.msg import String
 from uav_usv_interfaces.msg import CaptureAssignment as CaptureAssignmentMsg
 from uav_usv_interfaces.msg import CaptureAssignmentArray
@@ -377,7 +377,7 @@ class CaptureManager(Node):
             self.started_at = time.monotonic()
             self._set_state(self.TRACKING, 'operator approved capture')
             self.get_logger().warning(
-                'Operator started capture; PX4 takeoff is now enabled'
+                'Operator started capture; ArduPilot takeoff is now enabled'
             )
         elif upper == 'HOLD_ALL':
             self.paused = True
@@ -404,7 +404,7 @@ class CaptureManager(Node):
         msg.lease_id = self.lease_id
         msg.owner_id = 'capture_manager'
         msg.priority = 100
-        valid_until = self.get_clock().now() + rclpy.duration.Duration(
+        valid_until = self.get_clock().now() + ros1.duration.Duration(
             seconds=2.0
         )
         msg.valid_until = valid_until.to_msg()
@@ -420,7 +420,7 @@ class CaptureManager(Node):
         msg.lease_id = self.lease_id
         msg.command_type = command_type
         msg.priority = 100
-        expires = self.get_clock().now() + rclpy.duration.Duration(
+        expires = self.get_clock().now() + ros1.duration.Duration(
             seconds=lifetime
         )
         msg.expires_at = expires.to_msg()
@@ -437,7 +437,7 @@ class CaptureManager(Node):
         self.last_takeoff_attempt[vehicle_id] = time.monotonic()
         self.command_pub.publish(msg)
         self.get_logger().info(
-            'Sent PX4 takeoff command %s to %s'
+            'Sent ArduPilot takeoff command %s to %s'
             % (msg.command_id, vehicle_id)
         )
 
@@ -472,7 +472,7 @@ class CaptureManager(Node):
                 state is not None
                 and state.armed
                 and state.pose.position.z >= minimum_z
-                and state.mode in ('PX4/HOLD', 'PX4/NAVIGATE')
+                and state.mode in ('GUIDED', 'BRAKE', 'LOITER')
             ):
                 self.airborne_uavs.add(vehicle_id)
 
@@ -767,7 +767,7 @@ class CaptureManager(Node):
                 continue
             if self.takeoff_attempts[vehicle_id] >= self.max_takeoff_attempts:
                 self.quarantined_vehicles[vehicle_id] = (
-                    'PX4 takeoff retries exceeded'
+                    'ArduPilot takeoff retries exceeded'
                 )
                 continue
             command_pending = vehicle_id in self.takeoff_commands
@@ -885,16 +885,16 @@ class CaptureManager(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = CaptureManager()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

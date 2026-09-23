@@ -11,8 +11,9 @@ from gz.msgs10.marker_pb2 import Marker as GzMarker
 from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.msgs10.twist_pb2 import Twist
 from gz.transport13 import Node as GzTransportNode
-import rclpy
-from rclpy.node import Node
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.time_fields import set_time_fields
 from std_msgs.msg import String
 from visualization_msgs.msg import Marker as RvizMarker
 from visualization_msgs.msg import MarkerArray
@@ -1270,7 +1271,7 @@ class DefenseDemo(Node):
         marker.type = marker_type
         marker.action = RvizMarker.ADD
         marker.pose.orientation.w = 1.0
-        marker.lifetime.nanosec = 250000000
+        set_time_fields(marker.lifetime, nanoseconds=250000000)
         return marker
 
     @staticmethod
@@ -1384,18 +1385,18 @@ class DefenseDemo(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = DefenseDemo()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
         with suppress(Exception, KeyboardInterrupt):
             node.destroy_node()
         with suppress(Exception, KeyboardInterrupt):
-            if rclpy.ok():
-                rclpy.shutdown()
+            if ros1.ok():
+                ros1.shutdown()
 
 
 if __name__ == '__main__':

@@ -11,10 +11,10 @@ from dataclasses import dataclass
 
 import cv2
 import numpy as np
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from uav_usv_interfaces.msg import AffiliatedDetection2D
@@ -23,7 +23,7 @@ from vision_msgs.msg import Detection2D
 from vision_msgs.msg import Detection2DArray
 from vision_msgs.msg import ObjectHypothesisWithPose
 
-# Support both colcon symlink-install (this file resolves into adapters/) and a
+# Support both catkin devel-space wrappers and direct source-tree execution.
 # regular install (the helper is copied beside this executable).
 for _module_dir in (
     Path(sys.argv[0]).resolve().parent,
@@ -539,16 +539,16 @@ class UsvCameraDetectionNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = UsvCameraDetectionNode()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

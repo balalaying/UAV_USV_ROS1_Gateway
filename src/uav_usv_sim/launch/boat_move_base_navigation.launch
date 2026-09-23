@@ -1,0 +1,97 @@
+<launch>
+
+  <arg name="use_sim_time" default="false"/>
+  <arg name="map"
+       default="$(find uav_usv_sim)/maps/sydney_coastline.yaml"/>
+  <arg name="params_file"
+       default="$(find uav_usv_sim)/config/boat_move_base_params.yaml"/>
+  <arg name="raw_scan_topic" default="/boat/scan_raw"/>
+  <arg name="scan_topic" default="/boat/scan"/>
+  <arg name="boat_cmd_topic" default="/model/simple_boat/cmd_vel"/>
+  <arg name="cmd_vel_topic" default="/cmd_vel"/>
+  <arg name="start_rviz" default="false"/>
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+
+  <!-- Gazebo truth / cmd_vel adapter -->
+  <node pkg="uav_usv_sim"
+        type="boat_nav2_interface.py"
+        name="boat_nav2_interface"
+        output="screen">
+
+    <param name="scan_topic" value="$(arg raw_scan_topic)"/>
+    <param name="filtered_scan_topic" value="$(arg scan_topic)"/>
+    <param name="boat_cmd_topic" value="$(arg boat_cmd_topic)"/>
+    <param name="cmd_vel_topic" value="$(arg cmd_vel_topic)"/>
+    <param name="publish_empty_map" value="false"/>
+
+    <param name="control_frequency" value="20.0"/>
+    <param name="enable_velocity_pid" value="true"/>
+
+    <param name="linear_kp" value="0.18"/>
+    <param name="linear_ki" value="0.05"/>
+    <param name="linear_kd" value="0.01"/>
+    <param name="linear_integral_limit" value="0.5"/>
+
+    <param name="angular_kp" value="0.20"/>
+    <param name="angular_ki" value="0.04"/>
+    <param name="angular_kd" value="0.025"/>
+    <param name="angular_integral_limit" value="0.8"/>
+
+    <param name="derivative_filter_alpha" value="0.2"/>
+    <param name="velocity_measurement_alpha" value="0.3"/>
+    <param name="linear_setpoint_alpha" value="0.45"/>
+    <param name="angular_setpoint_alpha" value="0.12"/>
+
+    <param name="max_linear_output" value="11.0"/>
+    <param name="min_linear_output" value="-0.65"/>
+    <param name="max_angular_output" value="1.2"/>
+
+    <param name="enable_lidar_safety" value="true"/>
+    <param name="safety_slow_distance" value="18.0"/>
+    <param name="safety_stop_distance" value="7.5"/>
+    <param name="safety_escape_distance" value="4.0"/>
+    <param name="safety_release_distance" value="10.0"/>
+    <param name="safety_reverse_speed" value="-0.42"/>
+    <param name="safety_turn_rate" value="0.9"/>
+
+    <param name="max_scan_tilt" value="0.025"/>
+    <param name="filter_wave_points" value="true"/>
+    <param name="min_obstacle_world_z" value="0.9"/>
+  </node>
+
+  <!-- Static coastline occupancy map -->
+  <node pkg="map_server"
+        type="map_server"
+        name="map_server"
+        args="$(arg map)"
+        output="screen"/>
+
+  <!-- ROS1 navigation stack -->
+  <node pkg="move_base"
+        type="move_base"
+        name="move_base"
+        output="screen"
+        clear_params="true">
+
+    <rosparam command="load" file="$(arg params_file)"/>
+    <remap from="cmd_vel" to="$(arg cmd_vel_topic)"/>
+  </node>
+
+  <!-- RViz PoseStamped goal -> move_base action -->
+  <node pkg="uav_usv_sim"
+        type="nav_goal_marker_relay.py"
+        name="nav_goal_marker_relay"
+        output="screen">
+    <param name="goal_topic" value="/goal_pose"/>
+    <param name="action_name" value="move_base"/>
+  </node>
+
+  <node if="$(arg start_rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="boat_navigation_rviz"
+        args="-d $(find uav_usv_sim)/rviz/boat_nav2_navigation.rviz"
+        output="screen"/>
+
+</launch>

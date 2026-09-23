@@ -1,94 +1,71 @@
 #!/usr/bin/env python3
+import actionlib
 from geometry_msgs.msg import PoseStamped
-from nav2_msgs.action import NavigateToPose
-import rclpy
-from rclpy.action import ActionClient
-from rclpy.duration import Duration
-from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy
-from rclpy.qos import QoSProfile
-from rclpy.qos import ReliabilityPolicy
-from visualization_msgs.msg import Marker
-from visualization_msgs.msg import MarkerArray
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+import rospy
+from visualization_msgs.msg import Marker, MarkerArray
 
 
-class NavGoalMarkerRelay(Node):
-    """Relays RViz PoseStamped goals to Nav2 and publishes a persistent marker."""
-
+class NavGoalMarkerRelay:
     def __init__(self):
-        super().__init__('nav_goal_marker_relay')
+        self.goal_topic = rospy.get_param('~goal_topic', '/goal_pose')
+        self.marker_topic = rospy.get_param(
+            '~marker_topic',
+            '/boat/nav_goal_marker',
+        )
+        self.action_name = rospy.get_param('~action_name', 'move_base')
+        self.default_frame_id = rospy.get_param(
+            '~default_frame_id',
+            'map',
+        )
 
-        self.declare_parameter('goal_topic', '/goal_pose')
-        self.declare_parameter('marker_topic', '/boat/nav_goal_marker')
-        self.declare_parameter('action_name', 'navigate_to_pose')
-        self.declare_parameter('default_frame_id', 'map')
-
-        self.goal_topic = self.get_parameter('goal_topic').value
-        self.marker_topic = self.get_parameter('marker_topic').value
-        self.default_frame_id = self.get_parameter('default_frame_id').value
-        action_name = self.get_parameter('action_name').value
-
-        marker_qos = QoSProfile(depth=1)
-        marker_qos.reliability = ReliabilityPolicy.RELIABLE
-        marker_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
-        self.marker_pub = self.create_publisher(
-            MarkerArray,
+        self.marker_pub = rospy.Publisher(
             self.marker_topic,
-            marker_qos,
+            MarkerArray,
+            queue_size=1,
+            latch=True,
         )
-        self.goal_sub = self.create_subscription(
-            PoseStamped,
-            self.goal_topic,
-            self._on_goal,
-            10,
-        )
-        self.action_client = ActionClient(self, NavigateToPose, action_name)
-        self.pending_goal = None
-        self.retry_timer = self.create_timer(0.5, self._send_pending_goal)
 
-        self.get_logger().info(
-            'RViz goals on %s are relayed to Nav2 action %s; marker=%s.'
-            % (self.goal_topic, action_name, self.marker_topic)
+        self.goal_sub = rospy.Subscriber(
+            self.goal_topic,
+            PoseStamped,
+            self._on_goal,
+            queue_size=10,
+        )
+
+        self.action_client = actionlib.SimpleActionClient(
+            self.action_name,
+            MoveBaseAction,
+        )
+
+        self.pending_goal = None
+        self.retry_timer = rospy.Timer(
+            rospy.Duration(0.5),
+            self._send_pending_goal,
         )
 
     def _on_goal(self, msg):
         if not msg.header.frame_id:
             msg.header.frame_id = self.default_frame_id
-        if msg.header.stamp.sec == 0 and msg.header.stamp.nanosec == 0:
-            msg.header.stamp = self.get_clock().now().to_msg()
+
+        if msg.header.stamp == rospy.Time():
+            msg.header.stamp = rospy.Time.now()
 
         self.pending_goal = msg
         self._publish_marker(msg)
-        self.get_logger().info(
-            'Navigation goal selected: x=%.2f y=%.2f frame=%s'
-            % (
-                msg.pose.position.x,
-                msg.pose.position.y,
-                msg.header.frame_id,
-            )
-        )
         self._send_pending_goal()
 
-    def _send_pending_goal(self):
-        if self.pending_goal is None or not self.action_client.server_is_ready():
+    def _send_pending_goal(self, _event=None):
+        if self.pending_goal is None:
             return
 
-        goal = NavigateToPose.Goal()
-        goal.pose = self.pending_goal
+        if not self.action_client.wait_for_server(rospy.Duration(0.01)):
+            return
+
+        goal = MoveBaseGoal()
+        goal.target_pose = self.pending_goal
         self.pending_goal = None
-        future = self.action_client.send_goal_async(goal)
-        future.add_done_callback(self._on_goal_response)
-
-    def _on_goal_response(self, future):
-        try:
-            handle = future.result()
-        except Exception as exc:
-            self.get_logger().error('Failed to send Nav2 goal: %s' % exc)
-            return
-        if not handle.accepted:
-            self.get_logger().warn('Nav2 rejected the selected goal')
-            return
-        self.get_logger().info('Nav2 accepted the selected goal')
+        self.action_client.send_goal(goal)
 
     def _publish_marker(self, goal):
         markers = MarkerArray()
@@ -108,7 +85,7 @@ class NavGoalMarkerRelay(Node):
         base.color.g = 0.22
         base.color.b = 0.08
         base.color.a = 0.95
-        base.lifetime = Duration(seconds=0.0).to_msg()
+        base.lifetime = rospy.Duration(0.0)
         markers.markers.append(base)
 
         arrow = Marker()
@@ -126,7 +103,7 @@ class NavGoalMarkerRelay(Node):
         arrow.color.g = 0.75
         arrow.color.b = 0.08
         arrow.color.a = 1.0
-        arrow.lifetime = Duration(seconds=0.0).to_msg()
+        arrow.lifetime = rospy.Duration(0.0)
         markers.markers.append(arrow)
 
         label = Marker()
@@ -145,29 +122,16 @@ class NavGoalMarkerRelay(Node):
         label.color.b = 0.55
         label.color.a = 1.0
         label.text = 'Navigation Goal'
-        label.lifetime = Duration(seconds=0.0).to_msg()
+        label.lifetime = rospy.Duration(0.0)
         markers.markers.append(label)
 
         self.marker_pub.publish(markers)
 
 
-def main(args=None):
-    rclpy.init(args=args)
-    node = NavGoalMarkerRelay()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        try:
-            node.destroy_node()
-        except KeyboardInterrupt:
-            pass
-        if rclpy.ok():
-            try:
-                rclpy.shutdown()
-            except KeyboardInterrupt:
-                pass
+def main():
+    rospy.init_node('nav_goal_marker_relay')
+    NavGoalMarkerRelay()
+    rospy.spin()
 
 
 if __name__ == '__main__':

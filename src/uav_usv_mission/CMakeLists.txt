@@ -1,130 +1,42 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.0.2)
 project(uav_usv_mission)
 
-find_package(ament_cmake REQUIRED)
-find_package(ament_cmake_python REQUIRED)
+find_package(catkin REQUIRED COMPONENTS
+  geometry_msgs
+  nav_msgs
+  rospy
+  sensor_msgs
+  std_msgs
+  std_srvs
+  tf2_ros
+  tf2_msgs
+  uav_usv_interfaces
+  uav_usv_ros1_compat
+  visualization_msgs
+)
 
-ament_python_install_package(${PROJECT_NAME})
+catkin_python_setup()
+catkin_package(CATKIN_DEPENDS geometry_msgs nav_msgs rospy sensor_msgs std_msgs
+  std_srvs tf2_ros tf2_msgs uav_usv_interfaces uav_usv_ros1_compat visualization_msgs)
 
-install(PROGRAMS
+catkin_install_python(PROGRAMS
   scripts/fleet_base_station.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME fleet_base_station
-)
-
-install(PROGRAMS
   scripts/fleet_base_station_gui.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME fleet_base_station_gui
-)
-
-install(PROGRAMS
-  scripts/fleet_simulated_agent.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME fleet_simulated_agent
-)
-
-install(PROGRAMS
-  scripts/defense_demo.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME defense_demo
-)
-
-install(PROGRAMS
-  scripts/capture_mission.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME capture_mission
-)
-
-install(PROGRAMS
-  scripts/cooperative_response_mission.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME cooperative_response_mission
-)
-
-install(PROGRAMS
   scripts/gz_sensor_bridge.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME gz_sensor_bridge
-)
-
-install(PROGRAMS
-  scripts/target_tracker.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME target_tracker
-)
-
-install(PROGRAMS
-  scripts/capture_manager.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME capture_manager
-)
-
-install(PROGRAMS
-  scripts/capture_visualizer.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME capture_visualizer
-)
-
-install(PROGRAMS
+  scripts/gz_entity_truth_bridge.py
   scripts/capture_gazebo_camera_follow.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME capture_gazebo_camera_follow
-)
-
-install(PROGRAMS
+  scripts/capture_manager.py
+  scripts/capture_mission.py
   scripts/capture_target_motion.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME capture_target_motion
-)
-
-install(PROGRAMS
-  scripts/uav_visual_shell_spawner.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME uav_visual_shell_spawner
-)
-
-install(PROGRAMS
-  scripts/fleet_world_model_node.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME fleet_world_model
-)
-
-install(PROGRAMS
+  scripts/capture_visualizer.py
+  scripts/cooperative_response_mission.py
+  scripts/defense_demo.py
   scripts/fleet_behavior_manager.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME fleet_behavior_manager
+  scripts/fleet_simulated_agent.py
+  scripts/fleet_world_model_node.py
+  scripts/target_tracker.py
+  scripts/uav_visual_shell_spawner.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-install(FILES README.md DESTINATION share/${PROJECT_NAME})
-
-if(BUILD_TESTING)
-  find_package(ament_cmake_pytest REQUIRED)
-  ament_add_pytest_test(
-    capture_algorithms
-    test/test_capture_algorithms.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
-  )
-  ament_add_pytest_test(
-    perception_topdown
-    test/test_perception_topdown.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
-  )
-  ament_add_pytest_test(
-    lv_dot_debug_visualization
-    test/test_lv_dot_debug_model.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
-  )
-  ament_add_pytest_test(
-    behavior_policy
-    test/test_behavior_policy.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
-  )
-  ament_add_pytest_test(
-    world_model_contract
-    test/test_world_model_contract.py
-    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}
-  )
-endif()
-
-ament_package()
+install(FILES README.md DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

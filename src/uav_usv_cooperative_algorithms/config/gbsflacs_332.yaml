@@ -1,0 +1,15 @@
+auto_start: false
+control_rate: 1.0
+state_timeout: 3.0
+world_timeout: 3.0
+command_timeout: 120.0
+target_id: enemy_ship
+uav_ids: [uav_01, uav_02, uav_03]
+usv_ids: [usv_01, usv_02, usv_03]
+capture_radius: 50.0
+minimum_capture_agents: 5
+uav_command_step: 8.0
+usv_command_step: 12.0
+uav_min_altitude: 3.0
+uav_max_altitude: 45.0
+seed: 42

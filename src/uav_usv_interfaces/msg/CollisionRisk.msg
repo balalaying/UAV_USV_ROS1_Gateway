@@ -5,7 +5,7 @@ uint8 RISK_DANGER=3
 uint8 RISK_EMERGENCY=4
 
 std_msgs/Header header
-unique_identifier_msgs/UUID target_uuid
+uuid_msgs/UniqueID target_uuid
 string track_id
 float32 current_distance_m
 float32 dcpa_m

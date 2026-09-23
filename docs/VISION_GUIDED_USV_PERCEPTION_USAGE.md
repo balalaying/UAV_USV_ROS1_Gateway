@@ -7,7 +7,7 @@ cd <你的工作区>/UAV_USV
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install --packages-select \
   uav_usv_interfaces uav_usv_gazebo uav_usv_lv_dot_core \
-  uav_usv_lv_dot_ros2 uav_usv_perception uav_usv_mission \
+  uav_usv_lv_dot uav_usv_perception uav_usv_mission \
   uav_usv_bringup --allow-overriding uav_usv_interfaces
 source install/setup.bash
 ```
@@ -51,7 +51,7 @@ vision_guided_shadow_mode=true
 ## 4. 关键检查
 
 ```bash
-ros2 lifecycle get /perception/lv_dot_ros2/lv_dot_detector_node
+ros2 lifecycle get /perception/lv_dot/lv_dot_detector_node
 ros2 topic hz /perception/usv_01/mid360/points_filtered
 ros2 topic hz /perception/usv_01/vision_guided/observations
 ros2 topic echo /perception/usv_01/camera/detection_status --once

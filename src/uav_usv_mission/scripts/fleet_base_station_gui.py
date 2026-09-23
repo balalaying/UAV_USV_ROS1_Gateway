@@ -13,10 +13,6 @@ from PyQt5.QtCore import QObject, QPointF, Qt, pyqtSignal
 from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QColor, QFont, QImage, QPainter, QPen
 from PyQt5.QtGui import QPolygonF
-from rcl_interfaces.msg import Parameter
-from rcl_interfaces.msg import ParameterType
-from rcl_interfaces.msg import ParameterValue
-from rcl_interfaces.srv import SetParameters
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtWidgets import QAbstractItemView
 from PyQt5.QtWidgets import QCheckBox
@@ -39,20 +35,22 @@ from PyQt5.QtWidgets import QTableWidget
 from PyQt5.QtWidgets import QTableWidgetItem
 from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QWidget
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.executors import MultiThreadedExecutor
-from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy
-from rclpy.qos import QoSProfile
-from rclpy.qos import ReliabilityPolicy
-from rclpy.time import Time
+import rospy
+from uav_usv_mission import ros1_compat as ros1
+from uav_usv_mission.ros1_compat import ExternalShutdownException
+from uav_usv_mission.ros1_compat import MultiThreadedExecutor
+from uav_usv_mission.ros1_compat import Node
+from uav_usv_mission.ros1_compat import DurabilityPolicy
+from uav_usv_mission.ros1_compat import QoSProfile
+from uav_usv_mission.ros1_compat import ReliabilityPolicy
+from uav_usv_mission.ros1_compat import Time
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import LaserScan
 from sensor_msgs.msg import PointCloud2
-from sensor_msgs_py import point_cloud2
+from sensor_msgs import point_cloud2
 from std_msgs.msg import String
 from std_srvs.srv import SetBool
+from std_srvs.srv import SetBoolRequest
 from tf2_ros import Buffer
 from tf2_ros import TransformException
 from tf2_ros import TransformListener
@@ -106,9 +104,8 @@ class VideoMosaicLabel(QLabel):
         return True
 
     def heightForWidth(self, width):
-        # The service publishes six cameras: three USV views followed by
-        # three UAV views.  A 3 x 2 mosaic has an 8:3 overall ratio.
-        return max(180, min(420, int(width * 3.0 / 8.0)))
+        # Three rows: USV RGB, UAV down cameras and USV depth cameras.
+        return max(240, min(540, int(width * 9.0 / 16.0)))
 
     def set_image(self, image):
         # The ROS callback already detached this QImage from message memory.
@@ -209,14 +206,14 @@ class BaseStationGuiNode(Node):
         )
         self.declare_parameter(
             'topdown_lidar_bboxes_topic',
-            '/perception/lv_dot_ros2/diagnostics/lidar_bboxes',
+            '/perception/lv_dot/diagnostics/lidar_bboxes',
         )
         self.declare_parameter(
-            'topdown_tracks_topic', '/perception/lv_dot_ros2/tracks'
+            'topdown_tracks_topic', '/perception/lv_dot/tracks'
         )
         self.declare_parameter(
             'topdown_dynamic_tracks_topic',
-            '/perception/lv_dot_ros2/dynamic_tracks',
+            '/perception/lv_dot/dynamic_tracks',
         )
         self.declare_parameter(
             'topdown_fused_tracks_topic', '/perception/fused/tracks'
@@ -515,9 +512,7 @@ class BaseStationGuiNode(Node):
                 )
         if self.enable_lv_dot_debug:
             self.lv_dot_tf_buffer = Buffer()
-            self.lv_dot_tf_listener = TransformListener(
-                self.lv_dot_tf_buffer, self
-            )
+            self.lv_dot_tf_listener = TransformListener(self.lv_dot_tf_buffer)
             self.lv_dot_tf_timer = self.create_timer(
                 0.2, self._update_lv_dot_debug_tf
             )
@@ -687,15 +682,9 @@ class BaseStationGuiNode(Node):
         )
         defense_node_name = str(self.get_parameter('defense_node_name').value)
         defense_node_name = '/' + defense_node_name.strip('/')
-        self.defense_param_client = self.create_client(
-            SetParameters,
-            '%s/%s/set_parameters'
-            % (self._topic(self.defense_namespace, ''),
-               defense_node_name.strip('/')),
-        )
-        self.mid360_preview_client = self.create_client(
-            SetBool,
-            str(self.get_parameter('mid360_preview_service').value),
+        self.defense_node_name = defense_node_name
+        self.mid360_preview_service = str(
+            self.get_parameter('mid360_preview_service').value
         )
         self.runtime_parameter_clients = {}
 
@@ -710,16 +699,26 @@ class BaseStationGuiNode(Node):
         encoding = msg.encoding.lower()
         if encoding not in ('bgr8', 'rgb8'):
             return
-        image_format = (
-            QImage.Format_BGR888
-            if encoding == 'bgr8'
-            else QImage.Format_RGB888
-        )
+        data = bytes(msg.data)
+        image_step = msg.step
+        if encoding == 'bgr8' and hasattr(QImage, 'Format_BGR888'):
+            image_format = QImage.Format_BGR888
+        else:
+            image_format = QImage.Format_RGB888
+            if encoding == 'bgr8':
+                rows = np.frombuffer(data, dtype=np.uint8).reshape(
+                    msg.height, msg.step
+                )
+                bgr = rows[:, :msg.width * 3].reshape(
+                    msg.height, msg.width, 3
+                )
+                data = bgr[:, :, ::-1].copy().tobytes()
+                image_step = msg.width * 3
         image = QImage(
-            bytes(msg.data),
+            data,
             msg.width,
             msg.height,
-            msg.step,
+            image_step,
             image_format,
         ).copy()
         self.signals.image.emit((source or 'default', image))
@@ -796,27 +795,26 @@ class BaseStationGuiNode(Node):
                 msg.timed_out,
                 msg.tf_target_frame,
                 msg.tf_available,
-                msg.last_message_time.sec,
-                msg.last_message_time.nanosec,
+                msg.last_message_time.secs,
+                msg.last_message_time.nsecs,
             )
         )
 
     def set_mid360_preview(self, enabled):
-        if not self.mid360_preview_client.service_is_ready():
+        try:
+            rospy.wait_for_service(self.mid360_preview_service, timeout=0.05)
+        except rospy.ROSException:
             self.signals.log.emit('Mid-360预览服务暂不可用')
             return
-        request = SetBool.Request()
+        request = SetBoolRequest()
         request.data = bool(enabled)
-        future = self.mid360_preview_client.call_async(request)
-
-        def finished(result_future):
-            try:
-                result = result_future.result()
-                self.signals.log.emit(result.message)
-            except Exception as exc:
-                self.signals.log.emit('Mid-360预览切换失败: %s' % exc)
-
-        future.add_done_callback(finished)
+        try:
+            result = rospy.ServiceProxy(
+                self.mid360_preview_service, SetBool
+            )(request)
+            self.signals.log.emit(result.message)
+        except rospy.ServiceException as exc:
+            self.signals.log.emit('Mid-360预览切换失败: %s' % exc)
 
     def _on_vehicle(self, msg):
         if self.enable_perception_topdown:
@@ -933,10 +931,10 @@ class BaseStationGuiNode(Node):
 
     def _on_topdown_points(self, msg):
         try:
-            xyz = point_cloud2.read_points_numpy(
-                msg, field_names=['x', 'y', 'z'], skip_nans=True
+            values = point_cloud2.read_points(
+                msg, field_names=('x', 'y', 'z'), skip_nans=True
             )
-            xyz = np.asarray(xyz, dtype=np.float32).reshape((-1, 3))
+            xyz = np.asarray(list(values), dtype=np.float32).reshape((-1, 3))
         except (AssertionError, KeyError, TypeError, ValueError) as error:
             self.get_logger().warning(
                 'Invalid top-down PointCloud2: %s' % error
@@ -946,10 +944,10 @@ class BaseStationGuiNode(Node):
 
     @staticmethod
     def _pointcloud_xyz(msg):
-        values = point_cloud2.read_points_numpy(
-            msg, field_names=['x', 'y', 'z'], skip_nans=True
+        values = point_cloud2.read_points(
+            msg, field_names=('x', 'y', 'z'), skip_nans=True
         )
-        return np.asarray(values, dtype=np.float32).reshape((-1, 3))
+        return np.asarray(list(values), dtype=np.float32).reshape((-1, 3))
 
     @staticmethod
     def _transform_cloud_xyz(points, transform):
@@ -1208,48 +1206,20 @@ class BaseStationGuiNode(Node):
     def set_defense_parameters(self, values):
         if not values:
             return False
-        if not self.defense_param_client.wait_for_service(timeout_sec=0.05):
-            self.signals.log.emit('防御参数服务未就绪，稍后再试')
-            return False
-        request = SetParameters.Request()
         for name, value in values.items():
-            parameter = Parameter()
-            parameter.name = name
-            parameter.value = ParameterValue(
-                type=ParameterType.PARAMETER_DOUBLE,
-                double_value=float(value),
+            rospy.set_param(
+                '%s/%s' % (self.defense_node_name.rstrip('/'), name),
+                float(value),
             )
-            request.parameters.append(parameter)
-        future = self.defense_param_client.call_async(request)
-        future.add_done_callback(self._on_defense_parameters_set)
+        self.signals.log.emit('防御参数已写入 ROS 参数服务器')
         return True
 
     def set_runtime_parameter(self, node_name, name, value):
         """Set one numeric runtime limit without publishing control commands."""
-        service_name = '/' + node_name.strip('/') + '/set_parameters'
-        client = self.runtime_parameter_clients.get(service_name)
-        if client is None:
-            client = self.create_client(SetParameters, service_name)
-            self.runtime_parameter_clients[service_name] = client
-        if not client.wait_for_service(timeout_sec=0.05):
-            self.signals.log.emit('%s 参数服务未就绪' % node_name)
-            return False
-        parameter = Parameter()
-        parameter.name = name
-        parameter.value = ParameterValue(
-            type=ParameterType.PARAMETER_DOUBLE,
-            double_value=float(value),
+        rospy.set_param(
+            '/%s/%s' % (node_name.strip('/'), name), float(value)
         )
-        request = SetParameters.Request()
-        request.parameters = [parameter]
-        future = client.call_async(request)
-        future.add_done_callback(
-            lambda result, target=node_name, parameter_name=name: (
-                self._on_runtime_parameter_set(
-                    result, target, parameter_name
-                )
-            )
-        )
+        self.signals.log.emit('%s.%s 已写入 ROS 参数服务器' % (node_name, name))
         return True
 
     def _on_runtime_parameter_set(self, future, node_name, parameter_name):
@@ -2191,6 +2161,7 @@ class BaseStationWindow(QMainWindow):
         'down_camera': '下视相机',
         'uav_camera': '无人机相机',
         'front_camera': '船首相机',
+        'depth_camera': '深度相机',
         'front_lidar': '船载雷达',
         'mid360': 'Mid-360点云',
         'base_radar': '基地雷达',
@@ -2289,7 +2260,7 @@ class BaseStationWindow(QMainWindow):
             header.addSpacing(18)
             header.addWidget(demo_label)
         header.addStretch()
-        self.ros_link_label = self._header_status_badge('ROS 2：等待数据')
+        self.ros_link_label = self._header_status_badge('ROS 1：等待数据')
         self.base_station_link_label = self._header_status_badge(
             '基站服务：等待数据'
         )
@@ -2393,9 +2364,10 @@ class BaseStationWindow(QMainWindow):
         self.demo_summary.setAlignment(Qt.AlignCenter)
         mission_layout.addWidget(self.demo_summary)
         for label, action, danger in (
-            ('启动围捕', 'CAPTURE:enemy_ship', False),
+            ('启动护航守卫', 'ESCORT:enemy_ship', False),
+            ('切换GBSFLACS围捕', 'CAPTURE:enemy_ship', False),
             ('暂停任务', 'HOLD_ALL', False),
-            ('继续任务', 'CAPTURE:enemy_ship', False),
+            ('继续任务', 'RESUME_ALGORITHM', False),
             ('停止任务', 'CANCEL_CAPTURE', True),
             ('复位显示', 'RESET_VIEW', False),
         ):
@@ -2508,7 +2480,7 @@ class BaseStationWindow(QMainWindow):
     def _build_speed_control_tab(self, layout):
         """Build runtime speed limits that preserve existing command routing."""
         hint = QLabel(
-            '通过现有 Nav2 接口和 PX4 Offboard agent 限速。'
+            '通过 ROS 1 FleetCommand 和 ArduPilot MAVLink agent 限速。'
             '0 表示恢复原有自动速度，不发布 Gazebo 直控命令。'
         )
         hint.setWordWrap(True)
@@ -4162,8 +4134,7 @@ class BaseStationWindow(QMainWindow):
             self.vehicle_table.setToolTip('%s: %s' % (vehicle, status))
         role = self.capture_roles_cache.get(vehicle, {})
         fleet_row = self._fleet_row(vehicle)
-        control = 'PX4 / %s' % mode if vehicle.startswith('uav_') \
-            else 'Nav2 / %s' % mode
+        control = 'ArduPilot / %s' % mode
         fleet_values = [
             self.VEHICLE_NAMES.get(vehicle, vehicle),
             role.get('role_name', 'Standby'),
@@ -4624,7 +4595,7 @@ class BaseStationWindow(QMainWindow):
         )
         self._set_header_status(
             self.ros_link_label,
-            'ROS 2：在线' if connected else 'ROS 2：等待数据',
+            'ROS 1：在线' if connected else 'ROS 1：等待数据',
             connected,
         )
         self._set_header_status(
@@ -4646,8 +4617,8 @@ class BaseStationWindow(QMainWindow):
         ]
         uavs = sum(item['vehicle_id'].startswith('uav_') for item in online)
         usvs = sum(item['vehicle_id'].startswith('usv_') for item in online)
-        configured_uavs = self.capture_state_cache.get('configured_uavs', 4)
-        configured_usvs = self.capture_state_cache.get('configured_usvs', 2)
+        configured_uavs = self.capture_state_cache.get('configured_uavs', 3)
+        configured_usvs = self.capture_state_cache.get('configured_usvs', 3)
         self.uav_count_label.setText('UAV\n%d / %d' % (uavs, configured_uavs))
         self.usv_count_label.setText('USV\n%d / %d' % (usvs, configured_usvs))
 
@@ -4663,7 +4634,7 @@ class BaseStationWindow(QMainWindow):
         if state is None:
             return
         role = self.capture_roles_cache.get(vehicle_id, {})
-        control = 'PX4' if vehicle_id.startswith('uav_') else 'Nav2'
+        control = 'ArduPilot'
         self.vehicle_detail.setText(
             '%s\nRole: %s\n%s: %s\nMode: %s\nPosition: (%.1f, %.1f, %.1f)\nStatus: %s'
             % (
@@ -4722,7 +4693,7 @@ class BaseStationWindow(QMainWindow):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args, name='fleet_base_station_gui')
     app = QApplication(sys.argv)
     app.setApplicationName('UAV-USV Fleet Base Station')
     signals = GuiSignals()
@@ -4758,8 +4729,8 @@ def main(args=None):
             node.destroy_node()
         except (KeyboardInterrupt, ExternalShutdownException):
             pass
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
         spin_thread.join(timeout=2.0)
     sys.exit(result)
 

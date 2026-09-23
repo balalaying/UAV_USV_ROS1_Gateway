@@ -9,13 +9,15 @@ import math
 import time
 
 import numpy as np
-import rclpy
-from rclpy.duration import Duration
-from rclpy.executors import ExternalShutdownException
-from rclpy.executors import MultiThreadedExecutor
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-from rclpy.time import Time
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.duration import Duration
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.executors import MultiThreadedExecutor
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
+from uav_usv_ros1_compat.time import Time
+from uav_usv_ros1_compat.time_fields import set_time_fields
+from uav_usv_ros1_compat.time_fields import time_to_seconds
 from sensor_msgs.msg import CameraInfo
 from std_msgs.msg import String
 from tf2_ros import Buffer, TransformException, TransformListener
@@ -35,7 +37,7 @@ BOX_EDGES = (
 
 
 def stamp_seconds(stamp):
-    return float(stamp.sec) + 1e-9 * float(stamp.nanosec)
+    return time_to_seconds(stamp)
 
 
 def rotation_matrix(rotation):
@@ -194,8 +196,8 @@ class CameraLidarAssociationNode(Node):
         defaults = {
             'camera_detections_topic': '/perception/usv_01/camera/detections',
             'camera_info_topic': '/fleet/uplink/usv_01/camera/camera_info',
-            'lidar_bboxes_topic': '/perception/lv_dot_ros2/diagnostics/lidar_bboxes',
-            'lidar_tracks_topic': '/perception/lv_dot_ros2/tracks',
+            'lidar_bboxes_topic': '/perception/lv_dot/diagnostics/lidar_bboxes',
+            'lidar_tracks_topic': '/perception/lv_dot/tracks',
             'output_topic': '/perception/usv_01/camera_lidar/observations',
             'lidar_only_markers_topic': '/perception/usv_01/camera_lidar/lidar_only_bboxes',
             'camera_only_markers_topic': '/perception/usv_01/camera_lidar/camera_only_bboxes',
@@ -254,7 +256,7 @@ class CameraLidarAssociationNode(Node):
             float(self.get_parameter('minimum_roi_height_pixels').value),
         )
         self.tf_buffer = Buffer(cache_time=Duration(seconds=5.0))
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_listener = TransformListener(self.tf_buffer)
         self.camera_info = None
         self.detection_queue = deque(maxlen=30)
         self.metadata_queue = deque(maxlen=30)
@@ -586,7 +588,7 @@ class CameraLidarAssociationNode(Node):
         marker.color.g = 0.45
         marker.color.b = 1.0
         marker.color.a = 1.0
-        marker.lifetime.nanosec = 250000000
+        set_time_fields(marker.lifetime, nanoseconds=250000000)
         return marker
 
     @staticmethod
@@ -612,7 +614,7 @@ class CameraLidarAssociationNode(Node):
             'association_score': float(tracked.association_score),
             'bbox_point_count': int(tracked.bbox_point_count),
         }, sort_keys=True)
-        marker.lifetime.nanosec = 300000000
+        set_time_fields(marker.lifetime, nanoseconds=300000000)
         return marker
 
     def _publish_vision_guided(self, boxes, header, started):
@@ -880,7 +882,7 @@ class CameraLidarAssociationNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = CameraLidarAssociationNode()
     executor = MultiThreadedExecutor(num_threads=2)
     executor.add_node(node)
@@ -891,8 +893,8 @@ def main(args=None):
     finally:
         executor.shutdown()
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

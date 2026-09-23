@@ -19,6 +19,7 @@
       <!-- 通信塔、天线和雷达盘均带简化碰撞。 -->
       <collision name="tower_collision"><pose>3 0 13 0 0 0</pose><geometry><cylinder><radius>0.5</radius><length>10</length></cylinder></geometry></collision>
       <visual name="tower"><pose>3 0 13 0 0 0</pose><geometry><cylinder><radius>0.5</radius><length>10</length></cylinder></geometry><material><ambient>0.22 0.23 0.23 1</ambient><diffuse>0.55 0.57 0.57 1</diffuse></material></visual>
+      <visual name="radar_pedestal"><pose>3 0 8.5 0 0 0</pose><geometry><cylinder><radius>1.2</radius><length>0.5</length></cylinder></geometry><material><ambient>0.20 0.21 0.21 1</ambient><diffuse>0.48 0.50 0.50 1</diffuse></material></visual>
       <collision name="antenna_collision"><pose>3 0 19.5 0 0 0</pose><geometry><cylinder><radius>0.12</radius><length>3</length></cylinder></geometry></collision>
       <visual name="antenna"><pose>3 0 19.5 0 0 0</pose><geometry><cylinder><radius>0.12</radius><length>3</length></cylinder></geometry><material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.12 0.12 0.12 1</diffuse></material></visual>
       <collision name="radar_dish_collision"><pose>2.3 0 16.2 0 1.2 0</pose><geometry><cylinder><radius>1.5</radius><length>0.25</length></cylinder></geometry></collision>

@@ -79,7 +79,7 @@ ground_truth -> source_mux -> /fleet/perception/targets -> capture_manager
 | `/fleet/uplink/uav_01/camera/image_raw` | `sensor_msgs/Image` | UAV camera frame | 视觉Observation触发源 |
 | `/fleet/uplink/uav_01/camera/camera_info` | `sensor_msgs/CameraInfo` | UAV camera frame | 相机内参 |
 | `/perception/ground_truth/tracks` | `TrackedObjectArray` | `map` | Shadow参考真值 |
-| `/perception/lv_dot_ros2/dynamic_tracks` | `TrackedObjectArray` | `map` | LV-DOT ROS2动态轨迹 |
+| `/perception/lv_dot/dynamic_tracks` | `TrackedObjectArray` | `map` | LV-DOT ROS2动态轨迹 |
 | `/perception/lv_dot/observations` | `TrackedObjectArray` | `map` | 标准LiDAR Observation |
 | `/perception/uav_01/observations` | `TrackedObjectArray` | `map` | 标准Camera Observation |
 | `/perception/fused/tracks` | `TrackedObjectArray` | `map` | 多源融合候选轨迹 |

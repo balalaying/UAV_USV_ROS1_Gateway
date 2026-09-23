@@ -9,12 +9,13 @@ import sys
 import time
 
 import numpy as np
-import rclpy
-from rclpy.duration import Duration
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-from rclpy.time import Time
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.duration import Duration
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
+from uav_usv_ros1_compat.time import Time
+from uav_usv_ros1_compat.time_fields import time_to_seconds
 from tf2_ros import Buffer, TransformException, TransformListener
 from uav_usv_interfaces.msg import TrackedObject
 from uav_usv_interfaces.msg import TrackedObjectArray
@@ -59,7 +60,7 @@ class ObservationBatch:
 
 
 def _stamp_seconds(stamp):
-    return float(stamp.sec) + float(stamp.nanosec) * 1e-9
+    return time_to_seconds(stamp)
 
 
 def _quaternion_matrix(quaternion):
@@ -268,7 +269,7 @@ class PerceptionFusionNode(Node):
             for topic in self.output_alias_topics
         ]
         self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_listener = TransformListener(self.tf_buffer)
         self.pending = []
         self.observation_history = {
             topic: [] for topic in self.input_topics
@@ -751,16 +752,16 @@ class PerceptionFusionNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = PerceptionFusionNode()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':

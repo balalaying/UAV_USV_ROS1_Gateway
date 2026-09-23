@@ -1,0 +1,151 @@
+# ROS1 move_base configuration converted from the original Nav2 setup.
+
+shutdown_costmaps: false
+controller_frequency: 20.0
+planner_frequency: 5.0
+planner_patience: 5.0
+controller_patience: 8.0
+conservative_reset_dist: 8.0
+recovery_behavior_enabled: true
+clearing_rotation_allowed: false
+
+base_global_planner: global_planner/GlobalPlanner
+base_local_planner: dwa_local_planner/DWAPlannerROS
+
+GlobalPlanner:
+  allow_unknown: true
+  default_tolerance: 2.0
+  use_dijkstra: false
+  use_quadratic: true
+  use_grid_path: false
+  old_navfn_behavior: false
+
+DWAPlannerROS:
+  max_vel_x: 10.0
+  min_vel_x: 0.0
+  max_vel_y: 0.0
+  min_vel_y: 0.0
+
+  max_vel_trans: 10.0
+  min_vel_trans: 0.10
+
+  max_vel_theta: 1.0
+  min_vel_theta: 0.0
+
+  acc_lim_x: 5.0
+  acc_lim_y: 0.0
+  acc_lim_theta: 0.8
+
+  xy_goal_tolerance: 1.8
+  yaw_goal_tolerance: 3.14
+  latch_xy_goal_tolerance: true
+
+  sim_time: 4.0
+  sim_granularity: 0.25
+  angular_sim_granularity: 0.10
+
+  vx_samples: 20
+  vy_samples: 1
+  vth_samples: 30
+
+  path_distance_bias: 32.0
+  goal_distance_bias: 24.0
+  occdist_scale: 0.08
+
+  forward_point_distance: 2.0
+  stop_time_buffer: 1.0
+  scaling_speed: 4.0
+  max_scaling_factor: 0.2
+
+  oscillation_reset_dist: 1.0
+  publish_traj_pc: true
+  publish_cost_grid_pc: true
+  global_frame_id: odom
+
+global_costmap:
+  global_frame: map
+  robot_base_frame: landing_boat/base_link
+  update_frequency: 3.0
+  publish_frequency: 2.0
+  transform_tolerance: 0.5
+
+  static_map: true
+  rolling_window: false
+  track_unknown_space: false
+  resolution: 0.5
+
+  footprint:
+    - [3.1, 1.7]
+    - [3.1, -1.7]
+    - [-3.1, -1.7]
+    - [-3.1, 1.7]
+
+  plugins:
+    - {name: static_layer, type: "costmap_2d::StaticLayer"}
+    - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
+    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+
+  static_layer:
+    map_topic: /map
+    subscribe_to_updates: true
+
+  obstacle_layer:
+    enabled: true
+    observation_sources: scan
+    scan:
+      sensor_frame: landing_boat/hull/front_lidar
+      data_type: LaserScan
+      topic: /boat/scan
+      marking: true
+      clearing: true
+      obstacle_range: 70.0
+      raytrace_range: 80.0
+      observation_persistence: 0.8
+      expected_update_rate: 0.0
+      inf_is_valid: true
+
+  inflation_layer:
+    inflation_radius: 5.5
+    cost_scaling_factor: 2.2
+
+local_costmap:
+  global_frame: odom
+  robot_base_frame: landing_boat/base_link
+  update_frequency: 5.0
+  publish_frequency: 3.0
+  transform_tolerance: 0.5
+
+  static_map: false
+  rolling_window: true
+  width: 100.0
+  height: 100.0
+  resolution: 0.25
+
+  footprint:
+    - [3.1, 1.7]
+    - [3.1, -1.7]
+    - [-3.1, -1.7]
+    - [-3.1, 1.7]
+
+  plugins:
+    - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
+    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+
+  obstacle_layer:
+    enabled: true
+    observation_sources: scan
+    scan:
+      sensor_frame: landing_boat/hull/front_lidar
+      data_type: LaserScan
+      topic: /boat/scan
+      marking: true
+      clearing: true
+      obstacle_range: 70.0
+      raytrace_range: 80.0
+      observation_persistence: 0.5
+      expected_update_rate: 0.0
+      inf_is_valid: true
+
+  inflation_layer:
+    inflation_radius: 5.5
+    cost_scaling_factor: 2.2

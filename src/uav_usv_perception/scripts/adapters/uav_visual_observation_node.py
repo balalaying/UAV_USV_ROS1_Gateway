@@ -10,12 +10,14 @@ import random
 import time
 
 import numpy as np
-import rclpy
-from rclpy.duration import Duration
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-from rclpy.time import Time
+import uav_usv_ros1_compat as ros1
+from uav_usv_ros1_compat.duration import Duration
+from uav_usv_ros1_compat.executors import ExternalShutdownException
+from uav_usv_ros1_compat.node import Node
+from uav_usv_ros1_compat.qos import qos_profile_sensor_data
+from uav_usv_ros1_compat.time import Time
+from uav_usv_ros1_compat.time_fields import time_parts
+from uav_usv_ros1_compat.time_fields import time_to_seconds
 from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
@@ -25,7 +27,7 @@ from uav_usv_interfaces.msg import TrackedObjectArray
 
 
 def _stamp_seconds(stamp):
-    return float(stamp.sec) + float(stamp.nanosec) * 1e-9
+    return time_to_seconds(stamp)
 
 
 def _stable_uuid(track_id):
@@ -252,7 +254,7 @@ class UavVisualObservationNode(Node):
             String, self.status_topic, 10
         )
         self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.tf_listener = TransformListener(self.tf_buffer)
         self.camera_info = None
         self.truth_history = deque(maxlen=100)
         self.pending_images = deque(maxlen=200)
@@ -307,12 +309,13 @@ class UavVisualObservationNode(Node):
     def _on_image(self, message):
         self.received_images += 1
         self.pending_images.append((time.monotonic(), message))
+        seconds, nanoseconds = time_parts(message.header.stamp)
         self.last_status.update({
             'online': True,
             'frame_id': message.header.frame_id or self.camera_frame,
             'last_update': {
-                'sec': int(message.header.stamp.sec),
-                'nanosec': int(message.header.stamp.nanosec),
+                'sec': seconds,
+                'nanosec': nanoseconds,
             },
         })
 
@@ -420,13 +423,14 @@ class UavVisualObservationNode(Node):
         self.publisher.publish(output)
         self.published_arrays += 1
         self.published_observations += 1
+        seconds, nanoseconds = time_parts(image.header.stamp)
         self.last_status.update({
             'online': True,
             'visible': True,
             'frame_id': self.camera_frame,
             'last_update': {
-                'sec': int(image.header.stamp.sec),
-                'nanosec': int(image.header.stamp.nanosec),
+                'sec': seconds,
+                'nanosec': nanoseconds,
             },
         })
         return True, None
@@ -462,16 +466,16 @@ class UavVisualObservationNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    ros1.init(args=args)
     node = UavVisualObservationNode()
     try:
-        rclpy.spin(node)
+        ros1.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if ros1.ok():
+            ros1.shutdown()
 
 
 if __name__ == '__main__':
