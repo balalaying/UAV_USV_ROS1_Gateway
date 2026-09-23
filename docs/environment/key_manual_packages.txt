@@ -1,0 +1,5 @@
+ros-noetic-desktop-full
+ros-noetic-geographic-msgs
+ros-noetic-navigation
+ros-noetic-usb-cam
+ros-noetic-vision-msgs

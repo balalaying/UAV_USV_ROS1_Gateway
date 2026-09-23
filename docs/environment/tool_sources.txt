@@ -1,0 +1,21 @@
+===== executables =====
+/opt/ros/noetic/bin/roscore
+/opt/ros/noetic/bin/catkin_make
+/usr/bin/gazebo
+/home/liu/gz_harmonic_ws/install/gz-tools2/bin/gz
+/home/liu/.local/bin/cmake
+/usr/bin/python3
+
+===== package ownership =====
+gazebo11: /usr/bin/gazebo
+
+===== cmake apt policy =====
+cmake:
+  已安装：3.16.3-1ubuntu1.20.04.1
+  候选： 3.16.3-1ubuntu1.20.04.1
+  版本列表：
+ *** 3.16.3-1ubuntu1.20.04.1 500
+        500 http://cn.archive.ubuntu.com/ubuntu focal-updates/main amd64 Packages
+        100 /var/lib/dpkg/status
+     3.16.3-1ubuntu1 500
+        500 http://cn.archive.ubuntu.com/ubuntu focal/main amd64 Packages

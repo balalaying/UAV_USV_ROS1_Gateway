@@ -1,0 +1,30 @@
+===== /etc/apt/sources.list =====
+
+deb http://cn.archive.ubuntu.com/ubuntu/ focal main restricted
+
+deb http://cn.archive.ubuntu.com/ubuntu/ focal-updates main restricted
+
+deb http://cn.archive.ubuntu.com/ubuntu/ focal universe
+deb http://cn.archive.ubuntu.com/ubuntu/ focal-updates universe
+
+deb http://cn.archive.ubuntu.com/ubuntu/ focal multiverse
+deb http://cn.archive.ubuntu.com/ubuntu/ focal-updates multiverse
+
+deb http://cn.archive.ubuntu.com/ubuntu/ focal-backports main restricted universe multiverse
+
+
+deb http://security.ubuntu.com/ubuntu focal-security main restricted
+deb http://security.ubuntu.com/ubuntu focal-security universe
+deb http://security.ubuntu.com/ubuntu focal-security multiverse
+
+
+===== /etc/apt/sources.list.d =====
+
+--- /etc/apt/sources.list.d/gazebo-stable.list ---
+deb http://packages.osrfoundation.org/gazebo/ubuntu-stable focal main
+
+--- /etc/apt/sources.list.d/github-cli.list ---
+deb [arch=amd64 signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main
+
+--- /etc/apt/sources.list.d/ros1.list ---
+deb http://packages.ros.org/ros/ubuntu focal main

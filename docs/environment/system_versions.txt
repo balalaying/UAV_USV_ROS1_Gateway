@@ -1,0 +1,55 @@
+===== OS =====
+Distributor ID:	Ubuntu
+Description:	Ubuntu 20.04.6 LTS
+Release:	20.04
+Codename:	focal
+
+===== Kernel =====
+Linux liu 5.15.0-139-generic #149~20.04.1-Ubuntu SMP Wed Apr 16 08:29:56 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+
+===== ROS =====
+ROS_DISTRO=noetic
+noetic
+1.17.4
+
+===== Gazebo / GZ =====
+Gazebo multi-robot simulator, version 11.15.1
+Copyright (C) 2012 Open Source Robotics Foundation.
+Released under the Apache 2 License.
+http://gazebosim.org
+
+
+Gazebo Sim, version 8.15.0
+Copyright (C) 2018 Open Source Robotics Foundation.
+Released under the Apache 2.0 License.
+
+The 'gz' command provides a command line interface to the Gazebo Tools.
+
+  gz <command> [options]
+
+List of available commands:
+
+  help:          Print this help text.
+  model:         Print information about models.
+  sim:           Run and manage the Gazebo Simulator.
+
+Options:
+
+  --force-version <VERSION>  Use a specific library version.
+  --versions                 Show the available versions.
+  --commands                 Show the available commands.
+Use 'gz help <command>' to print help for a command.
+
+===== CMake =====
+cmake version 3.27.9
+
+===== Python =====
+Python 3.8.10
+pip 20.0.2 from /usr/lib/python3/dist-packages/pip (python 3.8)
+
+===== GCC =====
+gcc (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0
+g++ (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0
+
+===== Git =====
+git version 2.25.1
