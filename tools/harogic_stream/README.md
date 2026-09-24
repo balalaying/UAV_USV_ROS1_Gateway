@@ -65,3 +65,43 @@ the sender, and stop the sender before opening SAStudio again.
 The native C++ collector is intentional: the vendor Python `ctypes` example is not
 ABI-stable with the currently installed SAN/SDK combination, while the vendor C++
 API completes continuous sweeps reliably.
+
+## ROS1 topic and rosbag
+
+The ROS publisher uses the standard `std_msgs/String` type so a bag can be replayed
+on any ROS1 Noetic system without installing a custom message package. Each message
+contains one complete compact JSON spectrum frame, including the timestamp,
+frequency range, RBW, temperature, peak, and `powers_dbm` array.
+
+Start the topic manually:
+
+```bash
+source /opt/ros/noetic/setup.bash
+roscore
+```
+
+In another terminal:
+
+```bash
+source /opt/ros/noetic/setup.bash
+python3 ros_spectrum_publisher.py
+```
+
+The topic is `/san60/spectrum` with type `std_msgs/String`. To automatically record
+approximately 500 MiB of real SAN-60 frames and stop cleanly:
+
+```bash
+./record_san60_bag.sh 500
+```
+
+Replay and inspect a recording:
+
+```bash
+source /opt/ros/noetic/setup.bash
+roscore
+rosbag play bags/san60_spectrum_YYYYMMDD_HHMMSS.bag
+rostopic echo /san60/spectrum
+```
+
+Only one application can own the USB analyzer. Close SAStudio and stop the TCP
+sender before starting the ROS publisher.

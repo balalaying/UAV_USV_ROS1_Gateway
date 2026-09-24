@@ -1,5 +1,5 @@
 <launch>
-  <env name="PYTHONPATH" value="/home/liu/gz_harmonic_ws/install/gz-msgs10/lib/python:/home/liu/gz_harmonic_ws/install/gz-transport13/lib/python:/home/liu/gz_harmonic_ws/install/gz-math7/lib/python:$(optenv PYTHONPATH)"/>
+  <env name="PYTHONPATH" value="$(env HOME)/gz_harmonic_ws/install/gz-msgs10/lib/python:$(env HOME)/gz_harmonic_ws/install/gz-transport13/lib/python:$(env HOME)/gz_harmonic_ws/install/gz-math7/lib/python:$(optenv PYTHONPATH)"/>
   <arg name="start_world" default="true"/>
   <arg name="start_ardupilot" default="true"/>
   <arg name="start_gui" default="true"/>

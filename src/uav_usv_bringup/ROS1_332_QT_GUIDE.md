@@ -14,7 +14,7 @@ ROS 1。运行时包含：
 在解压后的适配包根目录执行：
 
 ```bash
-bash install_into_repo.sh /home/liu/uav_usv_ros1_ws/src/UAV_USV
+bash install_into_repo.sh ~/uav_usv_ros1_ws/src/UAV_USV
 ```
 
 安装脚本只覆盖本适配涉及的包，并将原文件备份到仓库内带时间戳的目录。
@@ -22,7 +22,7 @@ bash install_into_repo.sh /home/liu/uav_usv_ros1_ws/src/UAV_USV
 ## 2. 编译
 
 ```bash
-cd /home/liu/uav_usv_ros1_ws
+cd ~/uav_usv_ros1_ws
 source /opt/ros/noetic/setup.bash
 catkin_make -j1 -l1 --pkg \
   uav_usv_interfaces \
@@ -64,7 +64,7 @@ ArduPilot 的大量输出不会刷屏，分别写入对应实例日志。
 
 ```bash
 source /opt/ros/noetic/setup.bash
-source /home/liu/uav_usv_ros1_ws/devel/setup.bash
+source ~/uav_usv_ros1_ws/devel/setup.bash
 rosrun uav_usv_bringup check_332_stack.sh
 ```
 

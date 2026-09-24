@@ -108,11 +108,11 @@ ros2 launch uav_usv_fleet_gateway mobile_fleet_demo.launch.py use_sim_time:=true
 hostname -I
 ```
 
-本机本次检测到的主要局域网地址为 `10.17.116.15`，因此本次测试地址为：
+本机本次检测到的主要局域网地址为 `<HOST_IP>`，因此本次测试地址为：
 
 ```text
-http://10.17.116.15:8080
-ws://10.17.116.15:8765/ws
+http://<HOST_IP>:8080
+ws://<HOST_IP>:8765/ws
 ```
 
 地址会随网络变化，演示时以启动日志和 `hostname -I` 为准。

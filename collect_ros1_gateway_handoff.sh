@@ -2,7 +2,7 @@
 set -u
 
 source /opt/ros/noetic/setup.bash
-source /home/liu/uav_usv_ros1_ws/devel/setup.bash
+source "$HOME/uav_usv_ros1_ws/devel/setup.bash"
 
 desktop_dir="$(xdg-user-dir DESKTOP 2>/dev/null)"
 [ -n "$desktop_dir" ] || desktop_dir="$HOME/Desktop"
@@ -33,7 +33,7 @@ echo "===== 0. 基本环境 ====="
 } > "$out/system_info.txt"
 
 echo "===== 1. Git / 工程版本 ====="
-repo="/home/liu/uav_usv_ros1_ws/src/UAV_USV"
+repo="$HOME/uav_usv_ros1_ws/src/UAV_USV"
 {
   echo "repo=$repo"
   echo
