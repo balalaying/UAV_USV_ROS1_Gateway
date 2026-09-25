@@ -67,6 +67,9 @@ from uav_usv_mission.lv_dot_debug_visualization import LvDotDebugModel
 from uav_usv_mission.lv_dot_debug_visualization import LvDotDebugWidget
 from uav_usv_mission.base_station_radar import RadarCanvas
 from uav_usv_mission.base_station_radar import transform_points_to_frame
+from uav_usv_mission.san60_spectrum import San60SpectrumModel
+from uav_usv_mission.san60_spectrum import San60SpectrumWidget
+from uav_usv_mission.san60_spectrum import validate_spectrum_frame
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 
@@ -178,6 +181,7 @@ class BaseStationGuiNode(Node):
             visualization_model or TopDownVisualizationModel()
         )
         self.lv_dot_debug_model = lv_dot_debug_model or LvDotDebugModel()
+        self.san60_spectrum_model = San60SpectrumModel()
         self.declare_parameter('capture_namespace', '')
         self.declare_parameter('defense_namespace', '')
         self.declare_parameter('defense_node_name', '/defense_sim_demo')
@@ -391,6 +395,16 @@ class BaseStationGuiNode(Node):
         topdown_qos = QoSProfile(depth=1)
         topdown_qos.reliability = ReliabilityPolicy.BEST_EFFORT
         topdown_qos.durability = DurabilityPolicy.VOLATILE
+        spectrum_qos = QoSProfile(depth=1)
+        spectrum_qos.reliability = ReliabilityPolicy.RELIABLE
+        spectrum_qos.durability = DurabilityPolicy.VOLATILE
+
+        self.create_subscription(
+            String,
+            '/san60/spectrum',
+            self._on_san60_spectrum,
+            spectrum_qos,
+        )
 
         namespaces = []
         for namespace in (
@@ -744,6 +758,18 @@ class BaseStationGuiNode(Node):
             )
             return
         self.signals.world_model.emit(model)
+
+    def _on_san60_spectrum(self, msg):
+        try:
+            frame = json.loads(msg.data)
+            frame = validate_spectrum_frame(frame)
+        except (TypeError, ValueError, OverflowError) as error:
+            self.get_logger().warning(
+                'Invalid SAN60 spectrum JSON: %s' % error,
+                throttle_duration_sec=5.0,
+            )
+            return
+        self.san60_spectrum_model.update(frame)
 
     def _on_base_station_state(self, msg):
         try:
@@ -2400,6 +2426,14 @@ class BaseStationWindow(QMainWindow):
         self._add_camera_group(
             perception_layout, '六路传感器画面（3 x 2）', 'sensor_camera'
         )
+        san60_group = QGroupBox('SAN60 实时频谱')
+        san60_layout = QVBoxLayout(san60_group)
+        san60_layout.setContentsMargins(8, 8, 8, 8)
+        self.san60_spectrum_widget = San60SpectrumWidget(
+            self.node.san60_spectrum_model
+        )
+        san60_layout.addWidget(self.san60_spectrum_widget)
+        perception_layout.addWidget(san60_group, 1)
 
         self._build_lv_dot_debug_panel(debug_layout)
         self._build_speed_control_tab(speed_layout)
