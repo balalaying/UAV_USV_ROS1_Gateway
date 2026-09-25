@@ -1,0 +1,38 @@
+<launch>
+
+    <arg name="vehicle_id" default="uav_01"/>
+    <arg name="device" default="/dev/video0"/>
+
+    <arg name="width" default="1280"/>
+    <arg name="height" default="720"/>
+    <arg name="fps" default="30"/>
+
+    <node pkg="usb_cam"
+          type="usb_cam_node"
+          name="camera_driver"
+          output="screen">
+
+        <param name="video_device"
+               value="$(arg device)"/>
+
+        <param name="image_width"
+               value="$(arg width)"/>
+
+        <param name="image_height"
+               value="$(arg height)"/>
+
+        <param name="framerate"
+               value="$(arg fps)"/>
+
+        <param name="pixel_format"
+               value="mjpeg"/>
+
+        <remap from="camera_driver/image_raw"
+               to="/fleet/uplink/$(arg vehicle_id)/camera/image_raw"/>
+
+        <remap from="camera_driver/camera_info"
+               to="/fleet/uplink/$(arg vehicle_id)/camera/camera_info"/>
+
+    </node>
+
+</launch>

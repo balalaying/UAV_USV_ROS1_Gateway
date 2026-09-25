@@ -90,6 +90,11 @@ class GzSensorBridge(Node):
             and any(token in topic.lower() for token in ('x500', 'mono_cam', '/model/uav_'))
         )
         for index, (vehicle_id, model_name) in enumerate(zip(uav_ids, uav_models)):
+            # Hybrid simulation: uav_01 uses the real USB camera.
+            if vehicle_id == 'uav_01':
+                self.get_logger().info(
+                    'Skip Gazebo camera bridge for uav_01: using real camera')
+                continue
             expected_image = (
                 '/world/%s/model/%s/link/camera_link/'
                 'sensor/camera/image' % (world_name, model_name)

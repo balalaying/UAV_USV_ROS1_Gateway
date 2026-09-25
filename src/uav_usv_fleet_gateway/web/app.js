@@ -307,6 +307,6 @@ el("disconnectButton").onclick=()=>disconnect(true);
 el("snapshotButton").onclick=()=>send("request_snapshot");
 window.addEventListener("beforeunload",()=>disconnect(true));
 setInterval(updateSummary,500);
-const saved=localStorage.getItem("fleetRelayUrl");if(saved)el("wsUrl").value=saved;
+const saved=localStorage.getItem("fleetRelayUrl");if(saved&&!query.get("ws"))el("wsUrl").value=saved;
 connect();
 requestAnimationFrame(draw);

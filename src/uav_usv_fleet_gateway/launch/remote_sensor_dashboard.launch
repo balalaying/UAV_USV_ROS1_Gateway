@@ -1,5 +1,26 @@
+
 <launch>
+
   <include file="$(find uav_usv_fleet_gateway)/launch/mobile_fleet_demo.launch"/>
-  <node pkg="uav_usv_fleet_gateway" type="fleet_sensor_stream_adapter"
-        name="fleet_sensor_stream_adapter" output="screen"/>
+
+  <node pkg="uav_usv_fleet_gateway"
+        type="fleet_sensor_stream_adapter"
+        name="fleet_sensor_stream_adapter"
+        output="screen">
+
+    <!-- 1 REAL + 5 GZ camera streams -->
+    <rosparam param="camera_streams">
+      - "usv_01|usv_01_front|/fleet/uplink/usv_01/camera"
+      - "usv_02|usv_02_front|/fleet/uplink/usv_02/camera"
+      - "usv_03|usv_03_front|/fleet/uplink/usv_03/camera"
+      - "uav_01|uav_01_down|/fleet/uplink/uav_01/camera/image_raw"
+      - "uav_02|uav_02_down|/fleet/uplink/uav_02/camera/image_raw"
+      - "uav_03|uav_03_down|/fleet/uplink/uav_03/camera/image_raw"
+    </rosparam>
+
+    <!-- 当前先只验证六路相机，暂时关闭点云网页转发 -->
+    <rosparam param="pointcloud_streams">[]</rosparam>
+
+  </node>
+
 </launch>
