@@ -3,17 +3,32 @@
 
 import argparse
 import datetime
+import json
+import os
 import queue
 import socket
 import threading
 import time
 import tkinter as tk
 
+import rosgraph
+import rospy
+from std_msgs.msg import String
+
 from protocol import ProtocolError, recv_frame
 
 
 class SpectrumServer(threading.Thread):
-    def __init__(self, host, port, allow_source, output_queue, status_queue, stop_event):
+    def __init__(
+        self,
+        host,
+        port,
+        allow_source,
+        output_queue,
+        status_queue,
+        stop_event,
+        ros_publisher,
+    ):
         super().__init__(daemon=True)
         self.host = host
         self.port = port
@@ -21,6 +36,7 @@ class SpectrumServer(threading.Thread):
         self.output_queue = output_queue
         self.status_queue = status_queue
         self.stop_event = stop_event
+        self.ros_publisher = ros_publisher
         self.server_socket = None
 
     @staticmethod
@@ -69,6 +85,11 @@ class SpectrumServer(threading.Thread):
                         message, byte_count = recv_frame(client)
                     except socket.timeout:
                         continue
+                    try:
+                        payload = json.dumps(message, separators=(",", ":"))
+                        self.ros_publisher.publish(String(data=payload))
+                    except (TypeError, ValueError, rospy.ROSException) as exc:
+                        self.status("ROS 发布失败: {}".format(exc))
                     message["_wire_bytes"] = byte_count
                     message["_received_at"] = time.time()
                     self._replace_queue(self.output_queue, message)
@@ -92,7 +113,7 @@ class SpectrumWindow:
     TRACE = "#22d3ee"
     PEAK = "#fb7185"
 
-    def __init__(self, args):
+    def __init__(self, args, ros_publisher):
         self.args = args
         self.root = tk.Tk()
         self.root.title(args.window_title)
@@ -135,6 +156,7 @@ class SpectrumWindow:
             self.frames,
             self.statuses,
             self.stop_event,
+            ros_publisher,
         )
         self.last_frame_time = None
         self.smoothed_fps = 0.0
@@ -301,7 +323,28 @@ def main():
     args = parse_args()
     if args.min_dbm >= args.max_dbm:
         raise SystemExit("min-dbm must be lower than max-dbm")
-    SpectrumWindow(args).run()
+    old_timeout = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(2.0)
+    try:
+        master_online = rosgraph.is_master_online()
+    finally:
+        socket.setdefaulttimeout(old_timeout)
+    if not master_online:
+        master_uri = os.environ.get("ROS_MASTER_URI", "http://localhost:11311")
+        raise SystemExit(
+            "ROS master 不可用: {}；请先启动 roscore".format(master_uri)
+        )
+    try:
+        rospy.init_node("san60_spectrum_receiver")
+        ros_publisher = rospy.Publisher(
+            "/san60/spectrum", String, queue_size=1
+        )
+    except Exception as exc:
+        raise SystemExit("ROS 初始化失败: {}".format(exc)) from exc
+    try:
+        SpectrumWindow(args, ros_publisher).run()
+    finally:
+        rospy.signal_shutdown("spectrum receiver stopped")
 
 
 if __name__ == "__main__":
