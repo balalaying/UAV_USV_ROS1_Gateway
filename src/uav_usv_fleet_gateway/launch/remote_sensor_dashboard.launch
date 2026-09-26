@@ -1,6 +1,13 @@
 
 <launch>
 
+  <arg name="san60_enabled" default="true"/>
+  <arg name="san60_topic" default="/san60/spectrum"/>
+  <arg name="san60_rate_hz" default="10.0"/>
+  <arg name="san60_vehicle_id" default="uav_01"/>
+  <arg name="san60_sensor_id" default="san60"/>
+  <arg name="san60_stream_id" default="uav_01_san60"/>
+
   <include file="$(find uav_usv_fleet_gateway)/launch/mobile_fleet_demo.launch"/>
 
   <node pkg="uav_usv_fleet_gateway"
@@ -20,6 +27,14 @@
 
     <!-- 当前先只验证六路相机，暂时关闭点云网页转发 -->
     <rosparam param="pointcloud_streams">[]</rosparam>
+
+    <!-- SAN60 local ROS stream is reduced from about 100 Hz to 10 Hz here. -->
+    <param name="san60_enabled" value="$(arg san60_enabled)"/>
+    <param name="san60_topic" value="$(arg san60_topic)"/>
+    <param name="san60_rate_hz" value="$(arg san60_rate_hz)"/>
+    <param name="san60_vehicle_id" value="$(arg san60_vehicle_id)"/>
+    <param name="san60_sensor_id" value="$(arg san60_sensor_id)"/>
+    <param name="san60_stream_id" value="$(arg san60_stream_id)"/>
 
   </node>
 

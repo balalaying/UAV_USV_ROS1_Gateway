@@ -4,6 +4,7 @@
 import base64
 from collections import defaultdict
 import json
+import math
 import time
 
 import cv2
@@ -162,6 +163,64 @@ def parse_stream_spec(spec):
     return tuple(parts)
 
 
+SAN60_REQUIRED_FIELDS = (
+    'captured_at',
+    'start_hz',
+    'stop_hz',
+    'bin_hz',
+    'rbw_hz',
+    'temperature_c',
+    'peak_hz',
+    'peak_dbm',
+    'powers_dbm',
+    'sequence',
+)
+
+
+def _finite_number(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except (OverflowError, TypeError, ValueError):
+        return False
+
+
+def spectrum_payload(message_data, vehicle_id, sensor_id, stream_id):
+    """Validate a SAN60 JSON frame and add gateway stream identifiers."""
+    payload = json.loads(message_data)
+    if not isinstance(payload, dict):
+        raise ValueError('SAN60 payload must be a JSON object')
+    if payload.get('type') != 'spectrum':
+        raise ValueError('SAN60 type must be spectrum')
+    missing = [field for field in SAN60_REQUIRED_FIELDS
+               if field not in payload]
+    if missing:
+        raise ValueError('SAN60 missing fields: %s' % ','.join(missing))
+
+    powers = payload['powers_dbm']
+    if not isinstance(powers, list) or not powers:
+        raise ValueError('SAN60 powers_dbm must be a non-empty list')
+    if not all(_finite_number(value) for value in powers):
+        raise ValueError('SAN60 powers_dbm must contain finite numbers')
+    for field in ('start_hz', 'stop_hz', 'peak_hz', 'peak_dbm'):
+        if not _finite_number(payload[field]):
+            raise ValueError('SAN60 %s must be finite' % field)
+    if not _finite_number(payload['bin_hz']) or payload['bin_hz'] <= 0:
+        raise ValueError('SAN60 bin_hz must be positive')
+    if payload['stop_hz'] < payload['start_hz']:
+        raise ValueError('SAN60 stop_hz must not be below start_hz')
+
+    adapted = dict(payload)
+    adapted.update({
+        'message_type': 'spectrum_frame',
+        'vehicle_id': str(vehicle_id),
+        'sensor_id': str(sensor_id),
+        'stream_id': str(stream_id),
+    })
+    return adapted
+
+
 class SensorStreamAdapter(Node):
     def __init__(self):
         super().__init__('fleet_sensor_stream_adapter')
@@ -172,6 +231,12 @@ class SensorStreamAdapter(Node):
         self.declare_parameter('jpeg_quality', 72)
         self.declare_parameter('camera_max_width', 720)
         self.declare_parameter('pointcloud_max_points', 12000)
+        self.declare_parameter('san60_enabled', True)
+        self.declare_parameter('san60_topic', '/san60/spectrum')
+        self.declare_parameter('san60_rate_hz', 10.0)
+        self.declare_parameter('san60_vehicle_id', '')
+        self.declare_parameter('san60_sensor_id', 'san60')
+        self.declare_parameter('san60_stream_id', '')
         self.declare_parameter('camera_streams', [
             'usv_01|usv_01_front|/perception/usv_01/camera/detections/image',
             'usv_02|usv_02_front|/perception/usv_02/camera/detections/image',
@@ -200,7 +265,19 @@ class SensorStreamAdapter(Node):
                 self.get_parameter('pointcloud_rate_hz').value)),
             'bbox': max(0.1, float(
                 self.get_parameter('bbox_rate_hz').value)),
+            'san60': max(0.1, float(
+                self.get_parameter('san60_rate_hz').value)),
         }
+        self.san60_enabled = bool(
+            self.get_parameter('san60_enabled').value)
+        self.san60_topic = str(
+            self.get_parameter('san60_topic').value)
+        self.san60_vehicle_id = str(
+            self.get_parameter('san60_vehicle_id').value)
+        self.san60_sensor_id = str(
+            self.get_parameter('san60_sensor_id').value)
+        self.san60_stream_id = str(
+            self.get_parameter('san60_stream_id').value)
         self.jpeg_quality = min(95, max(
             25, int(self.get_parameter('jpeg_quality').value)))
         self.camera_max_width = max(
@@ -244,12 +321,32 @@ class SensorStreamAdapter(Node):
                 lambda msg, v=vehicle_id, s=stream_id:
                 self._markers(msg, v, s),
                 qos_profile_sensor_data))
+        san60_active = False
+        if self.san60_enabled:
+            missing = [name for name, value in (
+                ('san60_topic', self.san60_topic),
+                ('san60_vehicle_id', self.san60_vehicle_id),
+                ('san60_sensor_id', self.san60_sensor_id),
+                ('san60_stream_id', self.san60_stream_id),
+            ) if not value]
+            if missing:
+                self.get_logger().warning(
+                    'SAN60 stream disabled; empty parameters: %s'
+                    % ','.join(missing),
+                    throttle_duration_sec=5.0)
+            else:
+                self._stream_subscriptions.append(self.create_subscription(
+                    String, self.san60_topic, self._spectrum,
+                    qos_profile_sensor_data))
+                san60_active = True
         self.get_logger().info(
-            'Sensor web streams: %d cameras, %d clouds, %d bbox topics'
+            'Sensor web streams: %d cameras, %d clouds, %d bbox topics, '
+            'SAN60 %s'
             % (
                 len(self.get_parameter('camera_streams').value),
                 len(self.get_parameter('pointcloud_streams').value),
                 len(self.get_parameter('bbox_streams').value),
+                'enabled' if san60_active else 'disabled',
             ))
 
     def _camera(self, message, vehicle_id, stream_id):
@@ -274,6 +371,23 @@ class SensorStreamAdapter(Node):
     def _markers(self, message, vehicle_id, stream_id):
         if self._ready('bbox', stream_id):
             self._publish(marker_payload(message, vehicle_id, stream_id))
+
+    def _spectrum(self, message):
+        if not self._ready('san60', self.san60_stream_id):
+            return
+        try:
+            payload = spectrum_payload(
+                message.data,
+                self.san60_vehicle_id,
+                self.san60_sensor_id,
+                self.san60_stream_id,
+            )
+            self._publish(payload)
+        except (json.JSONDecodeError, OverflowError, TypeError, ValueError) \
+                as error:
+            self.get_logger().warning(
+                'SAN60 stream frame dropped: %s' % error,
+                throttle_duration_sec=5.0)
 
 
 def main(args=None):
