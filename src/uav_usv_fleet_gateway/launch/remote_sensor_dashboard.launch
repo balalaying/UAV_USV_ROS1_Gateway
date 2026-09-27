@@ -25,8 +25,12 @@
       - "uav_03|uav_03_down|/fleet/uplink/uav_03/camera/image_raw"
     </rosparam>
 
-    <!-- 当前先只验证六路相机，暂时关闭点云网页转发 -->
-    <rosparam param="pointcloud_streams">[]</rosparam>
+    <!-- First-stage MID360 backend integration: usv_01 map-frame cloud only. -->
+    <rosparam param="pointcloud_streams">
+      - "usv_01|usv_01_mid360|/perception/visualization/usv_01/topdown_points"
+    </rosparam>
+    <param name="pointcloud_rate_hz" value="5.0"/>
+    <param name="pointcloud_max_points" value="5000"/>
 
     <!-- SAN60 local ROS stream is reduced from about 100 Hz to 10 Hz here. -->
     <param name="san60_enabled" value="$(arg san60_enabled)"/>

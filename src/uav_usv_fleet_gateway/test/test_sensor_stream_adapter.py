@@ -6,12 +6,19 @@ import struct
 from types import SimpleNamespace as NS
 
 import pytest
+import rospy
+from sensor_msgs import point_cloud2
+from sensor_msgs.msg import Image
+from sensor_msgs.msg import PointField
+from std_msgs.msg import Header
 
 import uav_usv_fleet_gateway.sensor_stream_adapter as adapter_module
 from uav_usv_fleet_gateway.gateway_node import FleetGatewayNode
 from uav_usv_fleet_gateway.protocol import ProtocolEncoder
 from uav_usv_fleet_gateway.rate_limiter import LatestValueStore
 from uav_usv_fleet_gateway.sensor_stream_adapter import SensorStreamAdapter
+from uav_usv_fleet_gateway.sensor_stream_adapter import cloud_payload
+from uav_usv_fleet_gateway.sensor_stream_adapter import encode_camera_payload
 from uav_usv_fleet_gateway.sensor_stream_adapter import spectrum_payload
 from uav_usv_fleet_gateway.websocket_server import FleetWebSocketServer
 
@@ -36,6 +43,106 @@ def _frame(sequence=100):
 def _adapt(frame):
     return spectrum_payload(
         json.dumps(frame), 'uav_01', 'san60', 'uav_01_san60')
+
+
+def _cloud(points, frame_id='map'):
+    header = Header(
+        stamp=rospy.Time.from_sec(1234567890.123),
+        frame_id=frame_id,
+    )
+    return point_cloud2.create_cloud_xyz32(header, points)
+
+
+def _adapt_cloud(points, maximum=5000):
+    return cloud_payload(
+        _cloud(points), 'usv_01', 'usv_01_mid360', maximum)
+
+
+def test_pointcloud_payload_preserves_identity_and_flattens_xyz():
+    payload = _adapt_cloud([
+        (1.1234, 2.2344, 0.5004),
+        (1.2234, 2.3344, 0.5104),
+    ])
+
+    assert payload['message_type'] == 'pointcloud_frame'
+    assert payload['stream_id'] == 'usv_01_mid360'
+    assert payload['vehicle_id'] == 'usv_01'
+    assert payload['frame_id'] == 'map'
+    assert payload['timestamp'] == pytest.approx(1234567890.123)
+    assert payload['point_count'] == 2
+    assert payload['xyz'] == [
+        1.123, 2.234, 0.5,
+        1.223, 2.334, 0.51,
+    ]
+    assert len(payload['xyz']) == payload['point_count'] * 3
+
+
+def test_pointcloud_payload_skips_nan_and_inf():
+    payload = _adapt_cloud([
+        (1.0, 2.0, 3.0),
+        (float('nan'), 4.0, 5.0),
+        (6.0, float('inf'), 7.0),
+        (8.0, 9.0, 10.0),
+    ])
+
+    assert payload['point_count'] == 2
+    assert payload['xyz'] == [1.0, 2.0, 3.0, 8.0, 9.0, 10.0]
+    assert len(payload['xyz']) == payload['point_count'] * 3
+
+
+def test_pointcloud_payload_accepts_empty_cloud():
+    payload = _adapt_cloud([])
+
+    assert payload['point_count'] == 0
+    assert payload['xyz'] == []
+
+
+def test_pointcloud_payload_rejects_missing_xyz_field():
+    header = Header(frame_id='map')
+    fields = [
+        PointField('x', 0, PointField.FLOAT32, 1),
+        PointField('y', 4, PointField.FLOAT32, 1),
+    ]
+    message = point_cloud2.create_cloud(header, fields, [(1.0, 2.0)])
+
+    with pytest.raises(ValueError, match='missing fields: z'):
+        cloud_payload(message, 'usv_01', 'usv_01_mid360', 5000)
+
+
+def test_pointcloud_payload_limits_points_with_even_sampling():
+    payload = _adapt_cloud(
+        [(float(index), index + 0.1, index + 0.2) for index in range(9)],
+        maximum=3,
+    )
+
+    assert payload['point_count'] == 3
+    assert len(payload['xyz']) == payload['point_count'] * 3
+    assert payload['xyz'] == [
+        0.0, 0.1, 0.2,
+        4.0, 4.1, 4.2,
+        8.0, 8.1, 8.2,
+    ]
+
+
+def test_camera_payload_regression_keeps_camera_frame():
+    image = Image()
+    image.header = Header(frame_id='usv_01/camera_link')
+    image.height = 1
+    image.width = 2
+    image.encoding = 'bgr8'
+    image.step = 6
+    image.data = bytes([0, 0, 255, 0, 255, 0])
+
+    payload = encode_camera_payload(
+        image, 'usv_01', 'usv_01_front', quality=72, max_width=720)
+
+    assert payload['message_type'] == 'camera_frame'
+    assert payload['vehicle_id'] == 'usv_01'
+    assert payload['stream_id'] == 'usv_01_front'
+    assert payload['encoding'] == 'image/jpeg'
+    assert payload['width'] == 2
+    assert payload['height'] == 1
+    assert payload['data_base64']
 
 
 def test_spectrum_payload_preserves_frame_and_adds_stream_identity():
@@ -82,15 +189,53 @@ class _Logger:
 def _callback_adapter():
     adapter = SensorStreamAdapter.__new__(SensorStreamAdapter)
     adapter.last_publish = adapter_module.defaultdict(float)
-    adapter.rates = {'san60': 10.0}
+    adapter.rates = {'pointcloud': 5.0, 'san60': 10.0}
     adapter.san60_vehicle_id = 'uav_01'
     adapter.san60_sensor_id = 'san60'
     adapter.san60_stream_id = 'uav_01_san60'
+    adapter.pointcloud_max_points = 5000
     adapter.published = []
     adapter.logger = _Logger()
     adapter._publish = adapter.published.append
     adapter.get_logger = lambda: adapter.logger
     return adapter
+
+
+def test_pointcloud_callback_drops_malformed_frame_without_raising():
+    adapter = _callback_adapter()
+    fields = [
+        PointField('x', 0, PointField.FLOAT32, 1),
+        PointField('y', 4, PointField.FLOAT32, 1),
+    ]
+    malformed = point_cloud2.create_cloud(
+        Header(frame_id='map'), fields, [(1.0, 2.0)])
+
+    adapter._cloud(malformed, 'usv_01', 'usv_01_mid360')
+
+    assert adapter.published == []
+    assert len(adapter.logger.warnings) == 1
+    assert 'missing fields: z' in adapter.logger.warnings[0][0]
+    assert adapter.logger.warnings[0][1] == {
+        'throttle_duration_sec': 5.0,
+    }
+
+
+def test_pointcloud_callback_drops_read_error_without_raising(monkeypatch):
+    adapter = _callback_adapter()
+
+    def fail_read(*_args, **_kwargs):
+        raise RuntimeError('damaged cloud')
+
+    monkeypatch.setattr(adapter_module.point_cloud2, 'read_points', fail_read)
+    adapter._cloud(
+        _cloud([(1.0, 2.0, 3.0)]), 'usv_01', 'usv_01_mid360')
+
+    assert adapter.published == []
+    assert len(adapter.logger.warnings) == 1
+    assert (
+        'PointCloud2 read failed: damaged cloud'
+        in adapter.logger.warnings[0][0]
+    )
 
 
 def test_spectrum_callback_limits_100_hz_input_to_about_10_hz(monkeypatch):
@@ -129,6 +274,34 @@ class _Health:
         self.counts[name] = self.counts.get(name, 0) + 1
 
 
+
+
+def test_gateway_caches_pointcloud_and_builds_outer_envelope():
+    gateway = FleetGatewayNode.__new__(FleetGatewayNode)
+    gateway.latest_sensor_streams = LatestValueStore()
+    gateway.health = _Health()
+    pointcloud = _adapt_cloud([(1.0, 2.0, 3.0)])
+
+    gateway._on_sensor_stream(NS(data=json.dumps(pointcloud)))
+
+    key = 'pointcloud_frame:usv_01_mid360'
+    assert list(gateway.latest_sensor_streams._values) == [key]
+    cached = gateway.latest_sensor_streams.values()[0]
+    assert cached['message_type'] == 'pointcloud_frame'
+    assert cached['data']['frame_id'] == 'map'
+    assert cached['data']['xyz'] == [1.0, 2.0, 3.0]
+    assert 'message_type' not in cached['data']
+
+    protocol = ProtocolEncoder(time_provider=lambda: 12.5)
+    sent = []
+    gateway._broadcast = lambda message_type, data, priority=0: sent.append(
+        protocol.envelope(message_type, data))
+    gateway._broadcast_sensor_streams()
+
+    assert sent[0]['schema_version'] == '1.0'
+    assert sent[0]['message_type'] == 'pointcloud_frame'
+    assert sent[0]['data']['stream_id'] == 'usv_01_mid360'
+    assert sent[0]['data']['vehicle_id'] == 'usv_01'
 def test_gateway_caches_latest_spectrum_and_builds_outer_envelope():
     gateway = FleetGatewayNode.__new__(FleetGatewayNode)
     gateway.latest_sensor_streams = LatestValueStore()

@@ -83,9 +83,22 @@ def encode_camera_payload(message, vehicle_id, stream_id, quality, max_width):
 
 
 def cloud_payload(message, vehicle_id, stream_id, maximum):
-    values = point_cloud2.read_points_numpy(
-        message, field_names=['x', 'y', 'z'], skip_nans=True)
-    points = np.asarray(values, dtype=np.float32).reshape((-1, 3))
+    field_names = {str(field.name) for field in message.fields}
+    missing = [name for name in ('x', 'y', 'z') if name not in field_names]
+    if missing:
+        raise ValueError(
+            'PointCloud2 missing fields: %s' % ','.join(missing))
+
+    try:
+        values = list(point_cloud2.read_points(
+            message, field_names=('x', 'y', 'z'), skip_nans=True))
+    except Exception as error:
+        raise ValueError('PointCloud2 read failed: %s' % error) from error
+
+    if values:
+        points = np.asarray(values, dtype=np.float32).reshape((-1, 3))
+    else:
+        points = np.empty((0, 3), dtype=np.float32)
     points = points[np.isfinite(points).all(axis=1)]
     if maximum > 0 and len(points) > maximum:
         indices = np.linspace(0, len(points) - 1, maximum, dtype=np.int64)
@@ -97,7 +110,7 @@ def cloud_payload(message, vehicle_id, stream_id, maximum):
         'frame_id': str(message.header.frame_id),
         'timestamp': stamp_seconds(message.header.stamp),
         'point_count': int(len(points)),
-        'xyz': points.reshape(-1).round(3).tolist(),
+        'xyz': [round(float(value), 3) for value in points.reshape(-1)],
     }
 
 
@@ -226,11 +239,11 @@ class SensorStreamAdapter(Node):
         super().__init__('fleet_sensor_stream_adapter')
         self.declare_parameter('output_topic', '/fleet/gateway/sensor_stream')
         self.declare_parameter('camera_rate_hz', 8.0)
-        self.declare_parameter('pointcloud_rate_hz', 8.0)
+        self.declare_parameter('pointcloud_rate_hz', 5.0)
         self.declare_parameter('bbox_rate_hz', 10.0)
         self.declare_parameter('jpeg_quality', 72)
         self.declare_parameter('camera_max_width', 720)
-        self.declare_parameter('pointcloud_max_points', 12000)
+        self.declare_parameter('pointcloud_max_points', 5000)
         self.declare_parameter('san60_enabled', True)
         self.declare_parameter('san60_topic', '/san60/spectrum')
         self.declare_parameter('san60_rate_hz', 10.0)
@@ -365,8 +378,10 @@ class SensorStreamAdapter(Node):
         try:
             self._publish(cloud_payload(
                 message, vehicle_id, stream_id, self.pointcloud_max_points))
-        except (AssertionError, KeyError, TypeError, ValueError) as error:
-            self.get_logger().warning('Point cloud stream failed: %s' % error)
+        except Exception as error:
+            self.get_logger().warning(
+                'Point cloud stream failed: %s' % error,
+                throttle_duration_sec=5.0)
 
     def _markers(self, message, vehicle_id, stream_id):
         if self._ready('bbox', stream_id):
