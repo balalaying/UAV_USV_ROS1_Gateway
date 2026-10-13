@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/p/yolo_env/bin/python
 """Detect simulation vessels in a USV camera stream without control output."""
 
 import json
@@ -6,6 +6,10 @@ import math
 from pathlib import Path
 import sys
 import time
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parent)
+)
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -263,25 +267,44 @@ def detect_affiliated_candidates(
 
 def make_detection(message, rectangle, detection_id):
     left, top, right, bottom, score = rectangle
-    detection = Detection2D()
-    detection.header = message.header
-    detection.id = 'camera_vessel_%03d' % detection_id
-    detection.bbox.center.position.x = 0.5 * (left + right)
-    detection.bbox.center.position.y = 0.5 * (top + bottom)
-    detection.bbox.size_x = float(max(1, right - left))
-    detection.bbox.size_y = float(max(1, bottom - top))
-    hypothesis = ObjectHypothesisWithPose()
-    hypothesis.hypothesis.class_id = 'vessel'
-    hypothesis.hypothesis.score = float(score)
-    detection.results.append(hypothesis)
-    return detection
 
+    detection = Detection2D()
+
+    detection.header = message.header
+
+    detection.bbox.center.x = (
+        0.5 * (left + right)
+    )
+
+    detection.bbox.center.y = (
+        0.5 * (top + bottom)
+    )
+
+    detection.bbox.size_x = float(
+        max(1, right-left)
+    )
+
+    detection.bbox.size_y = float(
+        max(1, bottom-top)
+    )
+
+    hypothesis = ObjectHypothesisWithPose()
+
+    hypothesis.id = 1
+
+    hypothesis.score = float(score)
+
+    detection.results.append(
+        hypothesis
+    )
+
+    return detection
+   
 
 def affiliated_message(header, candidate, detection_id, affiliation, confidence):
     left, top, right, bottom = candidate.rectangle
     output = AffiliatedDetection2D()
     output.header = header
-    output.detection_id = detection_id
     output.center_x = 0.5 * (left + right)
     output.center_y = 0.5 * (top + bottom)
     output.size_x = float(max(1, right - left))
@@ -297,7 +320,7 @@ class UsvCameraDetectionNode(Node):
     def __init__(self):
         super().__init__('usv_camera_detection_node')
         self.declare_parameter(
-            'image_topic', '/fleet/uplink/usv_01/camera/image_raw'
+            'image_topic', '/fleet/uplink/usv_01/camera'
         )
         self.declare_parameter(
             'detections_topic', '/perception/usv_01/camera/detections'
@@ -351,12 +374,33 @@ class UsvCameraDetectionNode(Node):
         self.visual_track_gate = float(
             self.get_parameter('visual_track_pixel_gate').value
         )
-        backend_name = str(self.get_parameter('detector_backend').value)
-        if backend_name != 'simulation_marker':
-            raise RuntimeError('unsupported detector_backend: ' + backend_name)
-        self.backend = SimulationMarkerDetectorBackend(
-            self.min_pixels, self.padding, self.maximum_center_y_ratio
+        backend_name = str(
+            self.get_parameter('detector_backend').value
         )
+
+        if backend_name == 'simulation_marker':
+
+            self.backend = SimulationMarkerDetectorBackend(
+                self.min_pixels,
+                self.padding,
+                self.maximum_center_y_ratio
+            )
+
+
+        elif backend_name == 'yolo':
+
+            from yolo_backend import YoloDetectorBackend
+
+            self.backend = YoloDetectorBackend()
+
+
+        else:
+
+            raise RuntimeError(
+                'unsupported detector_backend: ' + backend_name
+            )
+
+       
         self.affiliation_filter = AffiliationTemporalFilter(
             history_size=int(self.get_parameter('affiliation_history_size').value),
             confirmation_frames=int(self.get_parameter(
@@ -462,7 +506,6 @@ class UsvCameraDetectionNode(Node):
                 affiliation_confidence = candidate.affiliation_confidence
             rectangle = (*candidate.rectangle, candidate.class_confidence)
             detection = make_detection(message, rectangle, 0)
-            detection.id = detection_id
             output.detections.append(detection)
             metadata.detections.append(affiliated_message(
                 message.header, candidate, detection_id,
